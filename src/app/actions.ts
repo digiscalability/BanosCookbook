@@ -8,7 +8,10 @@ import {
   extractRecipeFromImage,
   type RecipeFromImageOutput,
 } from '@/ai/flows/recipe-from-image';
-
+import {
+  extractRecipesFromPdf,
+  type RecipesFromPdfOutput,
+} from '@/ai/flows/recipes-from-pdf';
 
 export async function getNutritionalData(
   ingredients: string[]
@@ -59,6 +62,32 @@ export async function extractRecipeDataFromImage(
     return {
       success: false,
       error: 'Failed to extract recipe from image. Please try again later.',
+    };
+  }
+}
+
+export async function extractRecipeDataFromPdf(
+  pdfDataUri: string
+): Promise<{
+  success: boolean;
+  data?: RecipesFromPdfOutput;
+  error?: string;
+}> {
+  try {
+    if (!pdfDataUri) {
+      return { success: false, error: 'No PDF provided.' };
+    }
+
+    const extractedData = await extractRecipesFromPdf({
+      pdfDataUri,
+    });
+
+    return { success: true, data: extractedData };
+  } catch (error) {
+    console.error('Error extracting recipes from PDF:', error);
+    return {
+      success: false,
+      error: 'Failed to extract recipes from PDF. Please try again later.',
     };
   }
 }

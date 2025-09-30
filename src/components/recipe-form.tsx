@@ -15,11 +15,28 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
-import { extractRecipeDataFromImage } from '@/app/actions';
+import { Loader2, Sparkles, FileText, Upload } from 'lucide-react';
+import {
+  extractRecipeDataFromImage,
+  extractRecipeDataFromPdf,
+} from '@/app/actions';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import type { ExtractedRecipe } from '@/ai/flows/recipes-from-pdf';
 
 const recipeFormSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters.'),
@@ -35,6 +52,7 @@ const recipeFormSchema = z.object({
   servings: z.coerce.number().min(1, 'Servings must be at least 1.'),
   cuisine: z.string().min(2, 'Cuisine is required.'),
   photo: z.any().optional(),
+  pdf: z.any().optional(),
 });
 
 type RecipeFormValues = z.infer<typeof recipeFormSchema>;
@@ -42,6 +60,10 @@ type RecipeFormValues = z.infer<typeof recipeFormSchema>;
 export default function RecipeForm() {
   const { toast } = useToast();
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedPdfRecipes, setExtractedPdfRecipes] = useState<
+    ExtractedRecipe[]
+  >([]);
+  const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
 
   const form = useForm<RecipeFormValues>({
     resolver: zodResolver(recipeFormSchema),
@@ -66,7 +88,7 @@ export default function RecipeForm() {
     form.reset();
   }
 
-  const handleFileChange = async (
+  const handleImageFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
@@ -114,21 +136,89 @@ export default function RecipeForm() {
           variant: 'destructive',
           title: 'Oh no! Something went wrong.',
           description:
-            result.error ||
-            'Could not extract recipe data from the image.',
+            result.error || 'Could not extract recipe data from the image.',
         });
       }
       setIsExtracting(false);
     };
-    reader.onerror = (error) => {
-        console.error('Error reading file:', error);
-        toast({
+    reader.onerror = error => {
+      console.error('Error reading file:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error reading file',
+        description: 'Could not read the selected image file.',
+      });
+      setIsExtracting(false);
+    };
+  };
+
+  const handlePdfFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsExtracting(true);
+    toast({
+      title: 'Reading your PDF...',
+      description:
+        'The AI is analyzing the file. This might take a few moments.',
+    });
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      const pdfDataUri = reader.result as string;
+      const result = await extractRecipeDataFromPdf(pdfDataUri);
+
+      if (result.success && result.data?.recipes) {
+        if (result.data.recipes.length > 0) {
+          setExtractedPdfRecipes(result.data.recipes);
+          setIsPdfDialogOpen(true);
+        } else {
+          toast({
             variant: 'destructive',
-            title: 'Error reading file',
-            description: 'Could not read the selected image file.'
+            title: 'No Recipes Found',
+            description: 'The AI could not find any recipes in this PDF.',
+          });
+        }
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Oh no! Something went wrong.',
+          description: result.error || 'Could not extract recipes from the PDF.',
         });
-        setIsExtracting(false);
-    }
+      }
+
+      setIsExtracting(false);
+    };
+    reader.onerror = error => {
+      console.error('Error reading file:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error reading file',
+        description: 'Could not read the selected PDF file.',
+      });
+      setIsExtracting(false);
+    };
+  };
+
+  const handleSelectPdfRecipe = (recipe: ExtractedRecipe) => {
+    form.reset({
+      title: recipe.title,
+      description: recipe.description,
+      ingredients: recipe.ingredients,
+      instructions: recipe.instructions,
+      prepTime: recipe.prepTime,
+      cookTime: recipe.cookTime,
+      servings: recipe.servings,
+      cuisine: recipe.cuisine,
+    });
+    setIsPdfDialogOpen(false);
+    toast({
+      title: 'Recipe data populated!',
+      description: 'The form has been pre-filled. Please review and submit.',
+    });
   };
 
   return (
@@ -136,51 +226,87 @@ export default function RecipeForm() {
       <CardContent className="p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="photo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Recipe Photo</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        disabled={isExtracting}
-                        className="pr-40"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="absolute top-1/2 right-1 -translate-y-1/2"
-                        onClick={() =>
-                          document
-                            .querySelector<HTMLInputElement>(
-                              'input[type="file"]'
-                            )
-                            ?.click()
-                        }
-                        disabled={isExtracting}
-                      >
-                        {isExtracting ? (
-                          <Loader2 className="mr-2 animate-spin" />
-                        ) : (
-                          <Sparkles className="mr-2" />
-                        )}
-                        {isExtracting ? 'Reading...' : 'Auto-fill from Photo'}
-                      </Button>
-                    </div>
-                  </FormControl>
-                  <FormDescription>
-                    Upload a photo of your handwritten recipe to auto-fill the
-                    form.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="photo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Recipe Photo</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="file"
+                          id="photo-upload"
+                          accept="image/*"
+                          onChange={handleImageFileChange}
+                          disabled={isExtracting}
+                          className="hidden"
+                        />
+                         <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => document.getElementById('photo-upload')?.click()}
+                          disabled={isExtracting}
+                        >
+                          {isExtracting ? (
+                            <Loader2 className="mr-2 animate-spin" />
+                          ) : (
+                            <Sparkles className="mr-2" />
+                          )}
+                          {isExtracting ? 'Reading...' : 'Auto-fill from Photo'}
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Upload a photo of one handwritten recipe.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="pdf"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Recipe PDF</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="file"
+                          id="pdf-upload"
+                          accept="application/pdf"
+                          onChange={handlePdfFileChange}
+                          disabled={isExtracting}
+                          className="hidden"
+                        />
+                         <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => document.getElementById('pdf-upload')?.click()}
+                          disabled={isExtracting}
+                        >
+                          {isExtracting ? (
+                            <Loader2 className="mr-2 animate-spin" />
+                          ) : (
+                            <FileText className="mr-2" />
+                          )}
+                          {isExtracting ? 'Reading...' : 'Auto-fill from PDF'}
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Upload a PDF with one or more recipes.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -317,6 +443,38 @@ export default function RecipeForm() {
           </form>
         </Form>
       </CardContent>
+      <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recipes Found in PDF</DialogTitle>
+            <DialogDescription>
+              We found {extractedPdfRecipes.length} recipes in your PDF. Select
+              one to fill the form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto space-y-4 p-1">
+            {extractedPdfRecipes.map((recipe, index) => (
+              <Card key={index}>
+                <CardHeader>
+                  <CardTitle>{recipe.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {recipe.description}
+                  </p>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto mt-2"
+                    onClick={() => handleSelectPdfRecipe(recipe)}
+                  >
+                    Use this recipe
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
