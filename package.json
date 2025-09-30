@@ -1,7 +1,8 @@
 {
-  "name": "nextn",
+  "name": "family-cookbook-hub",
   "version": "0.1.0",
   "private": true,
+  "description": "A warm, home-style digital recipe book website for sharing and preserving family recipes.",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",

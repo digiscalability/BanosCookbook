@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "1",
+      "description": "A delicious plate of spaghetti bolognese.",
+      "imageUrl": "https://images.unsplash.com/photo-1622973536968-3ead9e780960?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzcGFnaGV0dGklMjBib2xvZ25lc2V8ZW58MHx8fHwxNzU5MTU2MDcxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "spaghetti bolognese"
+    },
+    {
+      "id": "2",
+      "description": "A rich and moist chocolate cake.",
+      "imageUrl": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjaG9jb2xhdGUlMjBjYWtlfGVufDB8fHx8MTc1OTEzNzc5Nnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chocolate cake"
+    },
+    {
+      "id": "3",
+      "description": "A bowl of hearty chicken noodle soup.",
+      "imageUrl": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y2hpY2tlbiUyMHNvdXB8ZW58MHx8fHwxNzU5MTk1NTU0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chicken soup"
+    },
+    {
+      "id": "4",
+      "description": "Freshly baked chocolate chip cookies.",
+      "imageUrl": "https://images.unsplash.com/photo-1623659945071-5a25a75bcd86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxjaG9jb2xhdGUlMjBjb29raWVzfGVufDB8fHx8MTc1OTA5NDMyOXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chocolate cookies"
+    },
+    {
+      "id": "5",
+      "description": "A classic apple pie with a lattice crust.",
+      "imageUrl": "https://images.unsplash.com/photo-1535920527002-b35e96722eb9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxhcHBsZSUyMHBpZXxlbnwwfHx8fDE3NTkxOTU1NTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "apple pie"
+    },
+    {
+      "id": "6",
+      "description": "A vibrant and fresh garden salad.",
+      "imageUrl": "https://images.unsplash.com/photo-1514537099923-4c0fc7c73161?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxnYXJkZW4lMjBzYWxhZHxlbnwwfHx8fDE3NTkxMzIwNTB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "garden salad"
+    }
+  ]
 }
