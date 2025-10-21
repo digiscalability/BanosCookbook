@@ -1,0 +1,18 @@
+:root {
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+}
+
+.bc-sidebar-root {
+  /* allow passing custom styles from component props; custom inline styles removed */
+}
+
+/* Mobile specific override class used via data attributes in components */
+.bc-sidebar-mobile {
+  --sidebar-width: 18rem;
+}
+
+/* Expose the variables so Tailwind classes using them still work */
+.bc-sidebar-root {
+  /* no-op styles but keep variables available */
+}

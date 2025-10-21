@@ -1,0 +1,117 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build outputs
+.next/
+out/
+build/
+dist/
+
+# Environment variables
+# Note: .env and .env.local are accessible to AI features for debugging
+# Only excluding production and test environment files
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Firebase service account keys (NEVER commit these)
+config/firebase-admin.js
+**/*firebase-adminsdk*.json
+**/serviceAccountKey.json
+
+# Vercel
+.vercel
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Temporary folders
+tmp/
+temp/
+
+# Large media files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wmv
+*.flv
+*.webm
+
+# Large image files
+*.psd
+*.ai
+*.sketch
+
+# Documentation that doesn't need indexing
+*.md
+docs/
+
+# Test files
+test-*.js
+*.test.js
+*.spec.js
+
+# Firebase emulator data
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

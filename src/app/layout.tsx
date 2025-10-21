@@ -1,15 +1,22 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { cn } from '@/lib/utils';
-import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
+import Header from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
+import { cn } from '@/lib/utils';
+import type { Metadata } from 'next';
+import { Literata } from 'next/font/google';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Family Cookbook Hub',
+  title: 'BanosCookbook',
   description:
     'A warm, home-style digital recipe book for sharing and preserving family recipes.',
 };
+
+const literata = Literata({
+  subsets: ['latin'],
+  weight: ['200','400','700','900'],
+  display: 'swap',
+});
 
 export default function RootLayout({
   children,
@@ -18,16 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body
         className={cn(
+          literata.className,
           'min-h-screen bg-background font-body antialiased',
           'flex flex-col'
         )}
@@ -36,6 +36,7 @@ export default function RootLayout({
         <main className="flex-grow">{children}</main>
         <Footer />
         <Toaster />
+        <script src="/share-modal-fix.js" defer />
       </body>
     </html>
   );

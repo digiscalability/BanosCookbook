@@ -1,17 +1,25 @@
+'use client';
+
 import Link from 'next/link';
-import { CookingPot, PlusCircle } from 'lucide-react';
+import { CookingPot, PlusCircle, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 
 export default function Header() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <header className="bg-card shadow-sm sticky top-0 z-40">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center py-4">
-          <Link href="/" className="flex items-center gap-2 text-xl font-bold font-headline text-foreground">
-            <CookingPot className="h-7 w-7 text-primary" />
-            <span>Family Cookbook Hub</span>
+        <div className="flex justify-between items-center py-3 md:py-4">
+          <Link href="/" className="flex items-center gap-2 text-lg md:text-xl font-bold font-headline text-foreground">
+            <CookingPot className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+            <span className="hidden sm:inline">Banos Cookbook</span>
+            <span className="sm:hidden">Banos</span>
           </Link>
-          <nav className="flex items-center gap-2">
+          
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-2">
             <Button variant="ghost" asChild>
               <Link href="/">Home</Link>
             </Button>
@@ -22,7 +30,32 @@ export default function Header() {
               </Link>
             </Button>
           </nav>
+
+          {/* Mobile Menu Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
         </div>
+
+        {/* Mobile Navigation */}
+        {isMenuOpen && (
+          <nav className="md:hidden border-t border-border py-4 space-y-2">
+            <Button variant="ghost" asChild className="w-full justify-start">
+              <Link href="/" onClick={() => setIsMenuOpen(false)}>Home</Link>
+            </Button>
+            <Button asChild className="w-full justify-start">
+              <Link href="/add-recipe" onClick={() => setIsMenuOpen(false)}>
+                <PlusCircle className="mr-2" />
+                Add Recipe
+              </Link>
+            </Button>
+          </nav>
+        )}
       </div>
     </header>
   );

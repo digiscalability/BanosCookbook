@@ -1,19 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { getNutritionalData } from '@/app/actions';
 import type { NutritionalInformationOutput } from '@/ai/flows/nutritional-information-from-ingredients';
-import { Loader2, Flame, Beef, Wheat, Droplets } from 'lucide-react';
+import { getNutritionalData } from '@/app/actions';
+import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { Beef, Droplets, Flame, Loader2, Wheat } from 'lucide-react';
+import { useState } from 'react';
 
 type NutritionalInfoProps = {
   ingredients: string[];
@@ -30,20 +30,30 @@ export default function NutritionalInfo({ ingredients }: NutritionalInfoProps) {
     setError(null);
     setData(null);
 
-    const result = await getNutritionalData(ingredients);
+    try {
+      const result = await getNutritionalData(ingredients);
 
-    if (result.success && result.data) {
-      setData(result.data);
-    } else {
-      setError(result.error || 'An unknown error occurred.');
+      if (result.success && result.data) {
+        setData(result.data);
+      } else {
+        setError(result.error || 'An unknown error occurred.');
+        toast({
+          variant: 'destructive',
+          title: 'Oh no! Something went wrong.',
+          description: result.error || 'Could not fetch nutritional information.',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching nutritional data:', error);
+      setError(error instanceof Error ? error.message : String(error));
       toast({
         variant: 'destructive',
-        title: 'Oh no! Something went wrong.',
-        description: result.error || 'Could not fetch nutritional information.',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch nutritional information.',
       });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -79,9 +89,14 @@ export default function NutritionalInfo({ ingredients }: NutritionalInfoProps) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Click the button below to calculate the estimated nutritional information for this recipe.
-          </p>
+            <>
+              {error && (
+                <div className="mb-2 text-sm text-destructive">Error: {error}</div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Click the button below to calculate the estimated nutritional information for this recipe.
+              </p>
+            </>
         )}
       </CardContent>
       <CardFooter>

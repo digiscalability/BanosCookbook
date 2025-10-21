@@ -1,4 +1,4 @@
-# **App Name**: Family Cookbook Hub
+# **App Name**: BanosCookbook
 
 ## Core Features:
 

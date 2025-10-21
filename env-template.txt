@@ -1,0 +1,88 @@
+# ===========================================
+# BanosCookbook Environment Variables
+# ===========================================
+# Copy this file to .env.local and fill in your API keys
+
+# ===========================================
+# Firebase Configuration (Client-side)
+# ===========================================
+# Required for Firestore database and cross-device sync
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyCljkLW6noHaK2K95XiWeuezVx-VfIAdDQ
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=studio-4664575455-de3d2.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=studio-4664575455-de3d2
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=studio-4664575455-de3d2.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=749739171915
+NEXT_PUBLIC_FIREBASE_APP_ID=1:749739171915:web:32241175164a8c33b4edce
+FIREBASE_STORAGE_BUCKET=studio-4664575455-de3d2.appspot.com
+
+# ===========================================
+# Firebase Admin SDK Configuration (Server-side)
+# ===========================================
+# Server-side (Admin): Provide the service account JSON via environment variable
+# Recommended: set FIREBASE_SERVICE_ACCOUNT_JSON to the entire JSON payload (stringified)
+# Example (do NOT commit):
+# FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"...","private_key":"-----BEGIN..."}'
+FIREBASE_SERVICE_ACCOUNT_JSON=
+
+# ===========================================
+# Google AI / Genkit Configuration
+# ===========================================
+# Required for AI features (recipe extraction, nutritional analysis)
+# Get your API key from: https://aistudio.google.com/app/apikey
+GOOGLE_GENAI_API_KEY=your_google_ai_api_key_here
+GOOGLE_API_KEY=your_google_ai_api_key_here
+GEMINI_API_KEY=your_google_ai_api_key_here
+
+# ===========================================
+# Next.js Configuration
+# ===========================================
+# Development server port (default: 3000)
+PORT=9002
+
+# Environment (development, production, test)
+NODE_ENV=development
+
+# ===========================================
+# Application Configuration
+# ===========================================
+# Base URL for the application
+NEXT_PUBLIC_APP_URL=https://banoscookbook.com
+
+# ===========================================
+# Instagram API Configuration
+# ===========================================
+# Required for Instagram integration (auto-posting recipes, syncing comments/likes)
+# Get these from: https://developers.facebook.com/apps
+
+# Facebook App ID (from Facebook Developer Dashboard)
+FACEBOOK_APP_ID=2199956927151415
+
+# Facebook App Secret (from Facebook Developer Dashboard → Settings → Basic)
+# IMPORTANT: Keep this secret! Never commit to version control
+FACEBOOK_APP_SECRET=your_app_secret_here
+
+# Instagram App ID (from Facebook Developer Dashboard → Instagram → Settings)
+INSTAGRAM_APP_ID=1351073223206336
+
+# Instagram Business Account ID (numeric ID of your Instagram Business/Creator account)
+# Get this by running: npm run instagram:get-account-id (after setting up other credentials)
+INSTAGRAM_BUSINESS_ACCOUNT_ID=your_instagram_business_account_id
+
+# Instagram Long-lived Access Token (valid for 60 days, auto-refreshable)
+# Get initial token from: https://developers.facebook.com/tools/explorer
+# Required permissions: instagram_basic, pages_show_list, instagram_content_publish
+INSTAGRAM_ACCESS_TOKEN=your_long_lived_access_token
+
+# Instagram Webhook Verify Token (create a random string for webhook verification)
+# Used when setting up webhooks in Facebook Developer Dashboard
+INSTAGRAM_WEBHOOK_VERIFY_TOKEN=your_random_verify_token_here
+
+# ===========================================
+# Runway ML API Configuration
+# ===========================================
+# Required for AI video generation from recipe images
+# Get your API key from: https://dev.runwayml.com
+# Sign up at: https://dev.runwayml.com/login
+# Generate API key in Developer Portal → API Keys
+RUNWAY_API_KEY=your_runway_api_key_here
+

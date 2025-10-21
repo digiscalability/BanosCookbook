@@ -1,0 +1,141 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Video scripts collection rules
+    match /video_scripts/{videoScriptId} {
+      // Allow read access to all users
+      allow read: if true;
+
+      // Allow create/update/delete only by server/admin (Admin SDK)
+      allow create, update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Recipes collection rules
+    match /recipes/{recipeId} {
+      // Allow read access to all users
+      allow read: if true;
+
+      // Allow create with valid structure. Authenticated users keep the looser rules;
+      // unauthenticated (guest) users are allowed to create but with stricter validation
+      // to reduce abuse (shorter titles, limited ingredients/instructions length, and
+      // must provide an image URL rather than raw base64 blobs).
+      allow create: if (
+        // Authenticated creators (existing behavior)
+        request.auth != null &&
+          request.resource.data.keys().hasAll(['title', 'author', 'ingredients', 'instructions', 'cuisine']) &&
+          request.resource.data.title is string &&
+          request.resource.data.author is string &&
+          request.resource.data.ingredients is list &&
+          request.resource.data.instructions is list &&
+          request.resource.data.cuisine is string &&
+          request.resource.data.title.size() >= 3 &&
+          request.resource.data.author.size() >= 2
+      ) || (
+        // Guest creators: stricter validation
+        request.auth == null &&
+          request.resource.data.keys().hasAll(['title', 'author', 'ingredients', 'instructions', 'cuisine', 'imageUrl']) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() >= 3 &&
+          request.resource.data.title.size() <= 200 &&
+          request.resource.data.author is string &&
+          request.resource.data.author.size() >= 2 &&
+          request.resource.data.author.size() <= 100 &&
+          request.resource.data.cuisine is string &&
+          request.resource.data.ingredients is list &&
+          request.resource.data.ingredients.size() <= 100 &&
+          request.resource.data.instructions is list &&
+          request.resource.data.instructions.size() <= 200 &&
+          request.resource.data.imageUrl is string &&
+          request.resource.data.imageUrl.size() <= 2000
+      );
+
+      // Allow update only if user is the author or admin
+      allow update: if request.auth != null &&
+                       (request.resource.data.author == request.auth.token.email ||
+                        request.auth.token.admin == true);
+
+      // Allow delete only if user is the author or admin
+      allow delete: if request.auth != null &&
+                       (resource.data.author == request.auth.token.email ||
+                        request.auth.token.admin == true);
+    }
+
+    // Collection to store generated image metadata (image generation service)
+    match /generated_images/{imageId} {
+      // Allow read to all
+      allow read: if true;
+
+      // Allow unauthenticated clients to create small metadata documents when they
+      // upload images via the upload endpoints. Enforce types and conservative size limits.
+      allow create: if (
+        request.resource.data.keys().hasAll(['url', 'filename']) &&
+        request.resource.data.url is string && request.resource.data.url.size() <= 2000 &&
+        request.resource.data.filename is string && request.resource.data.filename.size() <= 300 &&
+        // optional fields validation
+        (request.resource.data.description is string ? request.resource.data.description.size() <= 1000 : true) &&
+        (request.resource.data.recipeId is string ? request.resource.data.recipeId.size() <= 100 : true)
+      );
+
+      // Allow updates/deletes only by server/admin (avoid client-side changes to tracking info)
+      allow update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Comments subcollection rules
+    match /recipes/{recipeId}/comments/{commentId} {
+      // Allow read access to all users
+      allow read: if true;
+
+      // Allow create with valid comment data
+      allow create: if request.auth != null &&
+                       request.resource.data.keys().hasAll(['author', 'content']) &&
+                       request.resource.data.author is string &&
+                       request.resource.data.content is string &&
+                       request.resource.data.content.size() >= 10;
+
+      // Allow update/delete only by comment author
+      allow update, delete: if request.auth != null &&
+                               request.resource.data.author == request.auth.token.email;
+    }
+
+    // User profiles (if needed in the future)
+    match /users/{userId} {
+      // Users can only read/write their own profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Recipe ratings (if needed in the future)
+    match /recipeRatings/{ratingId} {
+      // Allow read access to all users
+      allow read: if true;
+
+      // Allow create/update only if user is authenticated
+      allow create, update: if request.auth != null &&
+                               request.resource.data.userId == request.auth.uid;
+
+      // Allow delete only by the user who created the rating
+      allow delete: if request.auth != null &&
+                       resource.data.userId == request.auth.uid;
+    }
+
+    // Instagram posts collection - tracks recipe-to-Instagram mappings
+    match /instagram_posts/{postId} {
+      // Allow read access to all users
+      allow read: if true;
+
+      // Allow create/update only by server (Admin SDK)
+      // Client apps should not directly write to this collection
+      allow create, update: if false;
+
+      // Allow delete only by admin users
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Admin collection for system configuration
+    match /admin/{document} {
+      // Only allow access to admin users
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}

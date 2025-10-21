@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Development rules - more permissive for testing
+    match /{document=**} {
+      // Allow read/write access to all documents for development
+      allow read, write: if true;
+    }
+    
+    // Production-ready rules (commented out for development)
+    /*
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow create: if request.auth != null && 
+                       request.resource.data.keys().hasAll(['title', 'author', 'ingredients', 'instructions', 'cuisine']);
+      allow update, delete: if request.auth != null && 
+                               (request.resource.data.author == request.auth.token.email ||
+                                request.auth.token.admin == true);
+    }
+    */
+  }
+}

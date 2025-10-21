@@ -84,7 +84,7 @@ const recipesFromPdfFlow = ai.defineFlow(
     );
     const pdfBuffer = Buffer.from(base64Data, 'base64');
 
-    const data = await pdfjs(pdfBuffer);
+    const data = await pdfjs.default(pdfBuffer);
     const text = data.text;
 
     if (!text) {
