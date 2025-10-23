@@ -6,6 +6,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+
 import type { Clip } from '../types';
 import { TRACK_COLORS } from '../types';
 
@@ -99,7 +100,8 @@ export function TimelineClip({
         const newStartTime = Math.max(0, clip.startTime + deltaTime);
         const newDuration = clip.endTime - newStartTime;
 
-        if (newDuration > 0.1) { // Min 100ms
+        if (newDuration > 0.1) {
+          // Min 100ms
           onUpdate({
             startTime: newStartTime,
             duration: newDuration,
@@ -133,13 +135,7 @@ export function TimelineClip({
   return (
     <div
       ref={clipRef}
-      className={`
-        absolute top-1 h-14 rounded
-        cursor-move transition-colors
-        ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''}
-        ${isDragging ? 'opacity-70' : ''}
-        ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
-      `}
+      className={`absolute top-1 h-14 cursor-move rounded transition-colors ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''} ${isDragging ? 'opacity-70' : ''} ${isLocked ? 'cursor-not-allowed opacity-50' : ''} `}
       // eslint-disable-next-line react/forbid-dom-props
       style={{
         left: `${left}px`,
@@ -150,25 +146,23 @@ export function TimelineClip({
       onMouseDown={handleMouseDown}
     >
       {/* Clip Content */}
-      <div className="px-2 py-1 h-full flex flex-col justify-between overflow-hidden">
-        <div className="text-xs font-medium truncate text-white">
+      <div className="flex h-full flex-col justify-between overflow-hidden px-2 py-1">
+        <div className="truncate text-xs font-medium text-white">
           {clip.label || `${clip.assetType} clip`}
         </div>
-        <div className="text-xs opacity-75 text-white">
-          {clip.duration.toFixed(1)}s
-        </div>
+        <div className="text-xs text-white opacity-75">{clip.duration.toFixed(1)}s</div>
       </div>
 
       {/* Trim Handles */}
       {!isLocked && (
         <>
           <div
-            className="absolute left-0 top-0 w-2 h-full cursor-ew-resize hover:bg-white hover:bg-opacity-30"
-            onMouseDown={(e) => handleTrimStart(e, 'left')}
+            className="absolute left-0 top-0 h-full w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+            onMouseDown={e => handleTrimStart(e, 'left')}
           />
           <div
-            className="absolute right-0 top-0 w-2 h-full cursor-ew-resize hover:bg-white hover:bg-opacity-30"
-            onMouseDown={(e) => handleTrimStart(e, 'right')}
+            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+            onMouseDown={e => handleTrimStart(e, 'right')}
           />
         </>
       )}
@@ -177,12 +171,7 @@ export function TimelineClip({
       {clip.transitions?.map((transition, idx) => (
         <div
           key={idx}
-          className={`
-            absolute top-0 h-full w-6
-            ${transition.position === 'start' ? 'left-0' : 'right-0'}
-            bg-gradient-to-${transition.position === 'start' ? 'r' : 'l'}
-            from-black to-transparent opacity-30
-          `}
+          className={`absolute top-0 h-full w-6 ${transition.position === 'start' ? 'left-0' : 'right-0'} bg-gradient-to-${transition.position === 'start' ? 'r' : 'l'} from-black to-transparent opacity-30`}
         />
       ))}
     </div>

@@ -3,8 +3,10 @@
  * Handles video, image, audio, subtitle file uploads
  */
 
-import type { EditorAsset } from '@/components/video-editor/types';
 import { NextRequest, NextResponse } from 'next/server';
+
+import type { EditorAsset } from '@/components/video-editor/types';
+
 import adminConfig from '../../../../config/firebase-admin';
 
 const { getAdmin, getDb, getStorage } = adminConfig;
@@ -17,13 +19,10 @@ export async function POST(request: NextRequest) {
     const assetType = formData.get('assetType') as string;
 
     if (!file || !recipeId || !assetType) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    console.log('🎬 Uploading asset:', {
+    console.warn('🎬 Uploading asset:', {
       filename: file.name,
       size: file.size,
       type: assetType,
@@ -33,6 +32,7 @@ export async function POST(request: NextRequest) {
     const admin = getAdmin();
     const db = getDb();
     const storage = getStorage();
+    const { FieldValue } = admin.firestore;
     const bucket = storage.bucket();
 
     // Convert File to Buffer
@@ -103,12 +103,15 @@ export async function POST(request: NextRequest) {
     };
 
     // Save to Firestore
-    await db.collection('asset_library').doc(assetId).set({
-      ...asset,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    await db
+      .collection('asset_library')
+      .doc(assetId)
+      .set({
+        ...asset,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
-    console.log('🎬 Asset uploaded successfully:', assetId);
+    console.warn('🎬 Asset uploaded successfully:', assetId);
 
     return NextResponse.json({
       success: true,

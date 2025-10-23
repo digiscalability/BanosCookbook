@@ -6,6 +6,7 @@ yarn-error.log*
 
 # Next.js
 .next/
+.local/
 out/
 build/
 dist/
@@ -26,7 +27,15 @@ config/firebase-admin.js
 .vercel
 
 # IDE
-.vscode/
+# Share VSCode config with team, but ignore local overrides
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/snippets/
+.vscode/*.log
+
 .idea/
 *.swp
 *.swo

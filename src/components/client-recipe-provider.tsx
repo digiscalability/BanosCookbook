@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import { recipeStore } from '@/lib/recipe-store';
 import type { Recipe } from '@/lib/types';
 
@@ -14,7 +15,7 @@ export function ClientRecipeProvider({ children }: ClientRecipeProviderProps) {
 
   useEffect(() => {
     setIsClient(true);
-    
+
     // Subscribe to recipe store changes
     const unsubscribe = recipeStore.subscribe(() => {
       setRecipes(recipeStore.getAllRecipes());
@@ -33,12 +34,12 @@ export function ClientRecipeProvider({ children }: ClientRecipeProviderProps) {
   // Don't render until we're on the client side
   if (!isClient) {
     return (
-      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 animate-in fade-in duration-500">
-        <section className="text-center py-8 sm:py-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-headline font-bold text-primary mb-3 sm:mb-4">
+      <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
+        <section className="py-8 text-center sm:py-12">
+          <h1 className="mb-3 font-headline text-3xl font-bold text-primary sm:mb-4 sm:text-4xl md:text-5xl">
             Banos Cookbook
           </h1>
-          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
+          <p className="mx-auto max-w-2xl px-4 text-base text-muted-foreground sm:text-lg">
             Loading recipes...
           </p>
         </section>

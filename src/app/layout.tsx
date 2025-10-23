@@ -1,20 +1,21 @@
+import type { Metadata } from 'next';
+import { Literata } from 'next/font/google';
+
+import ErrorBoundary from '@/components/error-boundary';
 import Footer from '@/components/layout/footer';
 import Header from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import type { Metadata } from 'next';
-import { Literata } from 'next/font/google';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'BanosCookbook',
-  description:
-    'A warm, home-style digital recipe book for sharing and preserving family recipes.',
+  description: 'A warm, home-style digital recipe book for sharing and preserving family recipes.',
 };
 
 const literata = Literata({
   subsets: ['latin'],
-  weight: ['200','400','700','900'],
+  weight: ['200', '400', '700', '900'],
   display: 'swap',
 });
 
@@ -33,7 +34,9 @@ export default function RootLayout({
         )}
       >
         <Header />
-        <main className="flex-grow">{children}</main>
+        <main className="flex-grow">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
         <Footer />
         <Toaster />
         <script src="/share-modal-fix.js" defer />

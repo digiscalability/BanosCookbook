@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log the email (in production, send actual email)
-    console.log('📧 Email Notification:', {
+    console.warn('📧 Email Notification:', {
       to,
       subject,
       type,
@@ -80,9 +80,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error sending email notification:', error);
-    return NextResponse.json(
-      { error: 'Failed to send email notification.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to send email notification.' }, { status: 500 });
   }
 }

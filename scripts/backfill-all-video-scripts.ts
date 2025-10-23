@@ -10,14 +10,14 @@ async function main() {
   const db = adminConfig.getDb();
   // Get all recipes
   const recipesSnap = await db.collection('recipes').get();
-  const allRecipes: Recipe[] = recipesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe));
+  const allRecipes: Recipe[] = recipesSnap.docs.map((doc: FirebaseFirestore.DocumentSnapshot) => ({ id: doc.id, ...doc.data() } as Recipe));
   // Get all video scripts
   const scriptsSnap = await db.collection('video_scripts').get();
-  const allScripts = new Map(scriptsSnap.docs.map(doc => [doc.id, doc.data()]));
+  const allScripts = new Map(scriptsSnap.docs.map((doc: FirebaseFirestore.DocumentSnapshot) => [doc.id, doc.data()]));
   // Find missing or empty scripts
   const missing = allRecipes.filter(r => {
     const scriptDoc = allScripts.get(r.id);
-    return !scriptDoc || !scriptDoc.script || !scriptDoc.script.trim();
+    return !scriptDoc || !(scriptDoc as any).script || !(scriptDoc as any).script.trim();
   });
   console.log(`Found ${missing.length} recipes missing scripts.`);
   for (const recipe of missing) {
@@ -44,7 +44,7 @@ async function main() {
         recipeId: recipe.id,
         script,
         marketingIdeas: marketingIdeas || [],
-        createdAt: adminConfig.getAdmin().firestore.FieldValue.serverTimestamp(),
+        createdAt: new Date(),
       });
       console.log(`Backfilled script for recipe ${recipe.id} (${recipe.title ?? ''})`);
     } catch (err) {

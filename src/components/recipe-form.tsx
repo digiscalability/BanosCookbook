@@ -1,46 +1,43 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { FileText, Loader2, Sparkles, Upload } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
 import type { ExtractedRecipe } from '@/ai/flows/recipes-from-pdf';
 import {
-    enhanceUserPhotoAction,
-    extractRecipeDataFromImageUrl,
-    extractRecipeDataFromPdf,
-    generateRecipeImagesAction,
-    markImageAsUsedAction
+  enhanceUserPhotoAction,
+  extractRecipeDataFromImageUrl,
+  extractRecipeDataFromPdf,
+  generateRecipeImagesAction,
+  markImageAsUsedAction,
 } from '@/app/actions';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle
-} from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
-    Form,
-    FormControl,
-    FormDescription,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestoreRecipes } from '@/hooks/use-firestore-recipes';
 import { useToast } from '@/hooks/use-toast';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { FileText, Loader2, Sparkles, Upload } from 'lucide-react';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+
 import { AIImagePreview, type AIGeneratedImage } from './ai-image-preview';
 
 // Compress / resize an image File in the browser using a canvas.
@@ -64,9 +61,11 @@ async function compressImageFile(file: File, maxDim = 1024, quality = 0.8): Prom
             const ctx = canvas.getContext('2d');
             ctx?.drawImage(img, 0, 0, width, height);
             canvas.toBlob(
-              (blob) => {
+              blob => {
                 if (!blob) return reject(new Error('Compression failed'));
-                const outFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+                const outFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+                  type: 'image/jpeg',
+                });
                 resolve(outFile);
               },
               'image/jpeg',
@@ -87,9 +86,11 @@ async function compressImageFile(file: File, maxDim = 1024, quality = 0.8): Prom
           ctx.drawImage(img, 0, 0, targetW, targetH);
 
           canvas.toBlob(
-            (blob) => {
+            blob => {
               if (!blob) return reject(new Error('Compression failed'));
-              const outFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+              const outFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+                type: 'image/jpeg',
+              });
               resolve(outFile);
             },
             'image/jpeg',
@@ -107,13 +108,9 @@ async function compressImageFile(file: File, maxDim = 1024, quality = 0.8): Prom
 
 const recipeFormSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters.'),
-  description: z
-    .string()
-    .min(10, 'Description must be at least 10 characters.'),
+  description: z.string().min(10, 'Description must be at least 10 characters.'),
   ingredients: z.string().min(10, 'Please list at least one ingredient.'),
-  instructions: z
-    .string()
-    .min(20, 'Instructions must be at least 20 characters.'),
+  instructions: z.string().min(20, 'Instructions must be at least 20 characters.'),
   prepTime: z.string().min(1, 'Prep time is required.'),
   cookTime: z.string().min(1, 'Cook time is required.'),
   servings: z.coerce.number().min(1, 'Servings must be at least 1.'),
@@ -134,9 +131,7 @@ export default function RecipeForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState('');
   const [progressValue, setProgressValue] = useState(0);
-  const [extractedPdfRecipes, setExtractedPdfRecipes] = useState<
-    ExtractedRecipe[]
-  >([]);
+  const [extractedPdfRecipes, setExtractedPdfRecipes] = useState<ExtractedRecipe[]>([]);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<AIGeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<AIGeneratedImage | null>(null);
@@ -149,7 +144,7 @@ export default function RecipeForm() {
   const [isEnhancingPhoto, setIsEnhancingPhoto] = useState(false);
 
   const handleImageSelection = (image: AIGeneratedImage) => {
-    console.log('Image selected:', image.description);
+    console.warn('Image selected:', image.description);
     setSelectedImage(image);
   };
 
@@ -166,9 +161,12 @@ export default function RecipeForm() {
       try {
         const compressThreshold = 1 * 1024 * 1024; // 1MB
         if (file.size > compressThreshold) {
-          toast({ title: 'Optimizing photo...', description: 'Compressing image before analysis.' });
+          toast({
+            title: 'Optimizing photo...',
+            description: 'Compressing image before analysis.',
+          });
           uploadFile = await compressImageFile(file, 2048, 0.8);
-          console.log('Compressed user photo:', file.size, '->', uploadFile.size);
+          console.warn('Compressed user photo:', file.size, '->', uploadFile.size);
         }
       } catch (compressErr) {
         console.warn('Image compression failed, using original file', compressErr);
@@ -246,7 +244,7 @@ export default function RecipeForm() {
   });
 
   async function onSubmit(data: RecipeFormValues) {
-    console.log('Form submitted with data:', data);
+    console.warn('Form submitted with data:', data);
     setIsSubmitting(true);
 
     try {
@@ -273,7 +271,7 @@ export default function RecipeForm() {
       const uploadDataUriToStorage = async (dataUri: string) => {
         try {
           // Convert data URI or remote URL to a Blob via fetch, then send as FormData
-                const resp = await fetch(dataUri);
+          const resp = await fetch(dataUri);
           if (!resp.ok) throw new Error(`Failed to fetch image data: ${resp.status}`);
           const blob = await resp.blob();
           // Create a filename hint
@@ -299,11 +297,19 @@ export default function RecipeForm() {
                   document.head.appendChild(s);
                 });
 
-                const grecaptcha = (window as unknown as { grecaptcha?: { execute: (k: string, o?: unknown) => Promise<string> } }).grecaptcha;
+                const grecaptcha = (
+                  window as unknown as {
+                    grecaptcha?: { execute: (k: string, o?: unknown) => Promise<string> };
+                  }
+                ).grecaptcha;
                 if (grecaptcha && typeof grecaptcha.execute === 'function') {
                   const token = await grecaptcha.execute(siteKey, { action: 'upload' });
                   // Retry with captcha token in header
-                  upload = await fetch('/api/images/upload', { method: 'POST', body: form, headers: { 'x-captcha-token': token } });
+                  upload = await fetch('/api/images/upload', {
+                    method: 'POST',
+                    body: form,
+                    headers: { 'x-captcha-token': token },
+                  });
                 }
               } catch (rcErr) {
                 console.warn('reCAPTCHA failed:', rcErr);
@@ -327,10 +333,14 @@ export default function RecipeForm() {
 
       if (finalSelectedImageUrl) {
         const looksLikeData = finalSelectedImageUrl.startsWith('data:');
-        const tooLarge = typeof finalSelectedImageUrl === 'string' && finalSelectedImageUrl.length > 1000000; // ~1MB
+        const tooLarge =
+          typeof finalSelectedImageUrl === 'string' && finalSelectedImageUrl.length > 1000000; // ~1MB
         if (looksLikeData || tooLarge) {
           try {
-            toast({ title: 'Uploading image...', description: 'Optimizing image before saving your recipe.' });
+            toast({
+              title: 'Uploading image...',
+              description: 'Optimizing image before saving your recipe.',
+            });
             const uploadedUrl = await uploadDataUriToStorage(finalSelectedImageUrl);
             if (uploadedUrl) finalSelectedImageUrl = uploadedUrl;
             else {
@@ -347,7 +357,7 @@ export default function RecipeForm() {
         if (finalSelectedImageUrl) {
           try {
             await markImageAsUsedAction(finalSelectedImageUrl);
-            console.log('✅ Marked selected image as used');
+            console.warn('✅ Marked selected image as used');
           } catch (error) {
             console.warn('⚠️ Failed to mark image as used, but continuing:', error);
           }
@@ -365,17 +375,21 @@ export default function RecipeForm() {
         servings: data.servings,
         cuisine: data.cuisine,
         author: data.authorName, // Use the author name from the form
-        authorEmail: data.authorEmail && data.authorEmail.trim() !== '' ? data.authorEmail : undefined, // Only include if not empty
+        authorEmail:
+          data.authorEmail && data.authorEmail.trim() !== '' ? data.authorEmail : undefined, // Only include if not empty
         selectedImageUrl: finalSelectedImageUrl, // Include selected image URL (uploaded if needed)
         postToInstagram: (data as unknown as { postToInstagram?: boolean }).postToInstagram,
       });
 
       // If user requested Instagram posting, show a toast and poll for the Instagram post info
-      const wantsInstagram = Boolean((data as unknown as { postToInstagram?: boolean }).postToInstagram);
+      const wantsInstagram = Boolean(
+        (data as unknown as { postToInstagram?: boolean }).postToInstagram
+      );
       if (wantsInstagram) {
         const pending = toast({
           title: 'Sharing to Instagram…',
-          description: 'Your recipe is being posted to Instagram. We will notify you when it is available.',
+          description:
+            'Your recipe is being posted to Instagram. We will notify you when it is available.',
         });
 
         // Poll the server for instagram post info
@@ -387,7 +401,9 @@ export default function RecipeForm() {
             while (attempt < maxAttempts) {
               attempt++;
               try {
-                const res = await fetch(`/api/recipes/${encodeURIComponent(newRecipe.id)}/instagram`);
+                const res = await fetch(
+                  `/api/recipes/${encodeURIComponent(newRecipe.id)}/instagram`
+                );
                 if (res.ok) {
                   const json = await res.json();
                   if (json?.success && json.post?.permalink) {
@@ -397,7 +413,15 @@ export default function RecipeForm() {
                       title: 'Shared to Instagram',
                       description: (
                         <span>
-                          Your recipe was posted: <a className="underline" href={json.post.permalink} target="_blank" rel="noreferrer">View on Instagram</a>
+                          Your recipe was posted:{' '}
+                          <a
+                            className="underline"
+                            href={json.post.permalink}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View on Instagram
+                          </a>
                         </span>
                       ),
                     });
@@ -407,14 +431,15 @@ export default function RecipeForm() {
               } catch {
                 // ignore and retry
               }
-              await new Promise((r) => setTimeout(r, intervalMs));
+              await new Promise(r => setTimeout(r, intervalMs));
             }
 
             // If we reach here, posting didn't surface in time
             pending.update({
               id: pending.id,
               title: 'Instagram posting pending',
-              description: 'The Instagram post did not appear immediately. It may take a little longer — we will continue to sync it in the background.',
+              description:
+                'The Instagram post did not appear immediately. It may take a little longer — we will continue to sync it in the background.',
             });
           } catch (err) {
             console.warn('Error while polling instagram info:', err);
@@ -446,9 +471,7 @@ export default function RecipeForm() {
     }
   }
 
-  const handleImageFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleImageFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -473,10 +496,10 @@ export default function RecipeForm() {
       return;
     }
 
-    console.log('Selected file:', {
+    console.warn('Selected file:', {
       name: file.name,
       size: file.size,
-      type: file.type
+      type: file.type,
     });
 
     // If the user selected a large phone photo, compress it before reading
@@ -484,9 +507,12 @@ export default function RecipeForm() {
     try {
       const compressThreshold = 1 * 1024 * 1024; // 1MB
       if (file.size > compressThreshold) {
-        toast({ title: 'Optimizing photo...', description: 'Compressing image for faster upload.' });
+        toast({
+          title: 'Optimizing photo...',
+          description: 'Compressing image for faster upload.',
+        });
         workingFile = await compressImageFile(file, 2048, 0.8);
-        console.log('Compressed selected photo:', file.size, '->', workingFile.size);
+        console.warn('Compressed selected photo:', file.size, '->', workingFile.size);
       }
     } catch (compressErr) {
       console.warn('Image compression failed, using original file', compressErr);
@@ -517,7 +543,7 @@ export default function RecipeForm() {
         throw new Error('No image URL returned from upload');
       }
 
-      console.log('Image uploaded successfully:', imageUrl);
+      console.warn('Image uploaded successfully:', imageUrl);
 
       setProgressValue(30);
       setExtractionProgress('Processing with AI...');
@@ -572,8 +598,7 @@ export default function RecipeForm() {
         toast({
           variant: 'destructive',
           title: 'Oh no! Something went wrong.',
-          description:
-            result.error || 'Could not extract recipe data from the image.',
+          description: result.error || 'Could not extract recipe data from the image.',
         });
         setIsExtracting(false);
         setExtractionProgress('');
@@ -584,7 +609,8 @@ export default function RecipeForm() {
       toast({
         variant: 'destructive',
         title: 'Error processing image',
-        description: error instanceof Error ? error.message : 'Could not process the selected image.',
+        description:
+          error instanceof Error ? error.message : 'Could not process the selected image.',
       });
       setIsExtracting(false);
       setExtractionProgress('');
@@ -592,17 +618,14 @@ export default function RecipeForm() {
     }
   };
 
-  const handlePdfFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handlePdfFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsExtracting(true);
     toast({
       title: 'Reading your PDF...',
-      description:
-        'The AI is analyzing the file. This might take a few moments.',
+      description: 'The AI is analyzing the file. This might take a few moments.',
     });
 
     const reader = new FileReader();
@@ -733,7 +756,7 @@ export default function RecipeForm() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-sm mb-1">Or Upload Your Own Photo</h4>
+                        <h4 className="mb-1 text-sm font-semibold">Or Upload Your Own Photo</h4>
                         <p className="text-xs text-muted-foreground">
                           Upload a photo of your cooked dish and get AI suggestions for improvement
                         </p>
@@ -746,7 +769,7 @@ export default function RecipeForm() {
                           const input = document.createElement('input');
                           input.type = 'file';
                           input.accept = 'image/*';
-                          input.onchange = async (e) => {
+                          input.onchange = async e => {
                             const file = (e.target as HTMLInputElement).files?.[0];
                             if (file) {
                               await handleCustomPhotoUpload(file);
@@ -775,27 +798,27 @@ export default function RecipeForm() {
                 {/* Custom Photo Display with AI Suggestions */}
                 {customPhoto && photoSuggestions.length > 0 && (
                   <Card className="mt-4 border-green-200 bg-green-50/50">
-                    <CardContent className="p-4 space-y-3">
+                    <CardContent className="space-y-3 p-4">
                       <div className="flex items-start gap-3">
                         {/* User-uploaded image preview - can't use Next.js Image for data URIs */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={customPhoto.url}
                           alt="Your uploaded dish"
-                          className="w-24 h-24 object-cover rounded-lg border-2 border-green-300"
+                          className="h-24 w-24 rounded-lg border-2 border-green-300 object-cover"
                         />
                         <div className="flex-1">
-                          <h4 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                          <h4 className="mb-1 flex items-center gap-2 text-sm font-semibold">
                             <Sparkles className="h-4 w-4 text-green-600" />
                             AI Photo Analysis
                           </h4>
-                          <p className="text-xs text-muted-foreground mb-2">
+                          <p className="mb-2 text-xs text-muted-foreground">
                             Your custom photo has been analyzed. Here are some suggestions:
                           </p>
                           <ul className="space-y-1 text-xs">
                             {photoSuggestions.map((suggestion, index) => (
                               <li key={index} className="flex items-start gap-2">
-                                <span className="text-green-600 mt-0.5">•</span>
+                                <span className="mt-0.5 text-green-600">•</span>
                                 <span>{suggestion}</span>
                               </li>
                             ))}
@@ -809,71 +832,74 @@ export default function RecipeForm() {
             )}
 
             {/* Manual Image Generation Button */}
-            {form.watch('title') && form.watch('description') && form.watch('cuisine') && !showImageSelector && (
-              <div className="mb-6 space-y-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const formData = form.getValues();
-                    generateImagesForRecipe({
-                      title: formData.title,
-                      description: formData.description,
-                      cuisine: formData.cuisine,
-                      ingredients: formData.ingredients,
-                    });
-                  }}
-                  disabled={isGeneratingImages}
-                  className="w-full"
-                >
-                  {isGeneratingImages ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating AI Images...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate AI Images
-                    </>
-                  )}
-                </Button>
+            {form.watch('title') &&
+              form.watch('description') &&
+              form.watch('cuisine') &&
+              !showImageSelector && (
+                <div className="mb-6 space-y-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const formData = form.getValues();
+                      generateImagesForRecipe({
+                        title: formData.title,
+                        description: formData.description,
+                        cuisine: formData.cuisine,
+                        ingredients: formData.ingredients,
+                      });
+                    }}
+                    disabled={isGeneratingImages}
+                    className="w-full"
+                  >
+                    {isGeneratingImages ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating AI Images...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate AI Images
+                      </>
+                    )}
+                  </Button>
 
-                {/* OR Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
+                  {/* OR Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">Or</span>
+                    </div>
                   </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or</span>
-                  </div>
+
+                  {/* Custom Photo Upload */}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = async e => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                          await handleCustomPhotoUpload(file);
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="w-full"
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Your Own Photo
+                  </Button>
                 </div>
+              )}
 
-                {/* Custom Photo Upload */}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = async (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) {
-                        await handleCustomPhotoUpload(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="w-full"
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Your Own Photo
-                </Button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <FormField
                 control={form.control}
                 name="photo"
@@ -890,19 +916,21 @@ export default function RecipeForm() {
                           disabled={isExtracting}
                           className="hidden"
                         />
-                         <Button
+                        <Button
                           type="button"
                           variant="outline"
-                          className="w-full h-10 sm:h-11 text-xs sm:text-sm"
+                          className="h-10 w-full text-xs sm:h-11 sm:text-sm"
                           onClick={() => document.getElementById('photo-upload')?.click()}
                           disabled={isExtracting}
                         >
                           {isExtracting ? (
-                            <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin sm:h-4 sm:w-4" />
                           ) : (
                             <Sparkles className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                           )}
-                          {isExtracting ? extractionProgress || 'Reading...' : 'Auto-fill from Photo'}
+                          {isExtracting
+                            ? extractionProgress || 'Reading...'
+                            : 'Auto-fill from Photo'}
                         </Button>
                       </div>
                     </FormControl>
@@ -936,15 +964,15 @@ export default function RecipeForm() {
                           disabled={isExtracting}
                           className="hidden"
                         />
-                         <Button
+                        <Button
                           type="button"
                           variant="outline"
-                          className="w-full h-10 sm:h-11 text-xs sm:text-sm"
+                          className="h-10 w-full text-xs sm:h-11 sm:text-sm"
                           onClick={() => document.getElementById('pdf-upload')?.click()}
                           disabled={isExtracting}
                         >
                           {isExtracting ? (
-                            <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin sm:h-4 sm:w-4" />
                           ) : (
                             <FileText className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                           )}
@@ -968,7 +996,11 @@ export default function RecipeForm() {
                 <FormItem>
                   <FormLabel className="text-sm sm:text-base">Recipe Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Grandma's Apple Pie" className="h-10 sm:h-11" {...field} />
+                    <Input
+                      placeholder="e.g., Grandma's Apple Pie"
+                      className="h-10 sm:h-11"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -993,7 +1025,7 @@ export default function RecipeForm() {
               )}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
               <FormField
                 control={form.control}
                 name="authorName"
@@ -1036,13 +1068,18 @@ export default function RecipeForm() {
                       <input
                         type="checkbox"
                         checked={Boolean(field.value)}
-                        onChange={(e) => field.onChange(e.target.checked)}
+                        onChange={e => field.onChange(e.target.checked)}
                         id="post-to-instagram"
                         className="h-4 w-4"
                       />
                       <div>
-                        <label htmlFor="post-to-instagram" className="text-sm font-medium">Share to Instagram</label>
-                        <p className="text-xs text-muted-foreground">Automatically post this recipe to the configured Instagram account after creation.</p>
+                        <label htmlFor="post-to-instagram" className="text-sm font-medium">
+                          Share to Instagram
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                          Automatically post this recipe to the configured Instagram account after
+                          creation.
+                        </p>
                       </div>
                     </FormItem>
                   )}
@@ -1050,7 +1087,7 @@ export default function RecipeForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2">
               <FormField
                 control={form.control}
                 name="ingredients"
@@ -1095,7 +1132,7 @@ export default function RecipeForm() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
               <FormField
                 control={form.control}
                 name="prepTime"
@@ -1150,7 +1187,12 @@ export default function RecipeForm() {
               />
             </div>
 
-            <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={isExtracting || isSubmitting}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full sm:w-auto"
+              disabled={isExtracting || isSubmitting}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1164,27 +1206,27 @@ export default function RecipeForm() {
         </Form>
       </CardContent>
       <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-        <DialogContent className="max-w-2xl mx-4 sm:mx-0">
+        <DialogContent className="mx-4 max-w-2xl sm:mx-0">
           <DialogHeader>
             <DialogTitle className="text-lg sm:text-xl">Recipes Found in PDF</DialogTitle>
             <DialogDescription className="text-sm sm:text-base">
-              We found {extractedPdfRecipes.length} recipes in your PDF. Select
-              one to fill the form.
+              We found {extractedPdfRecipes.length} recipes in your PDF. Select one to fill the
+              form.
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto space-y-3 sm:space-y-4 p-1">
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto p-1 sm:space-y-4">
             {extractedPdfRecipes.map((recipe, index) => (
               <Card key={index}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base sm:text-lg">{recipe.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+                  <p className="line-clamp-2 text-xs text-muted-foreground sm:text-sm">
                     {recipe.description}
                   </p>
                   <Button
                     variant="link"
-                    className="p-0 h-auto mt-2 text-xs sm:text-sm"
+                    className="mt-2 h-auto p-0 text-xs sm:text-sm"
                     onClick={() => handleSelectPdfRecipe(recipe)}
                   >
                     Use this recipe

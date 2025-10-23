@@ -1,12 +1,24 @@
 'use client';
 
+import { CheckCircle, Image as ImageIcon, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckCircle, Image as ImageIcon, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { showNotification } from '@/lib/notify';
 
 interface GeneratedImage {
   id: string;
@@ -26,6 +38,8 @@ export default function GeneratedImagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'unused'>('all');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDeleteDays, setPendingDeleteDays] = useState(30);
 
   const loadImages = async (unusedOnly = false) => {
     setIsLoading(true);
@@ -52,25 +66,30 @@ export default function GeneratedImagesPage() {
   };
 
   const deleteOldUnusedImages = async (daysOld = 30) => {
-    if (!confirm(`Are you sure you want to delete unused images older than ${daysOld} days?`)) {
-      return;
-    }
+    setPendingDeleteDays(daysOld);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/admin/generated-images?daysOld=${daysOld}`, {
+      const response = await fetch(`/api/admin/generated-images?daysOld=${pendingDeleteDays}`, {
         method: 'DELETE',
       });
       const data = await response.json();
 
       if (data.success) {
-        alert(data.message);
+        showNotification(data.message || 'Deleted images successfully', 'success');
         loadImages(filter === 'unused');
       } else {
-        alert('Error: ' + data.error);
+        showNotification('Error: ' + (data.error || 'Unknown error'), 'error');
       }
     } catch (err) {
-      alert('Failed to delete images: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      showNotification(
+        'Failed to delete images: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        'error'
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -84,11 +103,11 @@ export default function GeneratedImagesPage() {
   const unusedImages = images.filter(img => !img.used);
 
   return (
-    <div className="container mx-auto py-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto max-w-7xl py-8">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Generated Images Library</h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="mt-1 text-muted-foreground">
             All AI-generated recipe images are saved here to avoid wasting API calls
           </p>
         </div>
@@ -124,16 +143,14 @@ export default function GeneratedImagesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Images</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{images.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All AI-generated images
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">All AI-generated images</p>
           </CardContent>
         </Card>
 
@@ -143,9 +160,7 @@ export default function GeneratedImagesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{usedImages.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Selected by users for recipes
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Selected by users for recipes</p>
           </CardContent>
         </Card>
 
@@ -155,22 +170,16 @@ export default function GeneratedImagesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{unusedImages.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Available for future use
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Available for future use</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Tabs */}
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unused')}>
+      <Tabs value={filter} onValueChange={v => setFilter(v as 'all' | 'unused')}>
         <TabsList>
-          <TabsTrigger value="all">
-            All Images ({images.length})
-          </TabsTrigger>
-          <TabsTrigger value="unused">
-            Unused Only ({unusedImages.length})
-          </TabsTrigger>
+          <TabsTrigger value="all">All Images ({images.length})</TabsTrigger>
+          <TabsTrigger value="unused">Unused Only ({unusedImages.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
@@ -181,6 +190,23 @@ export default function GeneratedImagesPage() {
           <ImageGrid images={unusedImages} isLoading={isLoading} error={error} />
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Old Unused Images</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete unused images older than {pendingDeleteDays} days?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -188,7 +214,7 @@ export default function GeneratedImagesPage() {
 function ImageGrid({
   images,
   isLoading,
-  error
+  error,
 }: {
   images: GeneratedImage[];
   isLoading: boolean;
@@ -225,38 +251,36 @@ function ImageGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {images.map((image) => (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {images.map(image => (
         <Card key={image.id} className="overflow-hidden">
-          <div className="aspect-square relative bg-muted">
+          <div className="relative aspect-square bg-muted">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.url}
               alt={image.description}
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover"
               loading="lazy"
             />
-            <div className="absolute top-2 right-2">
+            <div className="absolute right-2 top-2">
               {image.used ? (
                 <Badge className="bg-green-600">
-                  <CheckCircle className="h-3 w-3 mr-1" />
+                  <CheckCircle className="mr-1 h-3 w-3" />
                   Used
                 </Badge>
               ) : (
-                <Badge variant="secondary">
-                  Unused
-                </Badge>
+                <Badge variant="secondary">Unused</Badge>
               )}
             </div>
           </div>
           <CardContent className="p-3">
-            <h3 className="font-semibold text-sm truncate" title={image.recipeTitle}>
+            <h3 className="truncate text-sm font-semibold" title={image.recipeTitle}>
               {image.recipeTitle}
             </h3>
-            <p className="text-xs text-muted-foreground truncate mt-1" title={image.description}>
+            <p className="mt-1 truncate text-xs text-muted-foreground" title={image.description}>
               {image.description}
             </p>
-            <div className="flex items-center justify-between mt-2">
+            <div className="mt-2 flex items-center justify-between">
               <Badge variant="outline" className="text-xs">
                 {image.recipeCuisine}
               </Badge>

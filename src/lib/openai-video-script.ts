@@ -20,7 +20,7 @@ export async function generateVideoScriptWithOpenAI(input: {
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: 'You are a helpful assistant.' },
-      { role: 'user', content: prompt }
+      { role: 'user', content: prompt },
     ],
     max_tokens: 800,
     temperature: 0.8,
@@ -30,7 +30,10 @@ export async function generateVideoScriptWithOpenAI(input: {
   if (script) {
     const match = script.match(/Marketing Ideas?:\s*([\s\S]*)/i);
     if (match) {
-  marketingIdeas = match[1].split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean);
+      marketingIdeas = match[1]
+        .split(/\n|\*/)
+        .map((s: string) => s.trim())
+        .filter(Boolean);
       marketingIdeas = marketingIdeas.filter(idea => idea.length > 3);
     }
   }

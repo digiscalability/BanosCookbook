@@ -1,5 +1,6 @@
-import { removeDuplicateRecipesAction } from '@/app/actions';
 import { NextResponse } from 'next/server';
+
+import { removeDuplicateRecipesAction } from '@/app/actions';
 
 /**
  * API endpoint to remove duplicate recipes from the database
@@ -7,7 +8,7 @@ import { NextResponse } from 'next/server';
  */
 export async function GET() {
   try {
-    console.log('🔧 Admin: Remove duplicates API called');
+    console.warn('🔧 Admin: Remove duplicates API called');
 
     const result = await removeDuplicateRecipesAction();
 
@@ -16,20 +17,26 @@ export async function GET() {
         success: true,
         message: `Successfully removed ${result.removed} duplicate recipe(s)`,
         removed: result.removed,
-        duplicates: result.duplicates
+        duplicates: result.duplicates,
       });
     } else {
-      return NextResponse.json({
-        success: false,
-        error: result.error
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error,
+        },
+        { status: 500 }
+      );
     }
   } catch (error) {
     console.error('Error in remove-duplicates API:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }
 

@@ -4,27 +4,34 @@
  * @fileOverview Advanced AI image generation for recipes using Google's Imagen
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import fetch from 'node-fetch';
+
+import { ai } from '@/ai/genkit';
 
 const AIImageGenerationInputSchema = z.object({
   title: z.string().describe('The recipe title'),
   description: z.string().describe('Recipe description'),
   cuisine: z.string().describe('Cuisine type'),
   ingredients: z.string().describe('Key ingredients'),
-  referenceUrls: z.array(z.string()).optional().describe('Optional reference image URLs scraped from the web for style guidance')
+  referenceUrls: z
+    .array(z.string())
+    .optional()
+    .describe('Optional reference image URLs scraped from the web for style guidance'),
 });
 
 export type AIImageGenerationInput = z.infer<typeof AIImageGenerationInputSchema>;
 
 const AIImageGenerationOutputSchema = z.object({
-  images: z.array(z.object({
-    url: z.string().describe('Generated image URL'),
-    description: z.string().describe('Image description'),
-    style: z.string().describe('Image style'),
-    prompt: z.string().describe('AI prompt used'),
-  })).describe('Generated images'),
+  images: z
+    .array(
+      z.object({
+        url: z.string().describe('Generated image URL'),
+        description: z.string().describe('Image description'),
+        style: z.string().describe('Image style'),
+        prompt: z.string().describe('AI prompt used'),
+      })
+    )
+    .describe('Generated images'),
 });
 
 export type AIImageGenerationOutput = z.infer<typeof AIImageGenerationOutputSchema>;
@@ -48,31 +55,46 @@ const aiImageGenerationFlow = ai.defineFlow(
       // async function fetchToDataUri(url: string): Promise<string | null> {...}
 
       // Simplified prompt builder
-      const createIntelligentPrompt = (title: string, cuisine: string, ingredients: string, description: string, style: string) => {
+      const createIntelligentPrompt = (
+        title: string,
+        cuisine: string,
+        ingredients: string,
+        description: string,
+        style: string
+      ) => {
         const cleanTitle = title.replace(/[^\w\s]/g, '').trim();
         const basePrompt = `${cleanTitle}, ${cuisine}. Key ingredients: ${ingredients}. ${style} view. Appetizing, natural lighting, high quality.`;
         return basePrompt;
       };
 
-
       // Use Google Gemini 2.5 Flash Image to generate actual AI images
       try {
         // Try GOOGLE_AI_API_KEY first (dedicated for image generation)
-        const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+        const apiKey =
+          process.env.GOOGLE_AI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          process.env.GOOGLE_GENAI_API_KEY ||
+          process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
           console.warn('No Google AI API key found, using Unsplash fallback');
           throw new Error('No API key');
         }
 
-        console.log('🎨 Generating AI images using Gemini 2.5 Flash Image for:', input.title);
-        console.log('🔑 Using API key:', apiKey.substring(0, 15) + '...');
+        console.warn('🎨 Generating AI images using Gemini 2.5 Flash Image for:', input.title);
+        console.warn('🔑 Using API key:', apiKey.substring(0, 15) + '...');
 
         // Generate 2 different style images
         const styles = ['professional', 'close-up'];
-        const imagePromises = styles.map(async (style) => {
-          const promptText = createIntelligentPrompt(input.title, input.cuisine, input.ingredients, input.description, style);
-          console.log(`📝 Intelligent prompt for ${style}:`, promptText.substring(0, 250) + '...');
+        const imagePromises = styles.map(async style => {
+          const promptText = createIntelligentPrompt(
+            input.title,
+            input.cuisine,
+            input.ingredients,
+            input.description,
+            style
+          );
+          console.warn(`📝 Intelligent prompt for ${style}:`, promptText.substring(0, 250) + '...');
 
           try {
             // Call Gemini 2.5 Flash Image API (Free tier with new API key)
@@ -82,15 +104,19 @@ const aiImageGenerationFlow = ai.defineFlow(
                 method: 'POST',
                 headers: {
                   'x-goog-api-key': apiKey,
-                  'Content-Type': 'application/json'
+                  'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  contents: [{
-                    parts: [{
-                      text: promptText
-                    }]
-                  }]
-                })
+                  contents: [
+                    {
+                      parts: [
+                        {
+                          text: promptText,
+                        },
+                      ],
+                    },
+                  ],
+                }),
               }
             );
 
@@ -100,7 +126,7 @@ const aiImageGenerationFlow = ai.defineFlow(
               return null;
             }
 
-            const data = await response.json() as {
+            const data = (await response.json()) as {
               candidates?: Array<{
                 content?: {
                   parts?: Array<{
@@ -114,7 +140,10 @@ const aiImageGenerationFlow = ai.defineFlow(
               }>;
             };
 
-            console.log(`📦 Gemini API response for ${style}:`, JSON.stringify(data, null, 2).substring(0, 500));
+            console.warn(
+              `📦 Gemini API response for ${style}:`,
+              JSON.stringify(data, null, 2).substring(0, 500)
+            );
 
             // Extract the base64 image from Gemini response
             const parts = data.candidates?.[0]?.content?.parts;
@@ -125,7 +154,9 @@ const aiImageGenerationFlow = ai.defineFlow(
                   const mimeType = part.inlineData.mimeType || 'image/png';
                   const dataUri = `data:${mimeType};base64,${imageBase64}`;
 
-                  console.log(`✅ Generated ${style} image (${(imageBase64.length / 1024).toFixed(1)}KB)`);
+                  console.warn(
+                    `✅ Generated ${style} image (${(imageBase64.length / 1024).toFixed(1)}KB)`
+                  );
 
                   return {
                     url: dataUri,
@@ -148,12 +179,14 @@ const aiImageGenerationFlow = ai.defineFlow(
         const generatedImages = (await Promise.all(imagePromises)).filter(img => img !== null);
 
         if (generatedImages.length > 0) {
-          console.log(`🎉 Successfully generated ${generatedImages.length} AI images for:`, input.title);
+          console.warn(
+            `🎉 Successfully generated ${generatedImages.length} AI images for:`,
+            input.title
+          );
           return { images: generatedImages } as AIImageGenerationOutput;
         }
 
-        console.log('⚠️  AI generation returned no images, using placeholder SVGs');
-
+        console.warn('⚠️  AI generation returned no images, using placeholder SVGs');
       } catch (aiErr) {
         console.warn('AI generation error, using placeholder SVGs:', aiErr);
       }
@@ -185,8 +218,14 @@ const aiImageGenerationFlow = ai.defineFlow(
       }
 
       const styles = ['professional', 'close-up'];
-      const placeholderImages = styles.map((style) => {
-        const promptText = createIntelligentPrompt(input.title, input.cuisine, input.ingredients, input.description, style);
+      const placeholderImages = styles.map(style => {
+        const promptText = createIntelligentPrompt(
+          input.title,
+          input.cuisine,
+          input.ingredients,
+          input.description,
+          style
+        );
         return {
           url: createPlaceholderSVG(input.title, style),
           description: `${input.title} - ${style} view`,
@@ -195,9 +234,8 @@ const aiImageGenerationFlow = ai.defineFlow(
         };
       });
 
-      console.log('🖼️  Using placeholder SVG images for:', input.title);
+      console.warn('🖼️  Using placeholder SVG images for:', input.title);
       return { images: placeholderImages };
-
     } catch (error) {
       console.error('AI image generation flow failed:', error);
 
@@ -217,14 +255,14 @@ const aiImageGenerationFlow = ai.defineFlow(
           url: createPlaceholderSVG(input.title, 'professional'),
           description: `${input.title} - professional view`,
           style: 'professional',
-          prompt: `Professional food photography of ${input.title}`
+          prompt: `Professional food photography of ${input.title}`,
         },
         {
           url: createPlaceholderSVG(input.title, 'close-up'),
           description: `${input.title} - close-up`,
           style: 'close-up',
-          prompt: `Close-up of ${input.title}`
-        }
+          prompt: `Close-up of ${input.title}`,
+        },
       ];
       return { images: emergencyImages };
     }

@@ -1,8 +1,9 @@
 'use server';
 
+import type { GeneratedImage } from '@/components/recipe-image-selector';
 import type { RunwayModel } from '@/lib/openai-video-gen';
+import { generateVideoScriptWithOpenAI } from '@/lib/openai-video-script';
 import type { VideoCombinationOptions } from '@/lib/video-combination';
-// (already at top)
 
 // Type definitions
 export interface SplitScene {
@@ -29,12 +30,15 @@ export interface SplitScene {
   colorPalette?: string;
   keyMoments?: string[];
   runwayPrompt?: string; // Pre-generated optimized Runway prompt
-  continuityNotes?: string | { // Can be string or structured object from optimized flow
-    propsFromPrevious?: string[];
-    propsForNext?: string[];
-    lightingConsistency?: string;
-    compositionHint?: string;
-  };
+  continuityNotes?:
+    | string
+    | {
+        // Can be string or structured object from optimized flow
+        propsFromPrevious?: string[];
+        propsForNext?: string[];
+        lightingConsistency?: string;
+        compositionHint?: string;
+      };
   duration?: number;
   pacing?: 'slow' | 'medium' | 'fast';
   transitionTo?: string;
@@ -132,7 +136,7 @@ export async function generateSceneImageAction({
   cuisine,
   ingredients,
   sceneScript,
-  sceneDescription
+  sceneDescription,
 }: {
   recipeId?: string;
   sceneNumber?: number;
@@ -157,7 +161,7 @@ export async function generateSceneImageAction({
       title,
       description: promptDescription,
       cuisine,
-      ingredients
+      ingredients,
     });
     if (result.images && result.images.length > 0) {
       if (recipeId) {
@@ -183,7 +187,10 @@ export async function generateSceneImageAction({
               )
           );
         } catch (logErr) {
-          console.warn('Failed to log scene image asset:', logErr instanceof Error ? logErr.message : logErr);
+          console.warn(
+            'Failed to log scene image asset:',
+            logErr instanceof Error ? logErr.message : logErr
+          );
         }
       }
 
@@ -197,36 +204,76 @@ export async function generateSceneImageAction({
 /**
  * Save (update) scenes for a multi-scene video script (order, script, description, videoUrl)
  */
-export async function saveMultiSceneVideoScenesAction(recipeId: string, scenes: Array<{ id: string; sceneNumber: number; script: string; description?: string; videoUrl?: string; imageUrls?: string[]; advancedOptions?: AdvancedOptions }>): Promise<{ success: boolean; error?: string }> {
+export async function saveMultiSceneVideoScenesAction(
+  recipeId: string,
+  scenes: Array<{
+    id: string;
+    sceneNumber: number;
+    script: string;
+    description?: string;
+    videoUrl?: string;
+    imageUrls?: string[];
+    advancedOptions?: AdvancedOptions;
+  }>
+): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
+    const db = await ensureFirestore();
+
+    type NormalizedSceneRecord = {
+      id: string;
+      sceneNumber: number;
+      script: string;
+      description: string;
+      videoUrl?: string;
+      imageUrls: string[];
+      advancedOptions?: AdvancedOptions;
+    };
+
+    const normalized: NormalizedSceneRecord[] = [];
+
+    for (const scene of scenes ?? []) {
+      const sceneNumber = Number(scene.sceneNumber);
+      if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) {
+        continue;
+      }
+
+      const imageUrls = Array.isArray(scene.imageUrls)
+        ? scene.imageUrls.filter(
+            (url): url is string => typeof url === 'string' && url.trim().length > 0
+          )
+        : [];
+
+      const advancedOptions = normalizeAdvancedOptions(scene.advancedOptions);
+
+      const normalizedScene: NormalizedSceneRecord = {
+        id: String(scene.id),
+        sceneNumber,
+        script: typeof scene.script === 'string' ? scene.script : '',
+        description: typeof scene.description === 'string' ? scene.description : '',
+        imageUrls,
+      };
+
+      const videoUrl = typeof scene.videoUrl === 'string' ? scene.videoUrl : undefined;
+      if (videoUrl !== undefined) {
+        normalizedScene.videoUrl = videoUrl;
+      }
+
+      if (advancedOptions) {
+        normalizedScene.advancedOptions = advancedOptions;
+      }
+
+      normalized.push(normalizedScene);
     }
-    const db = getDb!();
-    // Defensive: normalize scenes (ensure sceneNumber is number and sort)
-    const normalized = (scenes || []).map((s) => ({
-      id: String(s.id),
-      sceneNumber: Number(s.sceneNumber) || 0,
-      script: typeof s.script === 'string' ? s.script : '',
-      description: typeof s.description === 'string' ? s.description : '',
-      videoUrl: typeof s.videoUrl === 'string' ? s.videoUrl : undefined,
-      imageUrls: Array.isArray(s.imageUrls) ? s.imageUrls : [],
-      // Ensure advancedOptions includes known fields and duration
-      advancedOptions: {
-        ...(s.advancedOptions || {}),
-        duration: typeof s.advancedOptions?.duration === 'number' ? s.advancedOptions.duration : undefined,
-        animation: s.advancedOptions?.animation || undefined,
-        voice: s.advancedOptions?.voice || undefined,
-        music: s.advancedOptions?.music || undefined,
-      },
-    })).sort((a, b) => a.sceneNumber - b.sceneNumber);
+
+    normalized.sort((a, b) => a.sceneNumber - b.sceneNumber);
 
     // Persist: use set with merge so we create the document if it doesn't exist
-    await db.collection('multi_scene_video_scripts').doc(recipeId).set({
+    const payload = removeUndefinedDeep({
       scenes: normalized,
       updatedAt: new Date(),
-    }, { merge: true });
+    });
+
+    await db.collection('multi_scene_video_scripts').doc(recipeId).set(payload, { merge: true });
     return { success: true };
   } catch (error) {
     console.error('Error saving multi-scene video scenes:', error);
@@ -234,64 +281,89 @@ export async function saveMultiSceneVideoScenesAction(recipeId: string, scenes: 
   }
 }
 
-export async function generateSceneAssetsBatchAction(recipeId: string, options?: { regenerate?: boolean }): Promise<{
+export async function generateSceneAssetsBatchAction(
+  recipeId: string,
+  options?: { regenerate?: boolean }
+): Promise<{
   success: boolean;
   processed: number;
-  summary: Array<{ sceneNumber: number; imageCount: number; voiceGenerated: boolean; prompt: string }>;
+  summary: Array<{
+    sceneNumber: number;
+    imageCount: number;
+    voiceGenerated: boolean;
+    prompt: string;
+  }>;
   error?: string;
 }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     if (!recipeDoc.exists) {
       return { success: false, processed: 0, summary: [], error: 'Recipe not found' };
     }
     const recipe = recipeDoc.data() || {};
-    const recipeTitle = typeof recipe.title === 'string' && recipe.title.length > 0 ? recipe.title : 'Untitled Recipe';
+    const recipeTitle =
+      typeof recipe.title === 'string' && recipe.title.length > 0
+        ? recipe.title
+        : 'Untitled Recipe';
     const recipeDescription = typeof recipe.description === 'string' ? recipe.description : '';
     const recipeCuisine = typeof recipe.cuisine === 'string' ? recipe.cuisine : '';
     const recipeIngredients = Array.isArray(recipe.ingredients)
       ? recipe.ingredients.join(', ')
-      : (typeof recipe.ingredients === 'string' ? recipe.ingredients : '');
+      : typeof recipe.ingredients === 'string'
+        ? recipe.ingredients
+        : '';
 
     const splitRef = db.collection('split_scenes').doc(recipeId);
     const multiRef = db.collection('multi_scene_video_scripts').doc(recipeId);
 
     const [splitDoc, multiDoc] = await Promise.all([splitRef.get(), multiRef.get()]);
 
-    const baseScenes: SplitScene[] = (multiDoc.exists && Array.isArray(multiDoc.data()?.scenes))
-      ? (multiDoc.data()!.scenes as SplitScene[])
-      : (splitDoc.exists && Array.isArray(splitDoc.data()?.scenes)
-        ? (splitDoc.data()!.scenes as SplitScene[])
-        : []);
+    const baseScenes: SplitScene[] =
+      multiDoc.exists && Array.isArray(multiDoc.data()?.scenes)
+        ? (multiDoc.data()?.scenes as SplitScene[])
+        : splitDoc.exists && Array.isArray(splitDoc.data()?.scenes)
+          ? (splitDoc.data()?.scenes as SplitScene[])
+          : [];
 
     if (baseScenes.length === 0) {
-      return { success: false, processed: 0, summary: [], error: 'No scenes available. Split the script first.' };
+      return {
+        success: false,
+        processed: 0,
+        summary: [],
+        error: 'No scenes available. Split the script first.',
+      };
     }
 
     const { optimizePromptForRunway } = await import('@/lib/openai-video-gen');
 
-    const summary: Array<{ sceneNumber: number; imageCount: number; voiceGenerated: boolean; prompt: string }> = [];
+    const summary: Array<{
+      sceneNumber: number;
+      imageCount: number;
+      voiceGenerated: boolean;
+      prompt: string;
+    }> = [];
     const updatedScenes: SplitScene[] = [];
-    const splitScenesForUpdate: SplitScene[] = splitDoc.exists && Array.isArray(splitDoc.data()?.scenes)
-      ? (splitDoc.data()!.scenes as SplitScene[])
-      : [];
+    const splitScenesForUpdate: SplitScene[] =
+      splitDoc.exists && Array.isArray(splitDoc.data()?.scenes)
+        ? (splitDoc.data()?.scenes as SplitScene[])
+        : [];
 
     for (const scene of baseScenes) {
       const sceneNumber = Number(scene.sceneNumber) || updatedScenes.length + 1;
       const script = cleanSceneText(scene.script);
       const description = typeof scene.description === 'string' ? scene.description : '';
-      const existingImages = Array.isArray(scene.imageUrls) ? scene.imageUrls.filter((u) => typeof u === 'string' && u.length > 0) : [];
-      const existingVoiceUrl = typeof scene.voiceOverUrl === 'string' && scene.voiceOverUrl.trim().length > 0
-        ? scene.voiceOverUrl
-        : (typeof scene.advancedOptions?.voice?.url === 'string' && scene.advancedOptions.voice.url.trim().length > 0
-          ? scene.advancedOptions.voice.url
-          : undefined);
+      const existingImages = Array.isArray(scene.imageUrls)
+        ? scene.imageUrls.filter(u => typeof u === 'string' && u.length > 0)
+        : [];
+      const existingVoiceUrl =
+        typeof scene.voiceOverUrl === 'string' && scene.voiceOverUrl.trim().length > 0
+          ? scene.voiceOverUrl
+          : typeof scene.advancedOptions?.voice?.url === 'string' &&
+              scene.advancedOptions.voice.url.trim().length > 0
+            ? scene.advancedOptions.voice.url
+            : undefined;
       let voiceUrl: string | undefined = existingVoiceUrl;
       let voiceoverMeta = scene.voiceoverMeta ?? scene.voiceOverMeta ?? null;
       const regenerate = !!options?.regenerate;
@@ -317,43 +389,66 @@ export async function generateSceneAssetsBatchAction(recipeId: string, options?:
             sceneScript: script,
             sceneDescription: description,
           });
-          if (imageResult.success && Array.isArray(imageResult.imageUrls) && imageResult.imageUrls.length > 0) {
+          if (
+            imageResult.success &&
+            Array.isArray(imageResult.imageUrls) &&
+            imageResult.imageUrls.length > 0
+          ) {
             imageUrls = imageResult.imageUrls;
           }
         } catch (err) {
-          console.warn(`Scene ${sceneNumber}: image generation skipped`, err instanceof Error ? err.message : err);
+          console.warn(
+            `Scene ${sceneNumber}: image generation skipped`,
+            err instanceof Error ? err.message : err
+          );
         }
       }
 
       if (regenerate || !voiceUrl) {
         try {
-          const voiceResult = await generateVoiceOverAction(script, scene.advancedOptions?.voice?.voiceId, {
-            recipeId,
-            sceneNumber,
-            context: 'scene-batch',
-          });
+          const voiceResult = await generateVoiceOverAction(
+            script,
+            scene.advancedOptions?.voice?.voiceId,
+            {
+              recipeId,
+              sceneNumber,
+              context: 'scene-batch',
+            }
+          );
           if (voiceResult.success && voiceResult.url) {
             voiceUrl = voiceResult.url;
             voiceoverMeta = voiceResult.metadata
-              ? { ...voiceResult.metadata, url: voiceResult.url, updatedAt: new Date().toISOString() }
+              ? {
+                  ...voiceResult.metadata,
+                  url: voiceResult.url,
+                  updatedAt: new Date().toISOString(),
+                }
               : voiceoverMeta;
           }
         } catch (err) {
-          console.warn(`Scene ${sceneNumber}: voiceover generation skipped`, err instanceof Error ? err.message : err);
+          console.warn(
+            `Scene ${sceneNumber}: voiceover generation skipped`,
+            err instanceof Error ? err.message : err
+          );
         }
       }
 
-      const subtitleLines = Array.isArray(scene.subtitleLines) && scene.subtitleLines.length > 0
-        ? scene.subtitleLines
-        : buildSubtitleLines(script);
+      const subtitleLines =
+        Array.isArray(scene.subtitleLines) && scene.subtitleLines.length > 0
+          ? scene.subtitleLines
+          : buildSubtitleLines(script);
 
-      const duration = typeof scene.advancedOptions?.duration === 'number'
-        ? scene.advancedOptions.duration
-        : estimateSceneDuration(script);
+      const duration =
+        typeof scene.advancedOptions?.duration === 'number'
+          ? scene.advancedOptions.duration
+          : estimateSceneDuration(script);
 
-      const referenceImage = imageUrls.length > 0
-        ? imageUrls[0]
-        : (scene.referenceImage || (typeof recipe.imageUrl === 'string' ? recipe.imageUrl : undefined)) || undefined;
+      const referenceImage =
+        imageUrls.length > 0
+          ? imageUrls[0]
+          : scene.referenceImage ||
+            (typeof recipe.imageUrl === 'string' ? recipe.imageUrl : undefined) ||
+            undefined;
 
       const advancedOptions: AdvancedOptions = {
         ...(scene.advancedOptions || {}),
@@ -387,7 +482,9 @@ export async function generateSceneAssetsBatchAction(recipeId: string, options?:
 
       // Sync changes into split_scenes representation as well
       if (splitScenesForUpdate.length > 0) {
-        const idx = splitScenesForUpdate.findIndex((item) => Number(item.sceneNumber) === sceneNumber);
+        const idx = splitScenesForUpdate.findIndex(
+          item => Number(item.sceneNumber) === sceneNumber
+        );
         if (idx >= 0) {
           splitScenesForUpdate[idx] = { ...splitScenesForUpdate[idx], ...mergedScene };
         }
@@ -402,20 +499,30 @@ export async function generateSceneAssetsBatchAction(recipeId: string, options?:
     }
 
     if (updatedScenes.length > 0) {
-      await multiRef.set({
-        scenes: updatedScenes.map((scene) => ({
+      const sanitizedScenes = updatedScenes.map(scene =>
+        removeUndefinedDeep({
           ...scene,
-          // Ensure Firestore friendly values
           videoGeneratedAt: scene.videoGeneratedAt ?? undefined,
-        })),
-        updatedAt: new Date(),
-      }, { merge: true });
+        })
+      );
+
+      await multiRef.set(
+        removeUndefinedDeep({
+          scenes: sanitizedScenes,
+          updatedAt: new Date(),
+        }),
+        { merge: true }
+      );
 
       if (splitScenesForUpdate.length > 0) {
-        await splitRef.set({
-          scenes: splitScenesForUpdate,
-          updatedAt: new Date(),
-        }, { merge: true });
+        const sanitizedSplitScenes = splitScenesForUpdate.map(scene => removeUndefinedDeep(scene));
+        await splitRef.set(
+          removeUndefinedDeep({
+            scenes: sanitizedSplitScenes,
+            updatedAt: new Date(),
+          }),
+          { merge: true }
+        );
       }
     }
 
@@ -443,8 +550,8 @@ function cleanSceneText(value: unknown): string {
 function buildSubtitleLines(script: string): string[] {
   const sentences = script
     .split(/(?<=[.!?])\s+/)
-    .map((segment) => cleanSceneText(segment))
-    .filter((segment) => segment.length > 0);
+    .map(segment => cleanSceneText(segment))
+    .filter(segment => segment.length > 0);
 
   if (sentences.length > 0) {
     return sentences;
@@ -452,8 +559,8 @@ function buildSubtitleLines(script: string): string[] {
 
   return script
     .split(/\n+/)
-    .map((line) => cleanSceneText(line))
-    .filter((line) => line.length > 0);
+    .map(line => cleanSceneText(line))
+    .filter(line => line.length > 0);
 }
 
 function estimateSceneDuration(script: string): number {
@@ -465,17 +572,16 @@ function estimateSceneDuration(script: string): number {
 /**
  * Generate a video for a single split scene (from split_scenes)
  */
-export async function generateSplitSceneVideoAction(recipeId: string, sceneNumber: number): Promise<{
+export async function generateSplitSceneVideoAction(
+  recipeId: string,
+  sceneNumber: number
+): Promise<{
   success: boolean;
   videoUrl?: string;
   error?: string;
 }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get recipe details
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -487,7 +593,10 @@ export async function generateSplitSceneVideoAction(recipeId: string, sceneNumbe
       return { success: false, error: 'Recipe data is empty' };
     }
     if (!recipe.imageUrl) {
-      return { success: false, error: 'Recipe must have an image. Please add an image to the recipe first.' };
+      return {
+        success: false,
+        error: 'Recipe must have an image. Please add an image to the recipe first.',
+      };
     }
 
     // Get the split scene from split_scenes
@@ -495,7 +604,7 @@ export async function generateSplitSceneVideoAction(recipeId: string, sceneNumbe
     if (!splitScenesDoc.exists || !splitScenesDoc.data()?.scenes) {
       return { success: false, error: 'No split scenes found. Please split the script first.' };
     }
-  const splitScenes = splitScenesDoc.data()?.scenes ?? [];
+    const splitScenes = splitScenesDoc.data()?.scenes ?? [];
     const scene = splitScenes.find((s: SplitScene) => s.sceneNumber === sceneNumber);
     if (!scene) {
       return { success: false, error: `Scene ${sceneNumber} not found.` };
@@ -523,23 +632,30 @@ export async function generateSplitSceneVideoAction(recipeId: string, sceneNumbe
       s.sceneNumber === sceneNumber ? { ...s, videoUrl, videoGeneratedAt: new Date() } : s
     );
     await db.collection('split_scenes').doc(recipeId).update({
-      scenes: updatedScenes
+      scenes: updatedScenes,
     });
 
     try {
-      const advDuration = (scene as { advancedOptions?: { duration?: unknown } }).advancedOptions?.duration;
+      const advDuration = (scene as { advancedOptions?: { duration?: unknown } }).advancedOptions
+        ?.duration;
       const storedDuration = (scene as { duration?: unknown }).duration;
-      const resolvedDuration = typeof advDuration === 'number'
-        ? advDuration
-        : (typeof storedDuration === 'number' ? storedDuration : undefined);
+      const resolvedDuration =
+        typeof advDuration === 'number'
+          ? advDuration
+          : typeof storedDuration === 'number'
+            ? storedDuration
+            : undefined;
 
       const voiceUrl =
-        (scene as { voiceOverUrl?: unknown }).voiceOverUrl && typeof (scene as { voiceOverUrl?: unknown }).voiceOverUrl === 'string'
+        (scene as { voiceOverUrl?: unknown }).voiceOverUrl &&
+        typeof (scene as { voiceOverUrl?: unknown }).voiceOverUrl === 'string'
           ? (scene as { voiceOverUrl: string }).voiceOverUrl
-          : ((scene as { advancedOptions?: { voice?: { url?: string } } }).advancedOptions?.voice?.url ?? undefined);
-      const voiceMeta = (scene as { voiceoverMeta?: Record<string, unknown> }).voiceoverMeta
-        || (scene as { voiceOverMeta?: Record<string, unknown> }).voiceOverMeta
-        || null;
+          : ((scene as { advancedOptions?: { voice?: { url?: string } } }).advancedOptions?.voice
+              ?.url ?? undefined);
+      const voiceMeta =
+        (scene as { voiceoverMeta?: Record<string, unknown> }).voiceoverMeta ||
+        (scene as { voiceOverMeta?: Record<string, unknown> }).voiceOverMeta ||
+        null;
 
       await logVideoHubAsset({
         recipeId,
@@ -551,16 +667,19 @@ export async function generateSplitSceneVideoAction(recipeId: string, sceneNumbe
         metadata: voiceMeta
           ? { ...voiceMeta, url: voiceUrl }
           : voiceUrl
-          ? { voiceOverUrl: voiceUrl }
-          : undefined,
+            ? { voiceOverUrl: voiceUrl }
+            : undefined,
       });
     } catch (logErr) {
-      console.warn('Failed to log split scene video asset:', logErr instanceof Error ? logErr.message : logErr);
+      console.warn(
+        'Failed to log split scene video asset:',
+        logErr instanceof Error ? logErr.message : logErr
+      );
     }
 
     return {
       success: true,
-      videoUrl
+      videoUrl,
     };
   } catch (error) {
     console.error('❌ Error generating split scene video:', error);
@@ -568,17 +687,19 @@ export async function generateSplitSceneVideoAction(recipeId: string, sceneNumbe
   }
 }
 
-
 /**
  * Fetch history (previous generated videos) for a scene
  */
-export async function getSceneHistoryAction(recipeId: string, sceneNumber: number): Promise<{ success: boolean; history?: Array<{ videoUrl: string; generatedAt?: unknown }>; error?: string }> {
+export async function getSceneHistoryAction(
+  recipeId: string,
+  sceneNumber: number
+): Promise<{
+  success: boolean;
+  history?: Array<{ videoUrl: string; generatedAt?: unknown }>;
+  error?: string;
+}> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     const histories: Array<{ videoUrl: string; generatedAt?: unknown }> = [];
 
     // Check split_scenes first
@@ -587,9 +708,15 @@ export async function getSceneHistoryAction(recipeId: string, sceneNumber: numbe
       if (splitDoc.exists) {
         const data = splitDoc.data();
         const scenes = data?.scenes || [];
-        const match = scenes.find((s: unknown) => Number((s as Record<string, unknown>)['sceneNumber']) === Number(sceneNumber));
+        const match = scenes.find(
+          (s: unknown) =>
+            Number((s as Record<string, unknown>)['sceneNumber']) === Number(sceneNumber)
+        );
         if (match && (match as Record<string, unknown>)['videoUrl']) {
-          histories.push({ videoUrl: (match as Record<string, unknown>)['videoUrl'] as string, generatedAt: (match as Record<string, unknown>)['videoGeneratedAt'] });
+          histories.push({
+            videoUrl: (match as Record<string, unknown>)['videoUrl'] as string,
+            generatedAt: (match as Record<string, unknown>)['videoGeneratedAt'],
+          });
         }
       }
     } catch {
@@ -614,7 +741,9 @@ export async function getSceneHistoryAction(recipeId: string, sceneNumber: numbe
 
     // De-duplicate by URL
     const unique: Record<string, { videoUrl: string; generatedAt?: unknown }> = {};
-    histories.forEach(h => { if (h.videoUrl) unique[h.videoUrl] = h; });
+    histories.forEach(h => {
+      if (h.videoUrl) unique[h.videoUrl] = h;
+    });
 
     return { success: true, history: Object.values(unique) };
   } catch (error) {
@@ -623,24 +752,25 @@ export async function getSceneHistoryAction(recipeId: string, sceneNumber: numbe
   }
 }
 
-
 /**
  * Finalize or un-finalize a scene (lock/unlock for regeneration)
  */
-export async function finalizeSceneAction(recipeId: string, sceneNumber: number, finalized: boolean): Promise<{ success: boolean; error?: string }> {
+export async function finalizeSceneAction(
+  recipeId: string,
+  sceneNumber: number,
+  finalized: boolean
+): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     const ref = db.collection('split_scenes').doc(recipeId);
     const doc = await ref.get();
     if (!doc.exists) return { success: false, error: 'No scenes found' };
     const scenes = doc.data()?.scenes || [];
     const updated = scenes.map((s: unknown) => {
       const obj = s as Record<string, unknown>;
-      return Number(obj['sceneNumber'] as unknown as number) === Number(sceneNumber) ? { ...obj, finalized, status: finalized ? 'finalized' : 'draft' } : obj;
+      return Number(obj['sceneNumber'] as unknown as number) === Number(sceneNumber)
+        ? { ...obj, finalized, status: finalized ? 'finalized' : 'draft' }
+        : obj;
     });
     await ref.update({ scenes: updated, updatedAt: new Date() });
     return { success: true };
@@ -650,36 +780,49 @@ export async function finalizeSceneAction(recipeId: string, sceneNumber: number,
   }
 }
 
-
 /**
  * Generate a lightweight storyboard image for a scene (fast preview)
  */
-export async function generateSceneStoryboardAction(recipeId: string, sceneNumber: number): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+export async function generateSceneStoryboardAction(
+  recipeId: string,
+  sceneNumber: number
+): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     const splitDoc = await db.collection('split_scenes').doc(recipeId).get();
     if (!splitDoc.exists) return { success: false, error: 'No split scenes found' };
     const scenes = splitDoc.data()?.scenes || [];
-  const scene = scenes.find((s: unknown) => Number((s as Record<string, unknown>)['sceneNumber']) === Number(sceneNumber)) as Record<string, unknown> | undefined;
+    const scene = scenes.find(
+      (s: unknown) => Number((s as Record<string, unknown>)['sceneNumber']) === Number(sceneNumber)
+    ) as Record<string, unknown> | undefined;
     if (!scene) return { success: false, error: 'Scene not found' };
 
     // Compose prompt for small storyboard image
-    const prompt = String((scene.runwayPrompt || scene.description || scene.script || '')).slice(0, 1000);
+    const prompt = String(scene.runwayPrompt || scene.description || scene.script || '').slice(
+      0,
+      1000
+    );
     const { generateRecipeImages } = await import('@/ai/flows/generate-recipe-images');
-    const images = await generateRecipeImages({ title: `Storyboard ${recipeId}#${sceneNumber}`, description: prompt, cuisine: '', ingredients: '' });
+    const images = await generateRecipeImages({
+      title: `Storyboard ${recipeId}#${sceneNumber}`,
+      description: prompt,
+      cuisine: '',
+      ingredients: '',
+    });
     const image = images.images?.[0];
     if (!image || !image.url) return { success: false, error: 'No image generated' };
 
     // persist imageUrl in scene
     const updatedScenes = scenes.map((s: unknown) => {
       const obj = s as Record<string, unknown>;
-      return Number(obj['sceneNumber'] as unknown as number) === Number(sceneNumber) ? { ...obj, imageUrl: image.url, imageGeneratedAt: new Date() } : obj;
+      return Number(obj['sceneNumber'] as unknown as number) === Number(sceneNumber)
+        ? { ...obj, imageUrl: image.url, imageGeneratedAt: new Date() }
+        : obj;
     });
-    await db.collection('split_scenes').doc(recipeId).update({ scenes: updatedScenes, updatedAt: new Date() });
+    await db
+      .collection('split_scenes')
+      .doc(recipeId)
+      .update({ scenes: updatedScenes, updatedAt: new Date() });
 
     try {
       await logVideoHubAsset({
@@ -691,7 +834,10 @@ export async function generateSceneStoryboardAction(recipeId: string, sceneNumbe
         metadata: { prompt },
       });
     } catch (logErr) {
-      console.warn('Failed to log storyboard asset:', logErr instanceof Error ? logErr.message : logErr);
+      console.warn(
+        'Failed to log storyboard asset:',
+        logErr instanceof Error ? logErr.message : logErr
+      );
     }
 
     return { success: true, imageUrl: image.url };
@@ -704,7 +850,13 @@ export async function generateSceneStoryboardAction(recipeId: string, sceneNumbe
 /**
  * Server Action wrapper to check Runway task status
  */
-export async function checkRunwayTaskStatusAction(taskId: string): Promise<{ success: boolean; status?: string; progress?: number; output?: unknown; error?: string }> {
+export async function checkRunwayTaskStatusAction(taskId: string): Promise<{
+  success: boolean;
+  status?: string;
+  progress?: number;
+  output?: unknown;
+  error?: string;
+}> {
   try {
     const { checkVideoStatus } = await import('@/lib/openai-video-gen');
     const res = await checkVideoStatus(taskId);
@@ -719,13 +871,11 @@ export async function checkRunwayTaskStatusAction(taskId: string): Promise<{ suc
  * Server Action: Fetch split scenes for a recipe using Admin SDK
  * Use this when client-side reads are blocked by Firestore rules.
  */
-export async function getSplitScenesForRecipeAction(recipeId: string): Promise<{ success: boolean; scenes?: SplitScene[]; error?: string }> {
+export async function getSplitScenesForRecipeAction(
+  recipeId: string
+): Promise<{ success: boolean; scenes?: SplitScene[]; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     const doc = await db.collection('split_scenes').doc(recipeId).get();
     if (!doc.exists) return { success: true, scenes: [] };
     const data = doc.data();
@@ -737,25 +887,26 @@ export async function getSplitScenesForRecipeAction(recipeId: string): Promise<{
   }
 }
 // --- Scene splitting from main script ---
-export async function splitMainScriptIntoScenesAction(recipeId: string, sceneCount: number = 3): Promise<{ success: boolean; scenes?: SplitScene[]; error?: string }> {
+export async function splitMainScriptIntoScenesAction(
+  recipeId: string,
+  sceneCount: number = 3
+): Promise<{ success: boolean; scenes?: SplitScene[]; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     // Get the main script from video_scripts
     const scriptDoc = await db.collection('video_scripts').doc(recipeId).get();
     if (!scriptDoc.exists || !scriptDoc.data()?.script) {
       return { success: false, error: 'No main script found for this recipe.' };
     }
-  const script = scriptDoc.data()?.script ?? '';
+    const script = scriptDoc.data()?.script ?? '';
     // Get recipe for context
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     const recipeTitle = recipeDoc.exists && recipeDoc.data() ? recipeDoc.data()?.title : 'Recipe';
 
     // Use the OPTIMIZED AI flow to split the script with semantic boundaries and Runway prompts
-    const { splitScriptIntoScenesOptimizedFlow } = await import('@/ai/flows/split-script-into-scenes-optimized');
+    const { splitScriptIntoScenesOptimizedFlow } = await import(
+      '@/ai/flows/split-script-into-scenes-optimized'
+    );
     const { scenes } = await splitScriptIntoScenesOptimizedFlow({
       script,
       sceneCount,
@@ -806,18 +957,29 @@ export async function generateVoiceOverAction(
     const cleanedText = prepareForVoiceover(text);
 
     if (!cleanedText || cleanedText.length < 10) {
-      return { success: false, error: 'Text contains only cues/markers. Please provide actual narration content.' };
+      return {
+        success: false,
+        error: 'Text contains only cues/markers. Please provide actual narration content.',
+      };
     }
 
     const normalizedText = cleanedText.trim().replace(/\s+/g, ' ');
     if (normalizedText.length < 12) {
-      return { success: false, error: 'Voiceover text is too short. Please provide at least a full sentence.' };
+      return {
+        success: false,
+        error: 'Voiceover text is too short. Please provide at least a full sentence.',
+      };
     }
     if (normalizedText.length > 4000) {
-      return { success: false, error: 'Voiceover text is too long. Try trimming it under 4000 characters.' };
+      return {
+        success: false,
+        error: 'Voiceover text is too long. Try trimming it under 4000 characters.',
+      };
     }
 
-    console.log(`🎙️ Voiceover text cleaned: "${text.substring(0, 50)}..." → "${normalizedText.substring(0, 50)}..."`);
+    console.warn(
+      `🎙️ Voiceover text cleaned: "${text.substring(0, 50)}..." → "${normalizedText.substring(0, 50)}..."`
+    );
 
     const words = normalizedText.split(/\s+/).length;
     const durationEstimate = Math.max(3, Math.round((words / 180) * 60)); // ~180 wpm
@@ -827,22 +989,29 @@ export async function generateVoiceOverAction(
     const activeVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
 
     // Prefer Gemini TTS via Google GenAI if API key is available
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
+    const apiKey =
+      process.env.GOOGLE_GENAI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_AI_API_KEY;
     let audioBuffer: ArrayBuffer | null = null;
     let audioSource: VoiceOverMetadata['source'] = 'unknown';
 
     if (apiKey) {
       try {
         // Use the new Google GenAI TTS endpoint (example)
-        const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-tts:generateAudio', {
-          method: 'POST',
-          headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: { text }, audioConfig: { audioEncoding: 'mp3' } }),
-        });
+        const resp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-tts:generateAudio',
+          {
+            method: 'POST',
+            headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: { text }, audioConfig: { audioEncoding: 'mp3' } }),
+          }
+        );
         if (resp.ok) {
           const json = await resp.json();
           // The API may return base64 audio in `audioContent` or inline data in candidates
-          const b64 = json.audioContent || json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          const b64 =
+            json.audioContent || json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
           if (b64) {
             audioBuffer = Uint8Array.from(Buffer.from(b64, 'base64')).buffer;
             audioSource = 'gemini';
@@ -863,7 +1032,7 @@ export async function generateVoiceOverAction(
         const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${activeVoiceId}`, {
           method: 'POST',
           headers: {
-            'Accept': 'audio/mpeg',
+            Accept: 'audio/mpeg',
             'Content-Type': 'application/json',
             'xi-api-key': elevenKey,
           },
@@ -921,7 +1090,10 @@ export async function generateVoiceOverAction(
           metadata: { ...voiceoverMetadata },
         });
       } catch (logErr) {
-        console.warn('Failed to log voiceover asset:', logErr instanceof Error ? logErr.message : logErr);
+        console.warn(
+          'Failed to log voiceover asset:',
+          logErr instanceof Error ? logErr.message : logErr
+        );
       }
     }
 
@@ -940,11 +1112,7 @@ export async function markSceneVoiceOverAction(
   metadata?: Partial<VoiceOverMetadata>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
     const docRef = db.collection('split_scenes').doc(recipeId);
     const doc = await docRef.get();
     if (!doc.exists) return { success: false, error: 'No split scenes found' };
@@ -967,7 +1135,8 @@ export async function markSceneVoiceOverAction(
           : s.voiceOverMeta,
         voiceoverMeta: metadata
           ? {
-              ...(typeof (s as { voiceoverMeta?: Record<string, unknown> }).voiceoverMeta === 'object'
+              ...(typeof (s as { voiceoverMeta?: Record<string, unknown> }).voiceoverMeta ===
+              'object'
                 ? (s as { voiceoverMeta: Record<string, unknown> }).voiceoverMeta
                 : {}),
               ...metadata,
@@ -1006,14 +1175,12 @@ export interface VideoHubStatusData {
   lastUpdated?: string;
 }
 
-export async function getVideoHubStatusAction(recipeId: string): Promise<{ success: boolean; data?: VideoHubStatusData; error?: string }> {
+export async function getVideoHubStatusAction(
+  recipeId: string
+): Promise<{ success: boolean; data?: VideoHubStatusData; error?: string }> {
   try {
     if (!recipeId) return { success: false, error: 'Recipe ID required' };
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     const [recipeSnap, scriptSnap, splitSnap, assetsSnap] = await Promise.all([
       db.collection('recipes').doc(recipeId).get(),
@@ -1030,17 +1197,24 @@ export async function getVideoHubStatusAction(recipeId: string): Promise<{ succe
     const imageUrl = typeof recipe.imageUrl === 'string' ? recipe.imageUrl : '';
     const imageReady = Boolean(imageUrl && !imageUrl.startsWith('data:'));
 
-    const scriptData = scriptSnap.exists ? scriptSnap.data() ?? {} : {};
-    const scriptReady = typeof scriptData.script === 'string' && scriptData.script.trim().length > 0;
+    const scriptData = scriptSnap.exists ? (scriptSnap.data() ?? {}) : {};
+    const scriptReady =
+      typeof scriptData.script === 'string' && scriptData.script.trim().length > 0;
 
-    const splitData = splitSnap.exists ? splitSnap.data() ?? {} : {};
-    const rawScenes: Array<Record<string, unknown>> = Array.isArray(splitData.scenes) ? splitData.scenes : [];
+    const splitData = splitSnap.exists ? (splitSnap.data() ?? {}) : {};
+    const rawScenes: Array<Record<string, unknown>> = Array.isArray(splitData.scenes)
+      ? splitData.scenes
+      : [];
     const sceneTotal = rawScenes.length;
-    const videosReady = rawScenes.filter((scene) => typeof scene.videoUrl === 'string' && (scene.videoUrl as string).trim().length > 0).length;
-    const voiceoversReady = rawScenes.filter((scene) => {
-      if (typeof scene.voiceOverUrl === 'string' && scene.voiceOverUrl.trim().length > 0) return true;
-      const meta = (scene.voiceOverMeta as Record<string, unknown> | undefined)
-        || (scene.voiceoverMeta as Record<string, unknown> | undefined);
+    const videosReady = rawScenes.filter(
+      scene => typeof scene.videoUrl === 'string' && (scene.videoUrl as string).trim().length > 0
+    ).length;
+    const voiceoversReady = rawScenes.filter(scene => {
+      if (typeof scene.voiceOverUrl === 'string' && scene.voiceOverUrl.trim().length > 0)
+        return true;
+      const meta =
+        (scene.voiceOverMeta as Record<string, unknown> | undefined) ||
+        (scene.voiceoverMeta as Record<string, unknown> | undefined);
       if (meta && typeof meta.url === 'string' && meta.url.trim().length > 0) return true;
       const advanced = scene.advancedOptions as { voice?: { url?: string } } | undefined;
       return Boolean(advanced?.voice?.url);
@@ -1050,7 +1224,7 @@ export async function getVideoHubStatusAction(recipeId: string): Promise<{ succe
 
     const assetStats = { videos: 0, audios: 0, images: 0 };
     let latestAssetTimestamp: Date | undefined;
-    assetsSnap.forEach((doc) => {
+    assetsSnap.forEach(doc => {
       const data = doc.data() ?? {};
       const type = data.type as string | undefined;
       if (type === 'video') assetStats.videos += 1;
@@ -1071,7 +1245,9 @@ export async function getVideoHubStatusAction(recipeId: string): Promise<{ succe
     const assetsReady = assetStats.videos > 0;
 
     const combinedVideoReady = Boolean(
-      splitData?.combinedVideo && typeof splitData.combinedVideo.url === 'string' && splitData.combinedVideo.url.trim().length > 0,
+      splitData?.combinedVideo &&
+        typeof splitData.combinedVideo.url === 'string' &&
+        splitData.combinedVideo.url.trim().length > 0
     );
 
     const shareReady = assetsReady && scriptReady && imageReady;
@@ -1145,7 +1321,7 @@ export async function getVideoHubStatusAction(recipeId: string): Promise<{ succe
       combinedVideoReady,
       nextAction,
       suggestions,
-  lastUpdated: latestAssetTimestamp ? latestAssetTimestamp.toISOString() : undefined,
+      lastUpdated: latestAssetTimestamp ? latestAssetTimestamp.toISOString() : undefined,
     };
 
     return { success: true, data };
@@ -1154,12 +1330,130 @@ export async function getVideoHubStatusAction(recipeId: string): Promise<{ succe
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
-// import { generateVideoScriptFlow } from '@/ai/flows/generate-video-script';
-import { generateVideoScriptWithOpenAI } from '@/lib/openai-video-script';
 
+// import { generateVideoScriptFlow } from '@/ai/flows/generate-video-script';
 // Do not import server-only modules at the top level. Import inside server-only functions as needed.
 let getDb: (() => FirebaseFirestore.Firestore) | undefined;
 let getAdmin: (() => typeof import('firebase-admin')) | undefined;
+async function ensureFirestore(): Promise<FirebaseFirestore.Firestore> {
+  if (!getDb) {
+    const adminConfig = await import('../../config/firebase-admin');
+    getDb = adminConfig.getDb;
+  }
+
+  const db = typeof getDb === 'function' ? getDb() : undefined;
+  if (!db) {
+    throw new Error('Firestore instance is not initialized');
+  }
+  return db;
+}
+
+async function ensureFirebaseAdmin(): Promise<typeof import('firebase-admin')> {
+  // Ensure the lazy initializer is loaded so the app is initialized
+  if (!getAdmin) {
+    const adminConfig = await import('../../config/firebase-admin');
+    getAdmin = adminConfig.getAdmin;
+  }
+
+  // Initialize the app (side-effect) if needed
+  try {
+    // Ensure the admin app is initialized (side-effect). We don't need the
+    // returned app instance here, only need to guarantee initialization.
+    if (typeof getAdmin === 'function') getAdmin();
+    // Also return the firebase-admin module (not the app instance) because
+    // callers expect access to helpers like admin.firestore.FieldValue
+    const adminModule = await import('firebase-admin');
+    if (!adminModule) throw new Error('Failed to import firebase-admin module');
+    return adminModule as typeof import('firebase-admin');
+  } catch {
+    throw new Error('Firebase Admin SDK is not initialized');
+  }
+}
+
+type FirestoreTimestampLike = { toDate: () => Date; toMillis: () => number };
+
+function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      typeof (value as { toDate?: unknown }).toDate === 'function' &&
+      typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  );
+}
+
+function cleanForFirestore(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (value instanceof Date) return value;
+  if (isFirestoreTimestamp(value)) return value;
+
+  if (Array.isArray(value)) {
+    const cleanedArray = value
+      .map(item => cleanForFirestore(item))
+      .filter(item => item !== undefined);
+    return cleanedArray;
+  }
+
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return undefined;
+
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of entries) {
+      const cleanedVal = cleanForFirestore(val);
+      if (cleanedVal !== undefined) {
+        result[key] = cleanedVal;
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+
+  return value;
+}
+
+function removeUndefinedDeep<T>(value: T): T {
+  return cleanForFirestore(value) as T;
+}
+
+function toIsoString(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (isFirestoreTimestamp(value)) {
+    try {
+      return value.toDate().toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function normalizeAdvancedOptions(input?: AdvancedOptions): AdvancedOptions | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+
+  const base: Record<string, unknown> = { ...input };
+  const durationValue =
+    typeof input.duration === 'number'
+      ? input.duration
+      : typeof (input as { duration?: unknown }).duration === 'string'
+        ? Number(input.duration)
+        : undefined;
+
+  if (Number.isFinite(durationValue) && Number(durationValue) > 0) {
+    base.duration = Number(durationValue);
+  } else {
+    delete base.duration;
+  }
+
+  const cleaned = removeUndefinedDeep(base);
+  return cleaned && typeof cleaned === 'object' ? (cleaned as AdvancedOptions) : undefined;
+}
 // Instagram API types
 interface InstagramPostData {
   imageUrl: string;
@@ -1191,20 +1485,20 @@ interface InstagramMediaInsights {
   timestamp: string;
 }
 
-let instagramApi: {
-  isConfigured: () => boolean;
-  publishPost: (post: InstagramPostData) => Promise<InstagramPostResult>;
-  publishVideoPost: (post: InstagramVideoPostData) => Promise<InstagramPostResult>;
-  getComments: (mediaId: string) => Promise<InstagramComment[]>;
-  getMediaInsights: (mediaId: string) => Promise<InstagramMediaInsights>;
-} | undefined;
+let instagramApi:
+  | {
+      isConfigured: () => boolean;
+      publishPost: (post: InstagramPostData) => Promise<InstagramPostResult>;
+      publishVideoPost: (post: InstagramVideoPostData) => Promise<InstagramPostResult>;
+      getComments: (mediaId: string) => Promise<InstagramComment[]>;
+      getMediaInsights: (mediaId: string) => Promise<InstagramMediaInsights>;
+    }
+  | undefined;
 type StorageFileLike = {
   makePublic?: () => Promise<void>;
   getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]>;
   name?: string;
 };
-
-import type { GeneratedImage } from '@/components/recipe-image-selector';
 
 const TRUSTED_IMAGE_HOSTS = [
   'images.unsplash.com',
@@ -1262,7 +1556,7 @@ const buildFallbackImages = (recipeData: {
 };
 
 const isTrustedImageHost = (url: URL) =>
-  TRUSTED_IMAGE_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+  TRUSTED_IMAGE_HOSTS.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`));
 
 const normalizeImageCandidate = async (
   candidate: GeneratedImage,
@@ -1301,7 +1595,9 @@ const normalizeImageCandidate = async (
   }
 
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS) : undefined;
+  const timer = controller
+    ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+    : undefined;
 
   try {
     const response = await fetch(rawUrl, {
@@ -1324,7 +1620,11 @@ const normalizeImageCandidate = async (
       style: candidate.style || 'generated',
     } satisfies GeneratedImage;
   } catch (error) {
-    console.warn('Image validation failed, using fallback:', rawUrl, error instanceof Error ? error.message : error);
+    console.warn(
+      'Image validation failed, using fallback:',
+      rawUrl,
+      error instanceof Error ? error.message : error
+    );
     return null;
   } finally {
     if (timer) clearTimeout(timer);
@@ -1350,7 +1650,7 @@ const sanitizeGeneratedImages = async (
 
   if (normalized.length === 0) {
     const fallback = buildFallbackImages(recipeData);
-    fallback.forEach((image) => seen.add(image.url));
+    fallback.forEach(image => seen.add(image.url));
     return fallback;
   }
 
@@ -1366,9 +1666,7 @@ const sanitizeGeneratedImages = async (
   return normalized;
 };
 
-export async function getNutritionalData(
-  ingredients: string[]
-): Promise<{
+export async function getNutritionalData(ingredients: string[]): Promise<{
   success: boolean;
   data?: NutritionalInfo;
   error?: string;
@@ -1379,7 +1677,9 @@ export async function getNutritionalData(
       return { success: false, error: 'No ingredients provided.' };
     }
 
-    const { getNutritionalInformation } = await import('@/ai/flows/nutritional-information-from-ingredients');
+    const { getNutritionalInformation } = await import(
+      '@/ai/flows/nutritional-information-from-ingredients'
+    );
     const nutritionalInfo = await getNutritionalInformation({
       ingredients: ingredientsString,
     });
@@ -1394,9 +1694,7 @@ export async function getNutritionalData(
   }
 }
 
-export async function extractRecipeDataFromImageUrl(
-  imageUrl: string
-): Promise<{
+export async function extractRecipeDataFromImageUrl(imageUrl: string): Promise<{
   success: boolean;
   data?: RecipeFromImage;
   error?: string;
@@ -1406,21 +1704,22 @@ export async function extractRecipeDataFromImageUrl(
       return { success: false, error: 'No image URL provided.' };
     }
 
-    console.log('Starting image URL extraction...');
-    console.log('Image URL:', imageUrl.substring(0, 100) + '...');
+    console.warn('Starting image URL extraction...');
+    console.warn('Image URL:', imageUrl.substring(0, 100) + '...');
 
     // Check if API key is available
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey =
+      process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('No API key found');
       return {
         success: false,
-        error: 'API key not configured. Please check your environment variables.'
+        error: 'API key not configured. Please check your environment variables.',
       };
     }
 
     // Fetch the image from the URL
-    console.log('Fetching image from URL...');
+    console.warn('Fetching image from URL...');
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
       throw new Error(`Failed to fetch image: ${imageResponse.status}`);
@@ -1430,14 +1729,14 @@ export async function extractRecipeDataFromImageUrl(
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-    console.log('Image fetched successfully, size:', imageBuffer.byteLength);
+    console.warn('Image fetched successfully, size:', imageBuffer.byteLength);
 
     const { extractRecipeFromImage } = await import('@/ai/flows/recipe-from-image');
     const extractedData = await extractRecipeFromImage({
       photoDataUri: `data:${mimeType};base64,${base64Image}`,
     });
 
-    console.log('Extraction successful:', extractedData);
+    console.warn('Extraction successful:', extractedData);
     return { success: true, data: extractedData };
   } catch (error) {
     console.error('Error extracting recipe from image URL:', error);
@@ -1448,9 +1747,7 @@ export async function extractRecipeDataFromImageUrl(
   }
 }
 
-export async function extractRecipeDataFromPdf(
-  pdfDataUri: string
-): Promise<{
+export async function extractRecipeDataFromPdf(pdfDataUri: string): Promise<{
   success: boolean;
   data?: RecipesFromPdf;
   error?: string;
@@ -1493,17 +1790,18 @@ export async function extractRecipeDataFromPdfAdvanced(
       return { success: false, error: 'No PDF provided.' };
     }
 
-    console.log('Starting advanced PDF extraction...');
-    console.log('PDF data URI length:', pdfDataUri.length);
-    console.log('Processing options:', options);
+    console.warn('Starting advanced PDF extraction...');
+    console.warn('PDF data URI length:', pdfDataUri.length);
+    console.warn('Processing options:', options);
 
     // Check if API key is available
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey =
+      process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('No API key found');
       return {
         success: false,
-        error: 'API key not configured. Please check your environment variables.'
+        error: 'API key not configured. Please check your environment variables.',
       };
     }
 
@@ -1516,7 +1814,7 @@ export async function extractRecipeDataFromPdfAdvanced(
       enableAIEnhancement: options?.enableAIEnhancement !== false,
     });
 
-    console.log('Advanced extraction successful:', {
+    console.warn('Advanced extraction successful:', {
       recipesFound: extractedData.recipes.length,
       processingInfo: extractedData.processingInfo,
     });
@@ -1531,18 +1829,15 @@ export async function extractRecipeDataFromPdfAdvanced(
   }
 }
 
-
 /**
  * Generate a video script for a recipe and save to Firestore
  * @param recipeId The Firestore ID of the recipe
  */
-export async function generateAndSaveVideoScriptForRecipe(recipeId: string): Promise<{ success: boolean; error?: string }> {
+export async function generateAndSaveVideoScriptForRecipe(
+  recipeId: string
+): Promise<{ success: boolean; script?: string; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     if (!recipeDoc.exists) {
       return { success: false, error: 'Recipe not found' };
@@ -1560,17 +1855,28 @@ export async function generateAndSaveVideoScriptForRecipe(recipeId: string): Pro
       cuisine: recipe.cuisine || '',
     };
     const { script, marketingIdeas } = await generateVideoScriptWithOpenAI(input);
-    console.log('[generateAndSaveVideoScriptForRecipe] script output:', script);
-    await db.collection('video_scripts').doc(recipeId).set({
-      recipeId,
-      script,
-      marketingIdeas: marketingIdeas || [],
-      createdAt: new Date(),
-    });
-    return { success: true };
+    console.warn('[generateAndSaveVideoScriptForRecipe] script output:', script);
+    await db
+      .collection('video_scripts')
+      .doc(recipeId)
+      .set({
+        recipeId,
+        script,
+        marketingIdeas: marketingIdeas || [],
+        createdAt: new Date(),
+      });
+    return { success: true, script };
   } catch (error) {
     console.error('Error generating/saving video script:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    // Check for specific API error messages
+    if (errorMessage.includes('quota')) {
+      return {
+        success: false,
+        error: 'You have exceeded your API quota. Please check your plan and billing details.',
+      };
+    }
+    return { success: false, error: 'Failed to generate video script. Please try again later.' };
   }
 }
 
@@ -1582,11 +1888,7 @@ export async function generateAndSaveMultiSceneVideoScriptForRecipe(
   sceneCount: number = 3
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get recipe details
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -1608,10 +1910,16 @@ export async function generateAndSaveMultiSceneVideoScriptForRecipe(
       sceneCount,
     };
 
-    const { generateMultiSceneVideoScriptFlow } = await import('@/ai/flows/generate-multi-scene-video-script');
-    const { scenes, totalDuration, marketingIdeas } = await generateMultiSceneVideoScriptFlow(input);
+    const { generateMultiSceneVideoScriptFlow } = await import(
+      '@/ai/flows/generate-multi-scene-video-script'
+    );
+    const { scenes, totalDuration, marketingIdeas } =
+      await generateMultiSceneVideoScriptFlow(input);
 
-    console.log('[generateAndSaveMultiSceneVideoScriptForRecipe] generated script:', { scenes: scenes.length, totalDuration });
+    console.warn('[generateAndSaveMultiSceneVideoScriptForRecipe] generated script:', {
+      scenes: scenes.length,
+      totalDuration,
+    });
 
     // Save to Firestore
     await db.collection('multi_scene_video_scripts').doc(recipeId).set({
@@ -1623,14 +1931,14 @@ export async function generateAndSaveMultiSceneVideoScriptForRecipe(
       createdAt: new Date(),
     });
 
-    console.log('✅ Multi-scene video script saved to Firestore');
+    console.warn('✅ Multi-scene video script saved to Firestore');
 
     return { success: true };
   } catch (error) {
     console.error('Error generating/saving multi-scene video script:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate multi-scene script'
+      error: error instanceof Error ? error.message : 'Failed to generate multi-scene script',
     };
   }
 }
@@ -1641,20 +1949,38 @@ export async function generateAndSaveMultiSceneVideoScriptForRecipe(
 export async function generateMultiSceneVideoForRecipe(
   recipeId: string,
   model: RunwayModel = 'gen4_turbo',
-  options?: { ratio?: string; defaultDuration?: number; timeoutMs?: number; maxRetries?: number; previewOnly?: boolean }
+  options?: {
+    ratio?: string;
+    defaultDuration?: number;
+    timeoutMs?: number;
+    maxRetries?: number;
+    previewOnly?: boolean;
+  }
 ): Promise<{
   success: boolean;
-  sceneVideos?: Array<{ sceneNumber: number; videoUrl: string; script: string; taskId?: string; promptText?: string; settings?: { model: RunwayModel; ratio: string; duration: number }; referenceImage?: string; promptSummary?: string }>;
+  sceneVideos?: Array<{
+    sceneNumber: number;
+    videoUrl: string;
+    script: string;
+    taskId?: string;
+    promptText?: string;
+    settings?: { model: RunwayModel; ratio: string; duration: number };
+    referenceImage?: string;
+    promptSummary?: string;
+  }>;
   combinedInstructions?: string;
-  preview?: { scenes: Array<{ sceneNumber: number; promptText: string; settings: { model: RunwayModel; ratio: string; duration: number }; promptMeta?: AdvancedOptions }> };
+  preview?: {
+    scenes: Array<{
+      sceneNumber: number;
+      promptText: string;
+      settings: { model: RunwayModel; ratio: string; duration: number };
+      promptMeta?: AdvancedOptions;
+    }>;
+  };
   error?: string;
 }> {
   try {
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get the recipe
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -1671,75 +1997,93 @@ export async function generateMultiSceneVideoForRecipe(
     if (!recipe.imageUrl) {
       return {
         success: false,
-        error: 'Recipe must have an image. Please add an image to the recipe first.'
+        error: 'Recipe must have an image. Please add an image to the recipe first.',
       };
     }
 
     // Get the multi-scene script
     const scriptDoc = await db.collection('multi_scene_video_scripts').doc(recipeId).get();
     if (!scriptDoc.exists || !scriptDoc.data()?.scenes) {
-      return { success: false, error: 'No multi-scene script found. Please generate a script first.' };
+      return {
+        success: false,
+        error: 'No multi-scene script found. Please generate a script first.',
+      };
     }
     const scriptData = scriptDoc.data();
 
     if (!scriptData) {
-      return { success: false, error: 'Script data missing' };
+      return { success: false, error: 'Script data is empty' };
     }
 
-
     // Import the multi-scene video generation utility
-    const { generateMultiSceneVideo, optimizePromptForRunway } = await import('@/lib/openai-video-gen');
+    const { generateMultiSceneVideo, optimizePromptForRunway } = await import(
+      '@/lib/openai-video-gen'
+    );
 
     // If previewOnly, build prompts/settings for each scene and return without generating
     if (options?.previewOnly) {
-    const previewScenes = await Promise.all((scriptData.scenes || []).map(async (s: unknown) => {
-        // Cast to expected scene type with optimized fields
-        const scene = s as {
-          sceneNumber: number;
-          description?: string;
-          visualElements?: string[];
-          script?: string;
-          advancedOptions?: AdvancedOptions;
-          duration?: number;
-          runwayPrompt?: string; // Pre-generated optimized prompt
-          continuityNotes?: string;
-        };
+      const previewScenes = await Promise.all(
+        (scriptData.scenes || []).map(async (s: unknown) => {
+          // Cast to expected scene type with optimized fields
+          const scene = s as {
+            sceneNumber: number;
+            description?: string;
+            visualElements?: string[];
+            script?: string;
+            advancedOptions?: AdvancedOptions;
+            duration?: number;
+            runwayPrompt?: string; // Pre-generated optimized prompt
+            continuityNotes?: string;
+          };
 
-        // Build meta from per-scene advancedOptions if present
-        const adv = scene.advancedOptions || {};
-        const meta = {
-          cameraShot: adv.cameraShot || undefined,
-          colorGrading: adv.colorGrading || undefined,
-          voiceOver: adv.voice || undefined,
-          backgroundMusic: adv.music || undefined,
-          animation: adv.animation || undefined,
-        };
+          // Build meta from per-scene advancedOptions if present
+          const adv = scene.advancedOptions || {};
+          const meta = {
+            cameraShot: adv.cameraShot || undefined,
+            colorGrading: adv.colorGrading || undefined,
+            voiceOver: adv.voice || undefined,
+            backgroundMusic: adv.music || undefined,
+            animation: adv.animation || undefined,
+          };
 
-        // Use pre-generated runwayPrompt if available (from optimized flow), otherwise build one
-        let promptText: string;
-        if (scene.runwayPrompt && scene.runwayPrompt.trim().length > 0) {
-          promptText = scene.runwayPrompt;
-          console.log(`✨ Using optimized Runway prompt for scene ${scene.sceneNumber}`);
-        } else {
-          // Fallback to generating prompt (legacy scenes)
-          const scen = scene;
-          promptText = await optimizePromptForRunway(
-            recipe.title,
-            `${scen.description || ''}. ${(scen.visualElements || []).join?.('') ? (scen.visualElements || []).join('. ') : ''}. ${scen.script || ''}`,
-            meta
-          );
-          console.log(`⚠️ Generated fallback prompt for scene ${scene.sceneNumber} (consider re-splitting)`);
-        }
+          // Use pre-generated runwayPrompt if available (from optimized flow), otherwise build one
+          let promptText: string;
+          if (scene.runwayPrompt && scene.runwayPrompt.trim().length > 0) {
+            promptText = scene.runwayPrompt;
+            console.warn(`✨ Using optimized Runway prompt for scene ${scene.sceneNumber}`);
+          } else {
+            // Fallback to generating prompt (legacy scenes)
+            const scen = scene;
+            promptText = await optimizePromptForRunway(
+              recipe.title,
+              `${scen.description || ''}. ${(scen.visualElements || []).join?.('') ? (scen.visualElements || []).join('. ') : ''}. ${scen.script || ''}`,
+              meta
+            );
+            console.warn(
+              `⚠️ Generated fallback prompt for scene ${scene.sceneNumber} (consider re-splitting)`
+            );
+          }
 
-        const duration = typeof adv.duration === 'number' ? adv.duration : (typeof scene.duration === 'number' ? scene.duration : (options?.defaultDuration ?? 5));
-        const ratio = options?.ratio || '1280:720';
-        return { sceneNumber: scene.sceneNumber, promptText, settings: { model, ratio, duration }, promptMeta: meta };
-      }));
+          const duration =
+            typeof adv.duration === 'number'
+              ? adv.duration
+              : typeof scene.duration === 'number'
+                ? scene.duration
+                : (options?.defaultDuration ?? 5);
+          const ratio = options?.ratio || '1280:720';
+          return {
+            sceneNumber: scene.sceneNumber,
+            promptText,
+            settings: { model, ratio, duration },
+            promptMeta: meta,
+          };
+        })
+      );
       return { success: true, preview: { scenes: previewScenes } };
     }
 
     // Generate the multi-scene video
-    console.log('🎬 Starting multi-scene video generation...');
+    console.warn('🎬 Starting multi-scene video generation...');
     const scenesForGeneration = Array.isArray(scriptData.scenes)
       ? (scriptData.scenes as unknown[]).map((rawScene, index) => {
           const base = rawScene as {
@@ -1754,10 +2098,14 @@ export async function generateMultiSceneVideoForRecipe(
             keyframeUrl?: unknown;
           };
           const imageUrls = Array.isArray(base.imageUrls)
-            ? (base.imageUrls as unknown[]).filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+            ? (base.imageUrls as unknown[]).filter(
+                (url): url is string => typeof url === 'string' && url.trim().length > 0
+              )
             : [];
           const visuals = Array.isArray(base.visualElements)
-            ? (base.visualElements as unknown[]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            ? (base.visualElements as unknown[]).filter(
+                (value): value is string => typeof value === 'string' && value.trim().length > 0
+              )
             : [];
           return {
             sceneNumber: typeof base.sceneNumber === 'number' ? base.sceneNumber : index + 1,
@@ -1780,12 +2128,17 @@ export async function generateMultiSceneVideoForRecipe(
         scenes: scenesForGeneration,
       },
       model,
-      { ratio: options?.ratio, duration: options?.defaultDuration, timeoutMs: options?.timeoutMs, maxRetries: options?.maxRetries }
+      {
+        ratio: options?.ratio,
+        duration: options?.defaultDuration,
+        timeoutMs: options?.timeoutMs,
+        maxRetries: options?.maxRetries,
+      }
     );
 
     // Save scene videos to Firestore
 
-    const sceneVideosData = result.sceneVideos.map((scene) => ({
+    const sceneVideosData = result.sceneVideos.map(scene => ({
       sceneNumber: scene.sceneNumber,
       videoUrl: scene.videoUrl,
       script: scene.script,
@@ -1803,7 +2156,7 @@ export async function generateMultiSceneVideoForRecipe(
       videoGeneratedAt: new Date(),
     });
 
-    console.log('✅ Multi-scene videos saved to Firestore');
+    console.warn('✅ Multi-scene videos saved to Firestore');
 
     try {
       await Promise.all(
@@ -1825,7 +2178,10 @@ export async function generateMultiSceneVideoForRecipe(
           )
       );
     } catch (logErr) {
-      console.warn('Failed to log multi-scene video asset:', logErr instanceof Error ? logErr.message : logErr);
+      console.warn(
+        'Failed to log multi-scene video asset:',
+        logErr instanceof Error ? logErr.message : logErr
+      );
     }
 
     return {
@@ -1837,7 +2193,7 @@ export async function generateMultiSceneVideoForRecipe(
     console.error('❌ Error generating multi-scene video:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate multi-scene video'
+      error: error instanceof Error ? error.message : 'Failed to generate multi-scene video',
     };
   }
 }
@@ -1860,13 +2216,13 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
       videoUrl?: string;
       duration?: number;
       runwaySettings?: Record<string, unknown>;
-      generatedAt?: Date | string;
+      generatedAt?: string;
     }>;
     combinedVideo?: {
       url: string;
       duration?: number;
       fileSize?: number;
-      generatedAt?: Date | string;
+      generatedAt?: string;
       processingMethod?: string;
       storagePath?: string | null;
       thumbnailUrl?: string | null;
@@ -1875,7 +2231,7 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
     combinedInstructions?: string;
     marketingIdeas?: string[];
     sceneCount?: number;
-    updatedAt?: Date | string;
+    updatedAt?: string;
   };
   error?: string;
 }> {
@@ -1884,11 +2240,7 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
       return { success: false, error: 'A valid recipe ID is required.' };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     const docRef = db.collection('multi_scene_video_scripts').doc(recipeId);
     const snapshot = await docRef.get();
@@ -1899,18 +2251,26 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
     const data = snapshot.data() || {};
     const rawScenes = Array.isArray(data.scenes) ? data.scenes : [];
     const scenes = rawScenes
-      .map((raw) => {
+      .map(raw => {
         const scene = raw as Record<string, unknown>;
         const sceneNumber = Number(scene.sceneNumber);
         if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null;
         const script = typeof scene.script === 'string' ? scene.script : '';
         const description = typeof scene.description === 'string' ? scene.description : undefined;
         const transition = typeof scene.transition === 'string' ? scene.transition : undefined;
-        const durationValue = typeof scene.duration === 'number' ? scene.duration : (typeof scene.duration === 'string' ? Number(scene.duration) : undefined);
+        const durationValue =
+          typeof scene.duration === 'number'
+            ? scene.duration
+            : typeof scene.duration === 'string'
+              ? Number(scene.duration)
+              : undefined;
         let duration: number | undefined;
-        if (Number.isFinite(durationValue) && Number(durationValue) > 0) duration = Number(durationValue);
+        if (Number.isFinite(durationValue) && Number(durationValue) > 0)
+          duration = Number(durationValue);
 
-        const advanced = scene.advancedOptions as AdvancedOptions | undefined;
+        const advanced = normalizeAdvancedOptions(
+          scene.advancedOptions as AdvancedOptions | undefined
+        );
         const imageUrls: string[] = [];
         if (Array.isArray((scene as { imageUrls?: unknown }).imageUrls)) {
           for (const url of (scene as { imageUrls?: unknown }).imageUrls as unknown[]) {
@@ -1918,7 +2278,7 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
           }
         }
         if (typeof (scene as { imageUrl?: unknown }).imageUrl === 'string') {
-          imageUrls.push(((scene as { imageUrl?: string }).imageUrl as string));
+          imageUrls.push((scene as { imageUrl?: string }).imageUrl as string);
         }
 
         return {
@@ -1935,18 +2295,28 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
 
     const rawVideos = Array.isArray(data.sceneVideos) ? data.sceneVideos : [];
     const sceneVideos = rawVideos
-      .map((raw) => {
+      .map(raw => {
         const entry = raw as Record<string, unknown>;
         const sceneNumber = Number(entry.sceneNumber);
         if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null;
         const script = typeof entry.script === 'string' ? entry.script : '';
         const videoUrl = typeof entry.videoUrl === 'string' ? entry.videoUrl : undefined;
         const runwaySettings = entry.runwaySettings as Record<string, unknown> | undefined;
-        const durationValue = typeof entry.duration === 'number' ? entry.duration : (typeof entry.duration === 'string' ? Number(entry.duration) : undefined);
-        const duration = Number.isFinite(durationValue) && Number(durationValue) > 0 ? Number(durationValue) : undefined;
-        const generatedAt = entry.videoGeneratedAt instanceof Date
-          ? entry.videoGeneratedAt
-          : (typeof entry.videoGeneratedAt === 'string' ? entry.videoGeneratedAt : undefined);
+        const durationValue =
+          typeof entry.duration === 'number'
+            ? entry.duration
+            : typeof entry.duration === 'string'
+              ? Number(entry.duration)
+              : undefined;
+        const duration =
+          Number.isFinite(durationValue) && Number(durationValue) > 0
+            ? Number(durationValue)
+            : undefined;
+        const generatedAt = toIsoString(
+          (entry as { videoGeneratedAt?: unknown }).videoGeneratedAt ??
+            (entry as { generatedAt?: unknown }).generatedAt ??
+            (entry as { updatedAt?: unknown }).updatedAt
+        );
 
         return {
           sceneNumber,
@@ -1959,28 +2329,52 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
       })
       .filter((entry): entry is NonNullable<typeof entry> => !!entry);
 
-    const combinedVideoUrl = typeof data.combinedVideoUrl === 'string' ? data.combinedVideoUrl : undefined;
-    const combinedVideoDuration = typeof data.combinedVideoDuration === 'number'
-      ? data.combinedVideoDuration
-      : (typeof data.combinedVideoDuration === 'string' ? Number(data.combinedVideoDuration) : undefined);
-    const combinedVideoSize = typeof data.combinedVideoSize === 'number'
-      ? data.combinedVideoSize
-      : (typeof data.combinedVideoSize === 'string' ? Number(data.combinedVideoSize) : undefined);
+    const combinedVideoUrl =
+      typeof data.combinedVideoUrl === 'string' ? data.combinedVideoUrl : undefined;
+    const combinedVideoDuration =
+      typeof data.combinedVideoDuration === 'number'
+        ? data.combinedVideoDuration
+        : typeof data.combinedVideoDuration === 'string'
+          ? Number(data.combinedVideoDuration)
+          : undefined;
+    const combinedVideoSize =
+      typeof data.combinedVideoSize === 'number'
+        ? data.combinedVideoSize
+        : typeof data.combinedVideoSize === 'string'
+          ? Number(data.combinedVideoSize)
+          : undefined;
 
-    const combinedInstructions = typeof data.combinedInstructions === 'string' ? data.combinedInstructions : undefined;
+    const combinedInstructions =
+      typeof data.combinedInstructions === 'string' ? data.combinedInstructions : undefined;
 
     const combinedVideo = combinedVideoUrl
       ? {
           url: combinedVideoUrl,
-          duration: Number.isFinite(combinedVideoDuration) ? Number(combinedVideoDuration) : undefined,
+          duration: Number.isFinite(combinedVideoDuration)
+            ? Number(combinedVideoDuration)
+            : undefined,
           fileSize: Number.isFinite(combinedVideoSize) ? Number(combinedVideoSize) : undefined,
-          generatedAt: data.combinedVideoGeneratedAt instanceof Date
-            ? data.combinedVideoGeneratedAt
-            : (typeof data.combinedVideoGeneratedAt === 'string' ? data.combinedVideoGeneratedAt : undefined),
-          processingMethod: typeof data.combinedVideoProcessingMethod === 'string' ? data.combinedVideoProcessingMethod : undefined,
-          storagePath: typeof data.combinedVideoStoragePath === 'string' ? data.combinedVideoStoragePath : null,
-          thumbnailUrl: typeof data.combinedVideoThumbnailUrl === 'string' ? data.combinedVideoThumbnailUrl : null,
-          instructions: typeof data.combinedVideoInstructions === 'string' ? data.combinedVideoInstructions : (combinedInstructions ?? null),
+          generatedAt: toIsoString(
+            (data as { combinedVideoGeneratedAt?: unknown }).combinedVideoGeneratedAt ??
+              (data as { combinedGeneratedAt?: unknown }).combinedGeneratedAt ??
+              (data as { combinedVideoUpdatedAt?: unknown }).combinedVideoUpdatedAt
+          ),
+          processingMethod:
+            typeof data.combinedVideoProcessingMethod === 'string'
+              ? data.combinedVideoProcessingMethod
+              : undefined,
+          storagePath:
+            typeof data.combinedVideoStoragePath === 'string'
+              ? data.combinedVideoStoragePath
+              : null,
+          thumbnailUrl:
+            typeof data.combinedVideoThumbnailUrl === 'string'
+              ? data.combinedVideoThumbnailUrl
+              : null,
+          instructions:
+            typeof data.combinedVideoInstructions === 'string'
+              ? data.combinedVideoInstructions
+              : (combinedInstructions ?? null),
         }
       : undefined;
 
@@ -1991,9 +2385,11 @@ export async function getMultiSceneVideoDataAction(recipeId: string): Promise<{
         sceneVideos,
         combinedVideo,
         combinedInstructions,
-        marketingIdeas: Array.isArray(data.marketingIdeas) ? data.marketingIdeas.filter((idea: unknown): idea is string => typeof idea === 'string') : undefined,
+        marketingIdeas: Array.isArray(data.marketingIdeas)
+          ? data.marketingIdeas.filter((idea: unknown): idea is string => typeof idea === 'string')
+          : undefined,
         sceneCount: typeof data.sceneCount === 'number' ? data.sceneCount : undefined,
-        updatedAt: data.updatedAt instanceof Date ? data.updatedAt : (typeof data.updatedAt === 'string' ? data.updatedAt : undefined),
+        updatedAt: toIsoString((data as { updatedAt?: unknown }).updatedAt),
       },
     };
   } catch (error) {
@@ -2023,9 +2419,9 @@ export async function saveRecipe(recipeData: {
     // For now, we'll generate an ID and simulate success
     const newRecipeId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    console.log('Saving recipe:', {
+    console.warn('Saving recipe:', {
       id: newRecipeId,
-      ...recipeData
+      ...recipeData,
     });
 
     // Simulate some processing time
@@ -2035,12 +2431,12 @@ export async function saveRecipe(recipeData: {
     let instagramPosted = false;
     if (recipeData.postToInstagram && recipeData.imageUrl) {
       try {
-        console.log('📸 Posting to Instagram...');
+        console.warn('📸 Posting to Instagram...');
         const instagramResult = await shareRecipeToInstagram(newRecipeId);
         instagramPosted = instagramResult.success;
 
         if (instagramPosted) {
-          console.log(`✅ Recipe posted to Instagram: ${instagramResult.permalink}`);
+          console.warn(`✅ Recipe posted to Instagram: ${instagramResult.permalink}`);
         } else {
           console.warn(`⚠️ Instagram post failed: ${instagramResult.error}`);
         }
@@ -2051,7 +2447,7 @@ export async function saveRecipe(recipeData: {
     }
 
     // Trigger video script generation (fire-and-forget)
-    generateAndSaveVideoScriptForRecipe(newRecipeId).catch((err) => {
+    generateAndSaveVideoScriptForRecipe(newRecipeId).catch(err => {
       console.error('Video script generation failed (non-fatal):', err);
     });
 
@@ -2059,14 +2455,14 @@ export async function saveRecipe(recipeData: {
       success: true,
       data: {
         id: newRecipeId,
-        instagramPosted
-      }
+        instagramPosted,
+      },
     };
   } catch (error) {
     console.error('Error saving recipe:', error);
     return {
       success: false,
-      error: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+      error: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 }
@@ -2082,18 +2478,22 @@ export async function generateRecipeImagesAction(recipeData: {
   error?: string;
 }> {
   try {
-    console.log('Generating images for recipe:', recipeData.title);
+    console.warn('Generating images for recipe:', recipeData.title);
 
     // Check if API key is available (prioritize GOOGLE_AI_API_KEY for image generation)
-    const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    console.log('API key check:', {
+    const apiKey =
+      process.env.GOOGLE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_GENAI_API_KEY ||
+      process.env.GEMINI_API_KEY;
+    console.warn('API key check:', {
       GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY ? 'Found' : 'Missing',
       GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ? 'Found' : 'Missing',
       GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY ? 'Found' : 'Missing',
       GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'Found' : 'Missing',
       found: !!apiKey,
       usingKey: apiKey ? apiKey.substring(0, 10) + '...' : 'None',
-      nodeEnv: process.env.NODE_ENV
+      nodeEnv: process.env.NODE_ENV,
     });
 
     let generatedImages: { images: GeneratedImage[] };
@@ -2116,7 +2516,7 @@ export async function generateRecipeImagesAction(recipeData: {
       description: recipeData.description,
     });
 
-    console.log('Image generation successful:', {
+    console.warn('Image generation successful:', {
       generated: generatedImages.images.length,
       delivered: sanitized.length,
     });
@@ -2129,18 +2529,16 @@ export async function generateRecipeImagesAction(recipeData: {
 
       // For trusted image hosts (Unsplash, etc), skip upload and return original URL
       // These are reliable CDNs that work well for previews
-      if (rawUrl.startsWith('https://images.unsplash.com') ||
-          rawUrl.startsWith('https://source.unsplash.com') ||
-          rawUrl.includes('unsplash.com')) {
-        console.log('Skipping upload for trusted CDN URL:', rawUrl);
+      if (
+        rawUrl.startsWith('https://images.unsplash.com') ||
+        rawUrl.startsWith('https://source.unsplash.com') ||
+        rawUrl.includes('unsplash.com')
+      ) {
+        console.warn('Skipping upload for trusted CDN URL:', rawUrl);
         return rawUrl;
       }
 
-      if (!getAdmin) {
-        const adminConfig = await import('../../config/firebase-admin');
-        getAdmin = adminConfig.getAdmin;
-      }
-      const admin = getAdmin();
+      const admin = await ensureFirebaseAdmin();
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
 
       // Check if we have valid Firebase credentials and bucket
@@ -2163,7 +2561,9 @@ export async function generateRecipeImagesAction(recipeData: {
         } else {
           // For non-data URIs, try to fetch but return original URL if it fails
           const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-          const timer = controller ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS) : undefined;
+          const timer = controller
+            ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+            : undefined;
           try {
             const resp = await fetch(rawUrl, { method: 'GET', signal: controller?.signal });
             if (!resp.ok) {
@@ -2175,7 +2575,11 @@ export async function generateRecipeImagesAction(recipeData: {
             const ct = resp.headers.get('content-type');
             if (ct) contentType = ct.split(';')[0];
           } catch (err) {
-            console.warn('Failed to fetch image, returning original URL:', rawUrl, err instanceof Error ? err.message : String(err));
+            console.warn(
+              'Failed to fetch image, returning original URL:',
+              rawUrl,
+              err instanceof Error ? err.message : String(err)
+            );
             return rawUrl;
           } finally {
             if (timer) clearTimeout(timer);
@@ -2183,14 +2587,22 @@ export async function generateRecipeImagesAction(recipeData: {
         }
 
         const ext = (contentType.split('/')[1] || 'jpg').split('+')[0];
-        const safeTitle = (titleSlug || 'recipe').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40);
+        const safeTitle = (titleSlug || 'recipe')
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-')
+          .slice(0, 40);
         const filename = `generated/${safeTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
         const file = bucket.file(filename);
 
         try {
           await file.save(buffer, { metadata: { contentType } });
         } catch (err) {
-          console.error('Failed to save file to storage, returning original URL', { url: rawUrl, filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.error('Failed to save file to storage, returning original URL', {
+            url: rawUrl,
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
           return rawUrl;
         }
 
@@ -2198,43 +2610,57 @@ export async function generateRecipeImagesAction(recipeData: {
         // the simple storage.googleapis.com URL which is easiest for browsers to fetch.
         let madePublic = false;
         try {
-          if (typeof (file as unknown as StorageFileLike).makePublic === 'function') {
-            await (file as unknown as StorageFileLike).makePublic!();
+          const candidate = file as unknown as StorageFileLike;
+          if (typeof candidate.makePublic === 'function') {
+            await candidate.makePublic();
             madePublic = true;
           } else {
             madePublic = false;
           }
         } catch (err) {
-          console.warn('makePublic failed', { filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.warn('makePublic failed', {
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
           madePublic = false;
         }
 
         if (madePublic) {
           const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-          console.log('Persisted image (public):', { url: publicUrl, source: rawUrl });
+          console.warn('Persisted image (public):', { url: publicUrl, source: rawUrl });
           return publicUrl;
         }
 
         // Otherwise try to generate a signed URL
         try {
           const expires = Date.now() + 1000 * 60 * 60 * 24 * 365; // 1 year
-          const signedUrlGetter = (file as unknown as StorageFileLike).getSignedUrl;
+          const candidate = file as unknown as StorageFileLike;
+          const signedUrlGetter = candidate.getSignedUrl;
           if (typeof signedUrlGetter === 'function') {
-            const [signedUrl] = await signedUrlGetter.call(file, { action: 'read', expires });
-            if (signedUrl) {
-              console.log('Persisted image (signed):', { url: signedUrl, source: rawUrl });
-              return signedUrl;
+            const signedUrls = await signedUrlGetter.call(file, { action: 'read', expires });
+            if (Array.isArray(signedUrls) && signedUrls[0]) {
+              console.warn('Persisted image (signed):', { url: signedUrls[0], source: rawUrl });
+              return signedUrls[0];
             }
           }
         } catch (err) {
-          console.warn('getSignedUrl failed', { filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.warn('getSignedUrl failed', {
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
 
         const fallbackUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-        console.log('Persisted image (fallback):', { url: fallbackUrl, source: rawUrl });
+        console.warn('Persisted image (fallback):', { url: fallbackUrl, source: rawUrl });
         return fallbackUrl;
       } catch (err) {
-        console.warn('Failed to upload generated image to storage, returning original URL', rawUrl, err instanceof Error ? err.message : String(err));
+        console.warn(
+          'Failed to upload generated image to storage, returning original URL',
+          rawUrl,
+          err instanceof Error ? err.message : String(err)
+        );
         return rawUrl;
       }
     }
@@ -2247,7 +2673,10 @@ export async function generateRecipeImagesAction(recipeData: {
         const uploaded = await uploadImageToStorage(img.url, titleSlug);
         persisted.push({ ...img, url: uploaded || img.url });
       } catch (error) {
-        console.warn('Error processing image, using original URL:', error instanceof Error ? error.message : error);
+        console.warn(
+          'Error processing image, using original URL:',
+          error instanceof Error ? error.message : error
+        );
         persisted.push(img);
       }
     }
@@ -2255,7 +2684,7 @@ export async function generateRecipeImagesAction(recipeData: {
     // Save all generated images to Firestore for future use (don't waste API calls!)
     try {
       await saveGeneratedImagesToFirestore(persisted, recipeData);
-      console.log('✅ Saved all generated images to Firestore for future use');
+      console.warn('✅ Saved all generated images to Firestore for future use');
     } catch (error) {
       console.warn('⚠️ Failed to save generated images metadata, but continuing:', error);
       // Non-blocking - continue even if metadata save fails
@@ -2287,60 +2716,86 @@ async function saveGeneratedImagesToFirestore(
   }
 ): Promise<void> {
   try {
-    if (!getAdmin) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getAdmin = adminConfig.getAdmin;
-    }
-    const admin = getAdmin();
+    const admin = await ensureFirebaseAdmin();
     const db = admin.firestore();
     const imagesRef = db.collection('generated_images');
 
-    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    // Some runtime contexts may not expose FieldValue (mocked or limited envs).
+    // Guard access and fall back to a client-side timestamp when needed.
+    let timestamp: unknown;
+    try {
+      timestamp =
+        admin && admin.firestore && admin.firestore.FieldValue
+          ? admin.firestore.FieldValue.serverTimestamp()
+          : { _fallbackServerTs: true, value: new Date() };
+    } catch {
+      // Fallback to a plain Date so writes still succeed
+      timestamp = { _fallbackServerTs: true, value: new Date() };
+    }
+
+    function isFallbackTimestamp(x: unknown): x is { _fallbackServerTs: true; value: Date } {
+      return (
+        typeof x === 'object' &&
+        x !== null &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (x as any)._fallbackServerTs === true &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (x as any).value instanceof Date
+      );
+    }
 
     // Save each image with metadata
     const savePromises = images.map(async (image, index) => {
-        // Defensive: Firestore rejects fields larger than ~1MB. If the image URL
-        // is extremely long (for example a data URI), replace it with a short
-        // placeholder to avoid write failures and mark the document so admins
-        // can recover the original image off-band if needed.
-        const MAX_URL_LEN = 1048487; // Firestore reported limit in logs
-        let urlToStore = image.url;
-        let originalTooLarge = false;
-        if (typeof urlToStore === 'string' && urlToStore.length > MAX_URL_LEN) {
-          originalTooLarge = true;
-          console.warn('Image URL too large for Firestore, replacing with placeholder', { length: urlToStore.length, recipeTitle: recipeData.title, index });
-          // Use a compact placeholder URL so the document remains useful in UI
-          urlToStore = 'https://placehold.co/800x600?text=image+omitted';
-        }
-
-        const imageData: Record<string, unknown> = {
-          url: urlToStore,
-          description: image.description,
-          style: image.style,
+      // Defensive: Firestore rejects fields larger than ~1MB. If the image URL
+      // is extremely long (for example a data URI), replace it with a short
+      // placeholder to avoid write failures and mark the document so admins
+      // can recover the original image off-band if needed.
+      const MAX_URL_LEN = 1048487; // Firestore reported limit in logs
+      let urlToStore = image.url;
+      let originalTooLarge = false;
+      if (typeof urlToStore === 'string' && urlToStore.length > MAX_URL_LEN) {
+        originalTooLarge = true;
+        console.warn('Image URL too large for Firestore, replacing with placeholder', {
+          length: urlToStore.length,
           recipeTitle: recipeData.title,
-          recipeCuisine: recipeData.cuisine,
-          recipeDescription: recipeData.description,
-          recipeIngredients: recipeData.ingredients,
-          generatedAt: timestamp,
-          index: index,
-          used: false, // Track if this image was selected by user
-        };
+          index,
+        });
+        // Use a compact placeholder URL so the document remains useful in UI
+        urlToStore = 'https://placehold.co/800x600?text=image+omitted';
+      }
 
-        if (originalTooLarge) {
-          imageData.originalTooLarge = true;
-          // optionally store a short hash so we can find the original in logs/trace
-          try {
-            const shortId = String(Date.now()).slice(-6) + '_' + Math.random().toString(36).slice(2, 6);
-            imageData.originalPlaceholderId = shortId;
-          } catch {}
-        }
+      const imageData: Record<string, unknown> = {
+        url: urlToStore,
+        description: image.description,
+        style: image.style,
+        recipeTitle: recipeData.title,
+        recipeCuisine: recipeData.cuisine,
+        recipeDescription: recipeData.description,
+        recipeIngredients: recipeData.ingredients,
+        // If timestamp is a fallback object, convert to a Date string to avoid Firestore errors
+        generatedAt: isFallbackTimestamp(timestamp) ? timestamp.value.toISOString() : timestamp,
+        index: index,
+        used: false, // Track if this image was selected by user
+      };
 
-        // Create a document with auto-generated ID
-        await imagesRef.add(imageData);
+      if (originalTooLarge) {
+        imageData.originalTooLarge = true;
+        // optionally store a short hash so we can find the original in logs/trace
+        try {
+          const shortId =
+            String(Date.now()).slice(-6) + '_' + Math.random().toString(36).slice(2, 6);
+          imageData.originalPlaceholderId = shortId;
+        } catch {}
+      }
+
+      // Create a document with auto-generated ID
+      await imagesRef.add(imageData);
     });
 
     await Promise.all(savePromises);
-    console.log(`💾 Saved ${images.length} generated images to Firestore collection: generated_images`);
+    console.warn(
+      `💾 Saved ${images.length} generated images to Firestore collection: generated_images`
+    );
   } catch (error) {
     console.error('Error saving generated images to Firestore:', error);
     throw error;
@@ -2417,16 +2872,8 @@ function sanitizeMetadataForFirestore(value: unknown, depth = 0): unknown {
 async function logVideoHubAsset(asset: VideoHubAssetInput): Promise<void> {
   try {
     if (!asset.recipeId || !asset.url) return;
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-      getAdmin = adminConfig.getAdmin;
-    } else if (!getAdmin) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getAdmin = adminConfig.getAdmin;
-    }
-    const db = getDb!();
-    const admin = getAdmin!();
+    const db = await ensureFirestore();
+    const admin = await ensureFirebaseAdmin();
 
     const now = admin.firestore.FieldValue.serverTimestamp();
     const payload: Record<string, unknown> = {
@@ -2439,7 +2886,8 @@ async function logVideoHubAsset(asset: VideoHubAssetInput): Promise<void> {
     if (typeof asset.sceneNumber === 'number') payload.sceneNumber = asset.sceneNumber;
     if (asset.source) payload.source = asset.source;
     if (asset.storagePath) payload.storagePath = asset.storagePath;
-    if (typeof asset.duration === 'number' && Number.isFinite(asset.duration)) payload.duration = asset.duration;
+    if (typeof asset.duration === 'number' && Number.isFinite(asset.duration))
+      payload.duration = asset.duration;
     if (asset.model) payload.model = asset.model;
     if (asset.ratio) payload.ratio = asset.ratio;
     if (asset.voiceId) payload.voiceId = asset.voiceId;
@@ -2461,7 +2909,10 @@ async function logVideoHubAsset(asset: VideoHubAssetInput): Promise<void> {
       await existingSnap.docs[0].ref.set(payload, { merge: true });
     }
   } catch (loggingError) {
-    console.warn('Failed to log video hub asset:', loggingError instanceof Error ? loggingError.message : loggingError);
+    console.warn(
+      'Failed to log video hub asset:',
+      loggingError instanceof Error ? loggingError.message : loggingError
+    );
   }
 }
 
@@ -2487,22 +2938,15 @@ function timestampToIso(value: unknown): string | null {
   return null;
 }
 
-export async function getVideoHubAssetsAction(recipeId: string): Promise<{ success: boolean; assets?: VideoHubAssetRecord[]; error?: string }> {
+export async function getVideoHubAssetsAction(
+  recipeId: string
+): Promise<{ success: boolean; assets?: VideoHubAssetRecord[]; error?: string }> {
   try {
     if (!recipeId || typeof recipeId !== 'string') {
       return { success: false, error: 'A valid recipe ID is required.' };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-      getAdmin = adminConfig.getAdmin;
-    } else if (!getAdmin) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getAdmin = adminConfig.getAdmin;
-    }
-
-    const db = getDb!();
+    const db = await ensureFirestore();
     const assetsRef = db.collection('video_generation_assets');
     const snapshot = await assetsRef
       .where('recipeId', '==', recipeId)
@@ -2510,7 +2954,7 @@ export async function getVideoHubAssetsAction(recipeId: string): Promise<{ succe
       .limit(200)
       .get();
 
-    const assets: VideoHubAssetRecord[] = snapshot.docs.map((doc) => {
+    const assets: VideoHubAssetRecord[] = snapshot.docs.map(doc => {
       const data = doc.data() as Record<string, unknown>;
       return {
         id: doc.id,
@@ -2526,7 +2970,10 @@ export async function getVideoHubAssetsAction(recipeId: string): Promise<{ succe
         voiceId: typeof data.voiceId === 'string' ? data.voiceId : null,
         prompt: typeof data.prompt === 'string' ? data.prompt : null,
         taskId: typeof data.taskId === 'string' ? data.taskId : null,
-        metadata: (data.metadata && typeof data.metadata === 'object') ? (data.metadata as Record<string, unknown>) : null,
+        metadata:
+          data.metadata && typeof data.metadata === 'object'
+            ? (data.metadata as Record<string, unknown>)
+            : null,
         createdAt: timestampToIso(data.createdAt) ?? timestampToIso(data.updatedAt),
         updatedAt: timestampToIso(data.updatedAt),
       };
@@ -2563,7 +3010,10 @@ export async function markImageAsUsedAction(imageUrl: string): Promise<{
 
     // Fallback strategies when exact match not found
     if (snapshot.empty) {
-      console.warn('Exact image URL not found in generated_images, attempting fallback match for:', imageUrl);
+      console.warn(
+        'Exact image URL not found in generated_images, attempting fallback match for:',
+        imageUrl
+      );
 
       // Try decoded URL exact match
       try {
@@ -2590,7 +3040,7 @@ export async function markImageAsUsedAction(imageUrl: string): Promise<{
         })();
 
         const recentSnap = await imagesRef.orderBy('generatedAt', 'desc').limit(200).get();
-  const found = recentSnap.docs.find((d: FirebaseFirestore.DocumentSnapshot) => {
+        const found = recentSnap.docs.find((d: FirebaseFirestore.DocumentSnapshot) => {
           const u = String(d.data()?.url || '');
           if (!u) return false;
           if (u === imageUrl) return true;
@@ -2602,10 +3052,16 @@ export async function markImageAsUsedAction(imageUrl: string): Promise<{
         });
 
         if (found) {
-          snapshot = { docs: [found], empty: false } as unknown as FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>;
+          snapshot = {
+            docs: [found],
+            empty: false,
+          } as unknown as FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>;
         }
       } catch (scanErr) {
-        console.warn('Fallback scan for generated_images failed:', scanErr instanceof Error ? scanErr.message : String(scanErr));
+        console.warn(
+          'Fallback scan for generated_images failed:',
+          scanErr instanceof Error ? scanErr.message : String(scanErr)
+        );
       }
     }
 
@@ -2621,13 +3077,13 @@ export async function markImageAsUsedAction(imageUrl: string): Promise<{
       usedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log('✅ Marked image as used (doc id=' + doc.id + '):', imageUrl);
+    console.warn('✅ Marked image as used (doc id=' + doc.id + '):', imageUrl);
     return { success: true };
   } catch (error) {
     console.error('Error marking image as used:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to mark image as used'
+      error: error instanceof Error ? error.message : 'Failed to mark image as used',
     };
   }
 }
@@ -2636,12 +3092,15 @@ export async function markImageAsUsedAction(imageUrl: string): Promise<{
  * Enhance a user-uploaded photo with AI to make it more recipe-appropriate
  * Uses Gemini Vision API to analyze and enhance the image
  */
-export async function enhanceUserPhotoAction(imageDataUri: string, recipeInfo: {
-  title: string;
-  description: string;
-  cuisine: string;
-  ingredients: string;
-}): Promise<{
+export async function enhanceUserPhotoAction(
+  imageDataUri: string,
+  recipeInfo: {
+    title: string;
+    description: string;
+    cuisine: string;
+    ingredients: string;
+  }
+): Promise<{
   success: boolean;
   data?: {
     enhancedImage: string;
@@ -2650,9 +3109,12 @@ export async function enhanceUserPhotoAction(imageDataUri: string, recipeInfo: {
   error?: string;
 }> {
   try {
-    console.log('🎨 Enhancing user-uploaded photo for:', recipeInfo.title);
+    console.warn('🎨 Enhancing user-uploaded photo for:', recipeInfo.title);
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    const apiKey =
+      process.env.GOOGLE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_GENAI_API_KEY;
 
     if (!apiKey) {
       throw new Error('No API key found');
@@ -2672,13 +3134,14 @@ export async function enhanceUserPhotoAction(imageDataUri: string, recipeInfo: {
         method: 'POST',
         headers: {
           'x-goog-api-key': apiKey,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                text: `You are a professional food photography expert. Analyze this photo of "${recipeInfo.title}" (${recipeInfo.cuisine} cuisine).
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are a professional food photography expert. Analyze this photo of "${recipeInfo.title}" (${recipeInfo.cuisine} cuisine).
 
 Key ingredients: ${recipeInfo.ingredients.split('\n').slice(0, 5).join(', ')}
 
@@ -2689,17 +3152,18 @@ Provide 3-5 specific suggestions to improve this food photo for a recipe website
 4. Color balance
 5. Background and styling
 
-Format as a JSON array of strings: ["suggestion 1", "suggestion 2", ...]`
-              },
-              {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: base64Image
-                }
-              }
-            ]
-          }]
-        })
+Format as a JSON array of strings: ["suggestion 1", "suggestion 2", ...]`,
+                },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: base64Image,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
       }
     );
 
@@ -2710,8 +3174,12 @@ Format as a JSON array of strings: ["suggestion 1", "suggestion 2", ...]`
         success: true,
         data: {
           enhancedImage: imageDataUri,
-          suggestions: ['Original photo looks great!', 'Consider adjusting lighting for better visibility', 'Try a cleaner background']
-        }
+          suggestions: [
+            'Original photo looks great!',
+            'Consider adjusting lighting for better visibility',
+            'Try a cleaner background',
+          ],
+        },
       };
     }
 
@@ -2725,11 +3193,11 @@ Format as a JSON array of strings: ["suggestion 1", "suggestion 2", ...]`
       suggestions = [
         'Photo looks good! Consider better lighting',
         'Try plating on a neutral background',
-        'Add garnish for visual appeal'
+        'Add garnish for visual appeal',
       ];
     }
 
-    console.log('✅ Photo analysis complete:', suggestions.length, 'suggestions');
+    console.warn('✅ Photo analysis complete:', suggestions.length, 'suggestions');
 
     // For now, return the original image with suggestions
     // In the future, we could use Gemini Image API to actually enhance the photo
@@ -2737,15 +3205,14 @@ Format as a JSON array of strings: ["suggestion 1", "suggestion 2", ...]`
       success: true,
       data: {
         enhancedImage: imageDataUri,
-        suggestions
-      }
+        suggestions,
+      },
     };
-
   } catch (error) {
     console.error('Error enhancing user photo:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to enhance photo'
+      error: error instanceof Error ? error.message : 'Failed to enhance photo',
     };
   }
 }
@@ -2761,7 +3228,7 @@ export async function removeDuplicateRecipesAction(): Promise<{
   error?: string;
 }> {
   try {
-    console.log('🔍 Checking for duplicate recipes...');
+    console.warn('🔍 Checking for duplicate recipes...');
 
     if (!getAdmin) {
       const adminConfig = await import('../../config/firebase-admin');
@@ -2773,45 +3240,51 @@ export async function removeDuplicateRecipesAction(): Promise<{
 
     // Get all recipes
     const snapshot = await recipesRef.get();
-  const recipes = snapshot.docs.map((doc: FirebaseFirestore.DocumentSnapshot) => {
-      const data = doc.data();
-      if (!data) return null;
-      return {
-        id: doc.id,
-        title: data.title || '',
-        createdAt: data.createdAt?.toDate?.() || new Date()
-      };
-    }).filter(Boolean) as RecipeSummary[];
+    const recipes = snapshot.docs
+      .map((doc: FirebaseFirestore.DocumentSnapshot) => {
+        const data = doc.data();
+        if (!data) return null;
+        return {
+          id: doc.id,
+          title: data.title || '',
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+        };
+      })
+      .filter(Boolean) as RecipeSummary[];
 
-    console.log(`📚 Total recipes found: ${recipes.length}`);
+    console.warn(`📚 Total recipes found: ${recipes.length}`);
 
     // Group recipes by normalized title
     const titleGroups = new Map<string, Array<{ id: string; title: string; createdAt: Date }>>();
 
-  recipes.forEach((recipe: RecipeSummary) => {
+    recipes.forEach((recipe: RecipeSummary) => {
       const normalizedTitle = (recipe.title as string)?.trim().toLowerCase() || '';
       if (!normalizedTitle) return;
 
       if (!titleGroups.has(normalizedTitle)) {
         titleGroups.set(normalizedTitle, []);
       }
-      titleGroups.get(normalizedTitle)!.push(recipe);
+      const group = titleGroups.get(normalizedTitle);
+      if (group) {
+        group.push(recipe);
+      }
     });
 
     // Find duplicates (groups with more than 1 recipe)
-    const duplicateGroups = Array.from(titleGroups.entries())
-      .filter(([, group]) => group.length > 1);
+    const duplicateGroups = Array.from(titleGroups.entries()).filter(
+      ([, group]) => group.length > 1
+    );
 
     if (duplicateGroups.length === 0) {
-      console.log('✅ No duplicate recipes found!');
+      console.warn('✅ No duplicate recipes found!');
       return {
         success: true,
         removed: 0,
-        duplicates: []
+        duplicates: [],
       };
     }
 
-    console.log(`⚠️ Found ${duplicateGroups.length} groups with duplicates`);
+    console.warn(`⚠️ Found ${duplicateGroups.length} groups with duplicates`);
 
     let totalRemoved = 0;
     const duplicateInfo: Array<{ title: string; count: number }> = [];
@@ -2824,36 +3297,35 @@ export async function removeDuplicateRecipesAction(): Promise<{
       const keepRecipe = group[0]; // Keep the oldest
       const duplicatesToRemove = group.slice(1); // Remove the rest
 
-      console.log(`\n🔄 Processing: "${keepRecipe.title}"`);
-      console.log(`   Keeping: ${keepRecipe.id} (created: ${keepRecipe.createdAt.toISOString()})`);
-      console.log(`   Removing ${duplicatesToRemove.length} duplicate(s)`);
+      console.warn(`\n🔄 Processing: "${keepRecipe.title}"`);
+      console.warn(`   Keeping: ${keepRecipe.id} (created: ${keepRecipe.createdAt.toISOString()})`);
+      console.warn(`   Removing ${duplicatesToRemove.length} duplicate(s)`);
 
       duplicateInfo.push({
         title: keepRecipe.title,
-        count: duplicatesToRemove.length
+        count: duplicatesToRemove.length,
       });
 
       // Delete duplicates
       for (const duplicate of duplicatesToRemove) {
-        console.log(`   ❌ Deleting: ${duplicate.id}`);
+        console.warn(`   ❌ Deleting: ${duplicate.id}`);
         await recipesRef.doc(duplicate.id).delete();
         totalRemoved++;
       }
     }
 
-    console.log(`\n✅ Cleanup complete! Removed ${totalRemoved} duplicate recipe(s)`);
+    console.warn(`\n✅ Cleanup complete! Removed ${totalRemoved} duplicate recipe(s)`);
 
     return {
       success: true,
       removed: totalRemoved,
-      duplicates: duplicateInfo
+      duplicates: duplicateInfo,
     };
-
   } catch (error) {
     console.error('❌ Error removing duplicates:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to remove duplicates'
+      error: error instanceof Error ? error.message : 'Failed to remove duplicates',
     };
   }
 }
@@ -2881,8 +3353,9 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
       } catch (importErr) {
         return {
           success: false,
-          error: 'Failed to load Instagram API module: ' +
-                 (importErr instanceof Error ? importErr.message : String(importErr))
+          error:
+            'Failed to load Instagram API module: ' +
+            (importErr instanceof Error ? importErr.message : String(importErr)),
         };
       }
     }
@@ -2891,15 +3364,11 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
     if (!instagramApi || !instagramApi.isConfigured()) {
       return {
         success: false,
-        error: 'Instagram API not configured. Please set up environment variables.'
+        error: 'Instagram API not configured. Please set up environment variables.',
       };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get recipe details
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -2917,7 +3386,7 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
     if (!imageUrl || imageUrl.startsWith('data:')) {
       return {
         success: false,
-        error: 'Recipe must have a public image URL (not data URI) to post to Instagram'
+        error: 'Recipe must have a public image URL (not data URI) to post to Instagram',
       };
     }
 
@@ -2927,14 +3396,12 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
     // Google Drive and use the drive share link as a fallback.
     let postImageUrl = imageUrl as string;
     try {
-      const isStorageUrl = String(imageUrl).includes('storage.googleapis.com') || String(imageUrl).includes('firebasestorage.googleapis.com');
+      const isStorageUrl =
+        String(imageUrl).includes('storage.googleapis.com') ||
+        String(imageUrl).includes('firebasestorage.googleapis.com');
       if (isStorageUrl) {
         try {
-          if (!getAdmin) {
-            const adminConfig = await import('../../config/firebase-admin');
-            getAdmin = adminConfig.getAdmin;
-          }
-          const admin = getAdmin();
+          const admin = await ensureFirebaseAdmin();
           const storage = admin.storage();
 
           // Try to parse known storage URL formats to obtain bucket and path
@@ -2983,22 +3450,35 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
             try {
               // generate a short-lived signed URL (1 hour)
               const expires = Date.now() + 1000 * 60 * 60;
-              const [signedUrl] = await (file as unknown as StorageFileLike).getSignedUrl!({ action: 'read', expires });
-              if (signedUrl) {
-                postImageUrl = signedUrl;
-                console.log('Using signed URL for Instagram post:', signedUrl);
+              const getSigned = (file as unknown as StorageFileLike).getSignedUrl;
+              if (typeof getSigned === 'function') {
+                const signedResult = await getSigned({ action: 'read', expires });
+                const signedUrl = Array.isArray(signedResult) ? signedResult[0] : signedResult;
+                if (typeof signedUrl === 'string' && signedUrl.length > 0) {
+                  postImageUrl = signedUrl;
+                  console.warn('Using signed URL for Instagram post:', signedUrl);
+                }
               }
             } catch (signErr) {
-              console.warn('Failed to generate signed URL for storage image, will attempt Drive fallback if configured:', signErr instanceof Error ? signErr.message : String(signErr));
+              console.warn(
+                'Failed to generate signed URL for storage image, will attempt Drive fallback if configured:',
+                signErr instanceof Error ? signErr.message : String(signErr)
+              );
             }
           }
         } catch (err) {
-          console.warn('Error while attempting to generate signed URL for storage-hosted image:', err instanceof Error ? err.message : String(err));
+          console.warn(
+            'Error while attempting to generate signed URL for storage-hosted image:',
+            err instanceof Error ? err.message : String(err)
+          );
         }
       }
 
       // If still not a likely-public URL and Drive is configured, try uploading to Drive
-      const needsDriveFallback = !postImageUrl || (!postImageUrl.startsWith('http') || postImageUrl.includes('firebasestorage.googleapis.com'));
+      const needsDriveFallback =
+        !postImageUrl ||
+        !postImageUrl.startsWith('http') ||
+        postImageUrl.includes('firebasestorage.googleapis.com');
       if (needsDriveFallback && process.env.DRIVE_FOLDER_ID) {
         try {
           // Fetch image bytes
@@ -3014,7 +3494,9 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
             // Resolve credentials
             let creds: Record<string, unknown> | undefined;
             if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-              try { creds = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON); } catch {}
+              try {
+                creds = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+              } catch {}
             }
             if (!creds && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
               try {
@@ -3024,21 +3506,29 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
               } catch {}
             }
 
-            if (!creds) throw new Error('No service account credentials available for Drive upload');
+            if (!creds)
+              throw new Error('No service account credentials available for Drive upload');
 
-            const auth = new google.auth.GoogleAuth({ credentials: creds as unknown as Record<string, unknown>, scopes: ['https://www.googleapis.com/auth/drive.file'] });
+            const auth = new google.auth.GoogleAuth({
+              credentials: creds as unknown as Record<string, unknown>,
+              scopes: ['https://www.googleapis.com/auth/drive.file'],
+            });
             const drive = google.drive({ version: 'v3', auth });
 
             const fileName = `recipe-${recipeId}-${Date.now()}.jpg`;
-            const media = { mimeType: contentType, body: Buffer.from(buffer) } as { mimeType: string; body: Buffer };
+            const media = { mimeType: contentType, body: Buffer.from(buffer) } as {
+              mimeType: string;
+              body: Buffer;
+            };
 
+            const driveFolderId = process.env.DRIVE_FOLDER_ID;
             const createRes = await drive.files.create({
               requestBody: {
                 name: fileName,
-                parents: [process.env.DRIVE_FOLDER_ID!]
+                parents: driveFolderId ? [driveFolderId] : undefined,
               },
               media,
-              fields: 'id, webViewLink, webContentLink'
+              fields: 'id, webViewLink, webContentLink',
             });
 
             const fileId = createRes.data.id;
@@ -3046,25 +3536,37 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
             if (fileId) {
               // Make file publicly readable (best-effort)
               try {
-                await drive.permissions.create({ fileId, requestBody: { role: 'reader', type: 'anyone' } });
+                await drive.permissions.create({
+                  fileId,
+                  requestBody: { role: 'reader', type: 'anyone' },
+                });
               } catch (permErr) {
-                console.warn('Drive permission create failed:', permErr instanceof Error ? permErr.message : String(permErr));
+                console.warn(
+                  'Drive permission create failed:',
+                  permErr instanceof Error ? permErr.message : String(permErr)
+                );
               }
 
               if (webViewLink) {
                 postImageUrl = webViewLink;
-                console.log('Uploaded image to Drive for Instagram posting:', webViewLink);
+                console.warn('Uploaded image to Drive for Instagram posting:', webViewLink);
               }
             }
           } else {
             console.warn('Failed to fetch image bytes for Drive fallback, status:', resp.status);
           }
         } catch (driveErr) {
-          console.warn('Drive fallback failed:', driveErr instanceof Error ? driveErr.message : String(driveErr));
+          console.warn(
+            'Drive fallback failed:',
+            driveErr instanceof Error ? driveErr.message : String(driveErr)
+          );
         }
       }
     } catch (err) {
-      console.warn('Unexpected error preparing image URL for Instagram posting:', err instanceof Error ? err.message : String(err));
+      console.warn(
+        'Unexpected error preparing image URL for Instagram posting:',
+        err instanceof Error ? err.message : String(err)
+      );
     }
 
     // Build an intelligent, formatted caption (fallback template)
@@ -3080,8 +3582,13 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
 
     async function generateInstagramCaption(recipeObj: InstagramRecipe): Promise<string> {
       try {
-        const title = typeof recipeObj.title === 'string' && recipeObj.title.trim() ? recipeObj.title : 'Recipe';
-        const desc = (typeof recipeObj.description === 'string' ? recipeObj.description : '').split('\n')[0];
+        const title =
+          typeof recipeObj.title === 'string' && recipeObj.title.trim()
+            ? recipeObj.title
+            : 'Recipe';
+        const desc = (typeof recipeObj.description === 'string' ? recipeObj.description : '').split(
+          '\n'
+        )[0];
         const prep = recipeObj.prepTime || 'N/A';
         const cook = recipeObj.cookTime || 'N/A';
         const serves = recipeObj.servings ?? 'N/A';
@@ -3089,32 +3596,55 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
         // Extract ingredient keywords for hashtags
         const rawIngredients: string[] = Array.isArray(recipeObj.ingredients)
           ? recipeObj.ingredients.filter(Boolean).map(String)
-          : (typeof recipeObj.ingredients === 'string' ? recipeObj.ingredients.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : []);
+          : typeof recipeObj.ingredients === 'string'
+            ? recipeObj.ingredients
+                .split(/[,;\n]/)
+                .map(s => s.trim())
+                .filter(Boolean)
+            : [];
 
         const ingredientKeywords = rawIngredients
-          .map((s) => s.replace(/\(.+?\)/g, '').trim().split(' ')[0])
-          .filter((s) => !!s && s.length > 1)
+          .map(
+            s =>
+              s
+                .replace(/\(.+?\)/g, '')
+                .trim()
+                .split(' ')[0]
+          )
+          .filter(s => !!s && s.length > 1)
           .slice(0, 4)
-          .map((s) => `#${s.replace(/[^a-z0-9]/gi, '')}`);
+          .map(s => `#${s.replace(/[^a-z0-9]/gi, '')}`);
 
-        const cuisineTag = recipeObj.cuisine ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}` : '';
-        const baseTags = ['#recipe', cuisineTag, '#homemade', '#foodie', '#delicious'].filter(Boolean);
-        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords])).slice(0, 8).join(' ');
+        const cuisineTag = recipeObj.cuisine
+          ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}`
+          : '';
+        const baseTags = ['#recipe', cuisineTag, '#homemade', '#foodie', '#delicious'].filter(
+          Boolean
+        );
+        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords]))
+          .slice(0, 8)
+          .join(' ');
 
         const captionParts = [
           `🍽️ ${title}`,
           desc || undefined,
-          rawIngredients.length ? `Key ingredients: ${rawIngredients.slice(0, 3).map((s) => s.trim()).filter(Boolean).join(', ')}` : undefined,
+          rawIngredients.length
+            ? `Key ingredients: ${rawIngredients
+                .slice(0, 3)
+                .map(s => s.trim())
+                .filter(Boolean)
+                .join(', ')}`
+            : undefined,
           `⏱️ Prep: ${prep} | Cook: ${cook}`,
           `👥 Serves: ${serves}`,
           tags || undefined,
-          `Full recipe: banoscookbook.com`
+          `Full recipe: banoscookbook.com`,
         ].filter(Boolean);
 
         // Keep caption concise (Instagram prefers shorter intros)
         return captionParts.join('\n\n');
       } catch {
-        return `🍽️ ${(recipe && recipe.title) ? String(recipe.title) : 'Recipe'}\nFull recipe: banoscookbook.com`;
+        return `🍽️ ${recipe && recipe.title ? String(recipe.title) : 'Recipe'}\nFull recipe: banoscookbook.com`;
       }
     }
 
@@ -3124,13 +3654,13 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
     if (!instagramApi) {
       return {
         success: false,
-        error: 'Instagram API not initialized. Please check configuration.'
+        error: 'Instagram API not initialized. Please check configuration.',
       };
     }
-    const result = await instagramApi.publishPost({
+    const result = (await instagramApi.publishPost({
       imageUrl: postImageUrl,
-      caption: caption.trim()
-    }) as { id: string; permalink: string; timestamp: string };
+      caption: caption.trim(),
+    })) as { id: string; permalink: string; timestamp: string };
 
     // Save Instagram post mapping to Firestore
     await db.collection('instagram_posts').add({
@@ -3141,10 +3671,10 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
       caption,
       likeCount: 0,
       commentsCount: 0,
-      lastSyncedAt: new Date()
+      lastSyncedAt: new Date(),
     });
 
-    console.log(`✅ Recipe "${recipe.title}" posted to Instagram: ${result.permalink}`);
+    console.warn(`✅ Recipe "${recipe.title}" posted to Instagram: ${result.permalink}`);
 
     // Immediately try to sync comments and likes once published (best-effort)
     try {
@@ -3152,29 +3682,27 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
       // call them to seed initial comment/like counts into Firestore
       // Fire-and-forget is acceptable, but we'll await to get initial data
       // (wrap in try/catch so errors don't fail the post)
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
       await syncInstagramComments(recipeId);
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
       await syncInstagramLikes(recipeId);
-      console.log('✅ Initial Instagram comments/likes sync completed');
+      console.warn('✅ Initial Instagram comments/likes sync completed');
     } catch (syncErr) {
-      console.warn('Initial sync after publish failed (non-fatal):', syncErr instanceof Error ? syncErr.message : syncErr);
+      console.warn(
+        'Initial sync after publish failed (non-fatal):',
+        syncErr instanceof Error ? syncErr.message : syncErr
+      );
     }
 
     return {
       success: true,
       instagramPostId: result.id,
-      permalink: result.permalink
+      permalink: result.permalink,
     };
-
   } catch (error) {
     console.error('❌ Error posting to Instagram:', error);
     try {
-      if (!getDb) {
-        const adminConfig = await import('../../config/firebase-admin');
-        getDb = adminConfig.getDb;
-      }
-      const db = getDb!();
+      const db = await ensureFirestore();
       await db.collection('instagram_post_attempts').add({
         recipeId,
         error: error instanceof Error ? error.message : String(error),
@@ -3185,7 +3713,7 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to post to Instagram'
+      error: error instanceof Error ? error.message : 'Failed to post to Instagram',
     };
   }
 }
@@ -3209,8 +3737,9 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
       } catch (importErr) {
         return {
           success: false,
-          error: 'Failed to load Instagram API module: ' +
-                 (importErr instanceof Error ? importErr.message : String(importErr))
+          error:
+            'Failed to load Instagram API module: ' +
+            (importErr instanceof Error ? importErr.message : String(importErr)),
         };
       }
     }
@@ -3219,19 +3748,11 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
     if (!instagramApi || !instagramApi.isConfigured()) {
       return {
         success: false,
-        error: 'Instagram API not configured. Please set up environment variables.'
+        error: 'Instagram API not configured. Please set up environment variables.',
       };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get recipe details
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -3265,9 +3786,15 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
       cuisine?: string;
     };
 
-    async function generateInstagramVideoCaption(recipeObj: InstagramRecipe, videoScript: string): Promise<string> {
+    async function generateInstagramVideoCaption(
+      recipeObj: InstagramRecipe,
+      videoScript: string
+    ): Promise<string> {
       try {
-        const title = typeof recipeObj.title === 'string' && recipeObj.title.trim() ? recipeObj.title : 'Recipe Video';
+        const title =
+          typeof recipeObj.title === 'string' && recipeObj.title.trim()
+            ? recipeObj.title
+            : 'Recipe Video';
 
         // Extract first few lines of video script for caption
         const scriptLines = videoScript.split('\n').filter(line => line.trim().length > 0);
@@ -3276,23 +3803,40 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
         // Extract ingredient keywords for hashtags
         const rawIngredients: string[] = Array.isArray(recipeObj.ingredients)
           ? recipeObj.ingredients.filter(Boolean).map(String)
-          : (typeof recipeObj.ingredients === 'string' ? recipeObj.ingredients.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : []);
+          : typeof recipeObj.ingredients === 'string'
+            ? recipeObj.ingredients
+                .split(/[,;\n]/)
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : [];
 
         const ingredientKeywords = rawIngredients
-          .map((s) => s.replace(/\(.+?\)/g, '').trim().split(' ')[0])
-          .filter((s) => !!s && s.length > 1)
+          .map(
+            s =>
+              s
+                .replace(/\(.+?\)/g, '')
+                .trim()
+                .split(' ')[0]
+          )
+          .filter(s => !!s && s.length > 1)
           .slice(0, 4)
-          .map((s) => `#${s.replace(/[^a-z0-9]/gi, '')}`);
+          .map(s => `#${s.replace(/[^a-z0-9]/gi, '')}`);
 
-        const cuisineTag = recipeObj.cuisine ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}` : '';
-        const baseTags = ['#recipe', '#reel', '#foodie', '#cooking', '#homemade', cuisineTag].filter(Boolean);
-        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords])).slice(0, 8).join(' ');
+        const cuisineTag = recipeObj.cuisine
+          ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}`
+          : '';
+        const baseTags = ['#recipe', '#reel', '#foodie', '#cooking', '#homemade', cuisineTag].filter(
+          Boolean
+        );
+        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords]))
+          .slice(0, 8)
+          .join(' ');
 
         const captionParts = [
           `🎬 ${title}`,
           scriptPreview || 'Delicious recipe video!',
           tags || undefined,
-          `Full recipe: banoscookbook.com`
+          `Full recipe: banoscookbook.com`,
         ].filter(Boolean);
 
         // Keep caption concise for Reels
@@ -3308,13 +3852,13 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
     if (!instagramApi) {
       return {
         success: false,
-        error: 'Instagram API not initialized. Please check configuration.'
+        error: 'Instagram API not initialized. Please check configuration.',
       };
     }
-    const result = await instagramApi.publishVideoPost({
+    const result = (await instagramApi.publishVideoPost({
       videoUrl: videoUrl,
-      caption: caption.trim()
-    }) as { id: string; permalink: string; timestamp: string };
+      caption: caption.trim(),
+    })) as { id: string; permalink: string; timestamp: string };
 
     // Save Instagram post mapping to Firestore (separate collection for video posts)
     await db.collection('instagram_video_posts').add({
@@ -3326,10 +3870,12 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
       caption,
       likeCount: 0,
       commentsCount: 0,
-      lastSyncedAt: new Date()
+      lastSyncedAt: new Date(),
     });
 
-    console.log(`✅ Recipe video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`);
+    console.warn(
+      `✅ Recipe video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`
+    );
 
     // Immediately try to sync comments and likes once published (best-effort)
     try {
@@ -3337,29 +3883,27 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
       // call them to seed initial comment/like counts into Firestore
       // Fire-and-forget is acceptable, but we'll await to get initial data
       // (wrap in try/catch so errors don't fail the post)
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
       await syncInstagramVideoComments(recipeId);
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
       await syncInstagramVideoLikes(recipeId);
-      console.log('✅ Initial Instagram video comments/likes sync completed');
+      console.warn('✅ Initial Instagram video comments/likes sync completed');
     } catch (syncErr) {
-      console.warn('Initial sync after video publish failed (non-fatal):', syncErr instanceof Error ? syncErr.message : String(syncErr));
+      console.warn(
+        'Initial sync after video publish failed (non-fatal):',
+        syncErr instanceof Error ? syncErr.message : String(syncErr)
+      );
     }
 
     return {
       success: true,
       instagramPostId: result.id,
-      permalink: result.permalink
+      permalink: result.permalink,
     };
-
   } catch (error) {
     console.error('❌ Error posting video to Instagram:', error);
     try {
-      if (!getDb) {
-        const adminConfig = await import('../../config/firebase-admin');
-        getDb = adminConfig.getDb;
-      }
-      const db = getDb!();
+      const db = await ensureFirestore();
       await db.collection('instagram_video_post_attempts').add({
         recipeId,
         error: error instanceof Error ? error.message : String(error),
@@ -3370,7 +3914,7 @@ export async function shareVideoToInstagram(recipeId: string): Promise<{
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to post video to Instagram'
+      error: error instanceof Error ? error.message : 'Failed to post video to Instagram',
     };
   }
 }
@@ -3389,15 +3933,7 @@ export async function syncInstagramComments(recipeId: string): Promise<{
       return { success: false, error: 'Instagram API not configured' };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Find Instagram post for this recipe
     const instagramPostsSnapshot = await db
@@ -3421,9 +3957,14 @@ export async function syncInstagramComments(recipeId: string): Promise<{
         return { success: false, error: 'Instagram API not initialized' };
       }
       instagramComments = await instagramApi.getComments(mediaId);
-      console.log(`🔁 Fetched ${Array.isArray(instagramComments) ? instagramComments.length : 'unknown'} comments from Instagram for media ${mediaId}`);
+      console.warn(
+        `🔁 Fetched ${Array.isArray(instagramComments) ? instagramComments.length : 'unknown'} comments from Instagram for media ${mediaId}`
+      );
     } catch (igErr) {
-      console.error('❌ Failed to fetch comments from Instagram API:', igErr instanceof Error ? igErr.message : igErr);
+      console.error(
+        '❌ Failed to fetch comments from Instagram API:',
+        igErr instanceof Error ? igErr.message : igErr
+      );
       return { success: false, error: igErr instanceof Error ? igErr.message : String(igErr) };
     }
 
@@ -3462,7 +4003,7 @@ export async function syncInstagramComments(recipeId: string): Promise<{
         isFromInstagram: true,
         instagramCommentId: igComment.id,
         instagramUsername: igComment.username,
-        replies: []
+        replies: [],
       };
 
       existingComments.push(newComment);
@@ -3473,7 +4014,7 @@ export async function syncInstagramComments(recipeId: string): Promise<{
     if (newCommentCount > 0) {
       await db.collection('recipes').doc(recipeId).update({
         comments: existingComments,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
     }
 
@@ -3482,31 +4023,39 @@ export async function syncInstagramComments(recipeId: string): Promise<{
       if (!instagramApi) {
         console.warn('Instagram API not initialized, skipping insights update');
       } else {
-        const insights = await instagramApi.getMediaInsights(mediaId) as { likeCount: number; commentsCount: number; timestamp: string };
-        console.log(`📊 Media insights for ${mediaId}: likes=${insights.likeCount} comments=${insights.commentsCount}`);
+        const insights = (await instagramApi.getMediaInsights(mediaId)) as {
+          likeCount: number;
+          commentsCount: number;
+          timestamp: string;
+        };
+        console.warn(
+          `📊 Media insights for ${mediaId}: likes=${insights.likeCount} comments=${insights.commentsCount}`
+        );
         await instagramPost.ref.update({
           likeCount: insights.likeCount,
           commentsCount: insights.commentsCount,
-          lastSyncedAt: new Date()
+          lastSyncedAt: new Date(),
         });
       }
     } catch (insErr) {
-      console.error('❌ Failed to fetch media insights from Instagram API:', insErr instanceof Error ? insErr.message : insErr);
+      console.error(
+        '❌ Failed to fetch media insights from Instagram API:',
+        insErr instanceof Error ? insErr.message : insErr
+      );
       // Continue - don't fail entire sync on insights error
     }
 
-    console.log(`✅ Synced ${newCommentCount} new comments from Instagram`);
+    console.warn(`✅ Synced ${newCommentCount} new comments from Instagram`);
 
     return {
       success: true,
-      commentsSynced: newCommentCount
+      commentsSynced: newCommentCount,
     };
-
   } catch (error) {
     console.error('❌ Error syncing Instagram comments:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to sync comments'
+      error: error instanceof Error ? error.message : 'Failed to sync comments',
     };
   }
 }
@@ -3525,15 +4074,7 @@ export async function syncInstagramLikes(recipeId: string): Promise<{
       return { success: false, error: 'Instagram API not configured' };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Find Instagram post
     const instagramPostsSnapshot = await db
@@ -3555,29 +4096,35 @@ export async function syncInstagramLikes(recipeId: string): Promise<{
       if (!instagramApi) {
         return { success: false, error: 'Instagram API not initialized' };
       }
-      const insights = await instagramApi.getMediaInsights(mediaId) as { likeCount: number; commentsCount: number; timestamp: string };
+      const insights = (await instagramApi.getMediaInsights(mediaId)) as {
+        likeCount: number;
+        commentsCount: number;
+        timestamp: string;
+      };
       await instagramPost.ref.update({
         likeCount: insights.likeCount,
         commentsCount: insights.commentsCount,
-        lastSyncedAt: new Date()
+        lastSyncedAt: new Date(),
       });
 
-      console.log(`✅ Synced Instagram likes: ${insights.likeCount}`);
+      console.warn(`✅ Synced Instagram likes: ${insights.likeCount}`);
 
       return {
         success: true,
-        likeCount: insights.likeCount
+        likeCount: insights.likeCount,
       };
     } catch (err) {
-      console.error('❌ Failed to fetch media insights when syncing likes:', err instanceof Error ? err.message : String(err));
+      console.error(
+        '❌ Failed to fetch media insights when syncing likes:',
+        err instanceof Error ? err.message : String(err)
+      );
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-
   } catch (error) {
     console.error('❌ Error syncing Instagram likes:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to sync likes'
+      error: error instanceof Error ? error.message : 'Failed to sync likes',
     };
   }
 }
@@ -3596,7 +4143,7 @@ export async function getInstagramPostInfo(recipeId: string): Promise<{
   error?: string;
 }> {
   try {
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     const snapshot = await db
       .collection('instagram_posts')
@@ -3616,15 +4163,14 @@ export async function getInstagramPostInfo(recipeId: string): Promise<{
         permalink: data.instagramPermalink,
         likeCount: data.likeCount || 0,
         commentsCount: data.commentsCount || 0,
-        postedAt: data.postedAt?.toDate() || new Date()
-      }
+        postedAt: data.postedAt?.toDate() || new Date(),
+      },
     };
-
   } catch (error) {
     console.error('❌ Error getting Instagram post info:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to get post info'
+      error: error instanceof Error ? error.message : 'Failed to get post info',
     };
   }
 }
@@ -3643,7 +4189,7 @@ export async function syncInstagramVideoComments(recipeId: string): Promise<{
       return { success: false, error: 'Instagram API not configured' };
     }
 
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Find Instagram video post for this recipe
     const instagramPostsSnapshot = await db
@@ -3667,9 +4213,14 @@ export async function syncInstagramVideoComments(recipeId: string): Promise<{
         return { success: false, error: 'Instagram API not initialized' };
       }
       instagramComments = await instagramApi.getComments(mediaId);
-      console.log(`🔁 Fetched ${Array.isArray(instagramComments) ? instagramComments.length : 'unknown'} comments from Instagram for video ${mediaId}`);
+      console.warn(
+        `🔁 Fetched ${Array.isArray(instagramComments) ? instagramComments.length : 'unknown'} comments from Instagram for video ${mediaId}`
+      );
     } catch (igErr) {
-      console.error('❌ Failed to fetch comments from Instagram API:', igErr instanceof Error ? igErr.message : igErr);
+      console.error(
+        '❌ Failed to fetch comments from Instagram API:',
+        igErr instanceof Error ? igErr.message : igErr
+      );
       return { success: false, error: igErr instanceof Error ? igErr.message : String(igErr) };
     }
 
@@ -3709,7 +4260,7 @@ export async function syncInstagramVideoComments(recipeId: string): Promise<{
         instagramCommentId: igComment.id,
         instagramUsername: igComment.username,
         isVideoComment: true, // Mark as video comment
-        replies: []
+        replies: [],
       };
 
       existingComments.push(newComment);
@@ -3720,7 +4271,7 @@ export async function syncInstagramVideoComments(recipeId: string): Promise<{
     if (newCommentCount > 0) {
       await db.collection('recipes').doc(recipeId).update({
         comments: existingComments,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
     }
 
@@ -3729,31 +4280,39 @@ export async function syncInstagramVideoComments(recipeId: string): Promise<{
       if (!instagramApi) {
         console.warn('Instagram API not initialized, skipping insights update');
       } else {
-        const insights = await instagramApi.getMediaInsights(mediaId) as { likeCount: number; commentsCount: number; timestamp: string };
-        console.log(`📊 Video insights for ${mediaId}: likes=${insights.likeCount} comments=${insights.commentsCount}`);
+        const insights = (await instagramApi.getMediaInsights(mediaId)) as {
+          likeCount: number;
+          commentsCount: number;
+          timestamp: string;
+        };
+        console.warn(
+          `📊 Video insights for ${mediaId}: likes=${insights.likeCount} comments=${insights.commentsCount}`
+        );
         await instagramPost.ref.update({
           likeCount: insights.likeCount,
           commentsCount: insights.commentsCount,
-          lastSyncedAt: new Date()
+          lastSyncedAt: new Date(),
         });
       }
     } catch (insErr) {
-      console.error('❌ Failed to fetch video media insights from Instagram API:', insErr instanceof Error ? insErr.message : insErr);
+      console.error(
+        '❌ Failed to fetch video media insights from Instagram API:',
+        insErr instanceof Error ? insErr.message : insErr
+      );
       // Continue - don't fail entire sync on insights error
     }
 
-    console.log(`✅ Synced ${newCommentCount} new comments from Instagram video`);
+    console.warn(`✅ Synced ${newCommentCount} new comments from Instagram video`);
 
     return {
       success: true,
-      commentsSynced: newCommentCount
+      commentsSynced: newCommentCount,
     };
-
   } catch (error) {
     console.error('❌ Error syncing Instagram video comments:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to sync video comments'
+      error: error instanceof Error ? error.message : 'Failed to sync video comments',
     };
   }
 }
@@ -3772,7 +4331,7 @@ export async function syncInstagramVideoLikes(recipeId: string): Promise<{
       return { success: false, error: 'Instagram API not configured' };
     }
 
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     // Find Instagram video post
     const instagramPostsSnapshot = await db
@@ -3794,29 +4353,35 @@ export async function syncInstagramVideoLikes(recipeId: string): Promise<{
       if (!instagramApi) {
         return { success: false, error: 'Instagram API not initialized' };
       }
-      const insights = await instagramApi.getMediaInsights(mediaId) as { likeCount: number; commentsCount: number; timestamp: string };
+      const insights = (await instagramApi.getMediaInsights(mediaId)) as {
+        likeCount: number;
+        commentsCount: number;
+        timestamp: string;
+      };
       await instagramPost.ref.update({
         likeCount: insights.likeCount,
         commentsCount: insights.commentsCount,
-        lastSyncedAt: new Date()
+        lastSyncedAt: new Date(),
       });
 
-      console.log(`✅ Synced Instagram video likes: ${insights.likeCount}`);
+      console.warn(`✅ Synced Instagram video likes: ${insights.likeCount}`);
 
       return {
         success: true,
-        likeCount: insights.likeCount
+        likeCount: insights.likeCount,
       };
     } catch (err) {
-      console.error('❌ Failed to fetch video media insights when syncing likes:', err instanceof Error ? err.message : String(err));
+      console.error(
+        '❌ Failed to fetch video media insights when syncing likes:',
+        err instanceof Error ? err.message : String(err)
+      );
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-
   } catch (error) {
     console.error('❌ Error syncing Instagram video likes:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to sync video likes'
+      error: error instanceof Error ? error.message : 'Failed to sync video likes',
     };
   }
 }
@@ -3835,7 +4400,7 @@ export async function getInstagramVideoPostInfo(recipeId: string): Promise<{
   error?: string;
 }> {
   try {
-  const db = getDb!();
+    const db = await ensureFirestore();
 
     const snapshot = await db
       .collection('instagram_video_posts')
@@ -3855,15 +4420,14 @@ export async function getInstagramVideoPostInfo(recipeId: string): Promise<{
         permalink: data.instagramPermalink,
         likeCount: data.likeCount || 0,
         commentsCount: data.commentsCount || 0,
-        postedAt: data.postedAt?.toDate() || new Date()
-      }
+        postedAt: data.postedAt?.toDate() || new Date(),
+      },
     };
-
   } catch (error) {
     console.error('❌ Error getting Instagram video post info:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to get video post info'
+      error: error instanceof Error ? error.message : 'Failed to get video post info',
     };
   }
 }
@@ -3871,7 +4435,18 @@ export async function getInstagramVideoPostInfo(recipeId: string): Promise<{
 /**
  * Generate a single video for a recipe using Runway ML
  */
-export async function generateRecipeVideoAction(recipeId: string, model: RunwayModel = 'gen4_turbo', options?: { ratio?: string; duration?: number; timeoutMs?: number; maxRetries?: number; previewOnly?: boolean; promptOverride?: string }): Promise<{
+export async function generateRecipeVideoAction(
+  recipeId: string,
+  model: RunwayModel = 'gen4_turbo',
+  options?: {
+    ratio?: string;
+    duration?: number;
+    timeoutMs?: number;
+    maxRetries?: number;
+    previewOnly?: boolean;
+    promptOverride?: string;
+  }
+): Promise<{
   success: boolean;
   videoUrl?: string;
   imageUrl?: string;
@@ -3881,13 +4456,9 @@ export async function generateRecipeVideoAction(recipeId: string, model: RunwayM
   error?: string;
 }> {
   try {
-    console.log('🎬 Starting video generation for recipe:', recipeId);
+    console.warn('🎬 Starting video generation for recipe:', recipeId);
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     // Get recipe details
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
@@ -3904,14 +4475,14 @@ export async function generateRecipeVideoAction(recipeId: string, model: RunwayM
     if (!recipe.imageUrl) {
       return {
         success: false,
-        error: 'Recipe must have an image. Please add an image to the recipe first.'
+        error: 'Recipe must have an image. Please add an image to the recipe first.',
       };
     }
 
     // Get the video script
     const scriptDoc = await db.collection('video_scripts').doc(recipeId).get();
     if (!scriptDoc.exists || !scriptDoc.data()?.script) {
-      return { success: false, error: 'No video script found. Please generate a script first.' };
+      return { success: false, error: 'No video script found. Please generate a video script first.' };
     }
 
     const scriptData = scriptDoc.data();
@@ -3923,38 +4494,56 @@ export async function generateRecipeVideoAction(recipeId: string, model: RunwayM
     const { generateRecipeVideo, optimizePromptForRunway } = await import('@/lib/openai-video-gen');
 
     // Build prompt and settings but allow preview-only
-    const overridePrompt = typeof options?.promptOverride === 'string' && options.promptOverride.trim().length > 0 ? options.promptOverride.trim() : undefined;
-    const promptText = overridePrompt ?? await optimizePromptForRunway(recipe.title, scriptData.script);
+    const overridePrompt =
+      typeof options?.promptOverride === 'string' && options.promptOverride.trim().length > 0
+        ? options.promptOverride.trim()
+        : undefined;
+    const promptText =
+      overridePrompt ?? (await optimizePromptForRunway(recipe.title, scriptData.script));
     const ratio = options?.ratio || '1280:720';
     const duration = typeof options?.duration === 'number' ? options.duration : 5;
 
     if (options?.previewOnly) {
-      return { success: true, promptText, settings: { model, ratio, duration }, imageUrl: recipe.imageUrl };
+      return {
+        success: true,
+        promptText,
+        settings: { model, ratio, duration },
+        imageUrl: recipe.imageUrl,
+      };
     }
 
     // Generate the video
-    console.log('🎬 Generating video...');
+    console.warn('🎬 Generating video...');
     const genResult = await generateRecipeVideo(
       recipe.imageUrl,
       recipe.title,
       scriptData.script,
       model,
-      { ratio, duration, timeoutMs: options?.timeoutMs, maxRetries: options?.maxRetries, promptOverride: overridePrompt }
+      {
+        ratio,
+        duration,
+        timeoutMs: options?.timeoutMs,
+        maxRetries: options?.maxRetries,
+        promptOverride: overridePrompt,
+      }
     );
 
     // Save the video URL to Firestore
-    await db.collection('video_scripts').doc(recipeId).update({
-      videoUrl: genResult.videoUrl,
-      videoGeneratedAt: new Date(),
-      // Keep the old fields for backward compatibility
-      storyboardUrl: genResult.videoUrl,
-      storyboardGeneratedAt: new Date(),
-      runwayTaskId: genResult.taskId || null,
-  runwayPrompt: genResult.promptText || null,
-      runwaySettings: genResult.settings || null,
-    });
+    await db
+      .collection('video_scripts')
+      .doc(recipeId)
+      .update({
+        videoUrl: genResult.videoUrl,
+        videoGeneratedAt: new Date(),
+        // Keep the old fields for backward compatibility
+        storyboardUrl: genResult.videoUrl,
+        storyboardGeneratedAt: new Date(),
+        runwayTaskId: genResult.taskId || null,
+        runwayPrompt: genResult.promptText || null,
+        runwaySettings: genResult.settings || null,
+      });
 
-    console.log('✅ Video saved to Firestore');
+    console.warn('✅ Video saved to Firestore');
 
     try {
       await logVideoHubAsset({
@@ -3962,14 +4551,17 @@ export async function generateRecipeVideoAction(recipeId: string, model: RunwayM
         type: 'video',
         url: genResult.videoUrl,
         source: 'single-scene',
-        duration: genResult.settings?.duration ?? (options?.duration ?? undefined),
+        duration: genResult.settings?.duration ?? options?.duration ?? undefined,
         model: genResult.settings?.model ?? model,
         ratio: genResult.settings?.ratio ?? options?.ratio,
         prompt: genResult.promptText,
         taskId: genResult.taskId,
       });
     } catch (logErr) {
-      console.warn('Failed to log single-scene video asset:', logErr instanceof Error ? logErr.message : logErr);
+      console.warn(
+        'Failed to log single-scene video asset:',
+        logErr instanceof Error ? logErr.message : logErr
+      );
     }
 
     return {
@@ -3984,7 +4576,7 @@ export async function generateRecipeVideoAction(recipeId: string, model: RunwayM
     console.error('❌ Error generating video:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate video'
+      error: error instanceof Error ? error.message : 'Failed to generate video',
     };
   }
 }
@@ -4007,8 +4599,9 @@ export async function shareMultiSceneVideoToInstagram(recipeId: string): Promise
       } catch (importErr) {
         return {
           success: false,
-          error: 'Failed to load Instagram API module: ' +
-                 (importErr instanceof Error ? importErr.message : String(importErr))
+          error:
+            'Failed to load Instagram API module: ' +
+            (importErr instanceof Error ? importErr.message : String(importErr)),
         };
       }
     }
@@ -4017,86 +4610,113 @@ export async function shareMultiSceneVideoToInstagram(recipeId: string): Promise
     if (!instagramApi || !instagramApi.isConfigured()) {
       return {
         success: false,
-        error: 'Instagram API not configured. Please set up environment variables.'
+        error: 'Instagram API not configured. Please set up environment variables.',
       };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb
-    }
-    const db = getDb!()
+    const db = await ensureFirestore();
 
     // Get recipe details
-    const recipeDoc = await db.collection('recipes').doc(recipeId).get()
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     if (!recipeDoc.exists) {
-      return { success: false, error: 'Recipe not found' }
+      return { success: false, error: 'Recipe not found' };
     }
 
-    const recipe = recipeDoc.data()
+    const recipe = recipeDoc.data();
     if (!recipe) {
-      return { success: false, error: 'Recipe data is empty' }
+      return { success: false, error: 'Recipe data is empty' };
     }
 
     // Get the multi-scene video data
-    const scriptDoc = await db.collection('multi_scene_video_scripts').doc(recipeId).get()
+    const scriptDoc = await db.collection('multi_scene_video_scripts').doc(recipeId).get();
     if (!scriptDoc.exists || !scriptDoc.data()?.combinedVideoUrl) {
-      return { success: false, error: 'No combined video found. Please combine scenes first.' }
+      return { success: false, error: 'No combined video found. Please combine scenes first.' };
     }
 
-    const scriptData = scriptDoc.data()
+    const scriptData = scriptDoc.data();
     if (!scriptData) {
-      return { success: false, error: 'Multi-scene video data is empty' }
+      return { success: false, error: 'Multi-scene video data is empty' };
     }
 
-    const videoUrl = scriptData.combinedVideoUrl
+    const videoUrl = scriptData.combinedVideoUrl;
 
     // Build caption for multi-scene video
-    async function generateMultiSceneVideoCaption(recipeObj: { title?: string; ingredients?: string[] | string; cuisine?: string }, sceneCount: number): Promise<string> {
+    async function generateMultiSceneVideoCaption(
+      recipeObj: { title?: string; ingredients?: string[] | string; cuisine?: string },
+      sceneCount: number
+    ): Promise<string> {
       try {
-        const title = typeof recipeObj.title === 'string' && recipeObj.title.trim() ? recipeObj.title : 'Recipe Video'
+        const title =
+          typeof recipeObj.title === 'string' && recipeObj.title.trim()
+            ? recipeObj.title
+            : 'Recipe Video';
 
         // Extract ingredient keywords for hashtags
         const rawIngredients: string[] = Array.isArray(recipeObj.ingredients)
           ? recipeObj.ingredients.filter(Boolean).map(String)
-          : (typeof recipeObj.ingredients === 'string' ? recipeObj.ingredients.split(/[,;\n]/).map((s: string) => s.trim()).filter(Boolean) : [])
+          : typeof recipeObj.ingredients === 'string'
+            ? recipeObj.ingredients
+                .split(/[,;\n]/)
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : [];
 
         const ingredientKeywords = rawIngredients
-          .map((s) => s.replace(/\(.+?\)/g, '').trim().split(' ')[0])
-          .filter((s) => !!s && s.length > 1)
+          .map(
+            s =>
+              s
+                .replace(/\(.+?\)/g, '')
+                .trim()
+                .split(' ')[0]
+          )
+          .filter(s => !!s && s.length > 1)
           .slice(0, 4)
-          .map((s) => `#${s.replace(/[^a-z0-9]/gi, '')}`)
+          .map(s => `#${s.replace(/[^a-z0-9]/gi, '')}`);
 
-        const cuisineTag = recipeObj.cuisine ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}` : ''
-        const baseTags = ['#recipe', '#reel', '#foodie', '#cooking', '#homemade', cuisineTag].filter(Boolean)
-        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords])).slice(0, 8).join(' ')
+        const cuisineTag = recipeObj.cuisine
+          ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}`
+          : '';
+        const baseTags = [
+          '#recipe',
+          '#reel',
+          '#foodie',
+          '#cooking',
+          '#homemade',
+          cuisineTag,
+        ].filter(Boolean);
+        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords]))
+          .slice(0, 8)
+          .join(' ');
 
         const captionParts = [
           `🎬 ${title} - Complete Recipe`,
           `Multi-scene video with ${sceneCount} cooking steps!`,
           tags || undefined,
-          `Full recipe: banoscookbook.com`
-        ].filter(Boolean)
+          `Full recipe: banoscookbook.com`,
+        ].filter(Boolean);
 
-        return captionParts.join('\n\n')
+        return captionParts.join('\n\n');
       } catch {
-        return `🎬 ${recipe && recipe.title ? String(recipe.title) : 'Recipe Video'} - Complete Recipe\nFull recipe: banoscookbook.com`
+        return `🎬 ${recipe && recipe.title ? String(recipe.title) : 'Recipe Video'} - Complete Recipe\nFull recipe: banoscookbook.com`;
       }
     }
 
-    const caption = await generateMultiSceneVideoCaption(recipe, scriptData.sceneCount || scriptData.scenes?.length || 3)
+    const caption = await generateMultiSceneVideoCaption(
+      recipe,
+      scriptData.sceneCount || scriptData.scenes?.length || 3
+    );
 
     // Post video to Instagram as Reel
     if (!instagramApi) {
       return {
         success: false,
-        error: 'Instagram API not initialized. Please check configuration.'
-      }
+        error: 'Instagram API not initialized. Please check configuration.',
+      };
     }
-    const result = await instagramApi.publishVideoPost({
+    const result = (await instagramApi.publishVideoPost({
       videoUrl: videoUrl,
-      caption: caption.trim()
-    }) as { id: string; permalink: string; timestamp: string }
+      caption: caption.trim(),
+    })) as { id: string; permalink: string; timestamp: string };
 
     // Save Instagram post mapping to Firestore
     await db.collection('instagram_multi_scene_video_posts').add({
@@ -4109,37 +4729,35 @@ export async function shareMultiSceneVideoToInstagram(recipeId: string): Promise
       sceneCount: scriptData.sceneCount || scriptData.scenes?.length || 3,
       likeCount: 0,
       commentsCount: 0,
-      lastSyncedAt: new Date()
-    })
+      lastSyncedAt: new Date(),
+    });
 
-    console.log(`✅ Multi-scene video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`)
+    console.warn(
+      `✅ Multi-scene video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`
+    );
 
     return {
       success: true,
       instagramPostId: result.id,
-      permalink: result.permalink
-    }
-
+      permalink: result.permalink,
+    };
   } catch (error) {
-    console.error('❌ Error posting multi-scene video to Instagram:', error)
+    console.error('❌ Error posting multi-scene video to Instagram:', error);
     try {
-      if (!getDb) {
-        const adminConfig = await import('../../config/firebase-admin')
-        getDb = adminConfig.getDb
-      }
-      const db = getDb!()
+      const db = await ensureFirestore();
       await db.collection('instagram_multi_scene_video_post_attempts').add({
         recipeId,
         error: error instanceof Error ? error.message : String(error),
         createdAt: new Date(),
-      })
+      });
     } catch (logErr) {
-      console.warn('Failed to log instagram_multi_scene_video_post_attempts:', logErr)
+      console.warn('Failed to log instagram_multi_scene_video_post_attempts:', logErr);
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to post multi-scene video to Instagram'
-    }
+      error:
+        error instanceof Error ? error.message : 'Failed to post multi-scene video to Instagram',
+    };
   }
 }
 
@@ -4161,17 +4779,16 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
       return { success: false, error: 'A valid recipe ID is required to combine videos.' };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin');
-      getDb = adminConfig.getDb;
-    }
-    const db = getDb!();
+    const db = await ensureFirestore();
 
     const docRef = db.collection('multi_scene_video_scripts').doc(recipeId);
     const scriptDoc = await docRef.get();
 
     if (!scriptDoc.exists) {
-      return { success: false, error: 'No multi-scene script found. Generate scenes before combining videos.' };
+      return {
+        success: false,
+        error: 'No multi-scene script found. Generate scenes before combining videos.',
+      };
     }
 
     const scriptData = scriptDoc.data();
@@ -4181,7 +4798,7 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
 
     const sceneVideosRaw = Array.isArray(scriptData.sceneVideos) ? scriptData.sceneVideos : [];
     const sceneVideos = sceneVideosRaw
-      .map((scene) => {
+      .map(scene => {
         const record = scene as Record<string, unknown>;
         const sceneNumber = Number(record.sceneNumber);
         const videoUrl = typeof record.videoUrl === 'string' ? record.videoUrl : undefined;
@@ -4200,10 +4817,13 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
           duration,
         };
       })
-      .filter((scene) => Number.isFinite(scene.sceneNumber) && !!scene.videoUrl);
+      .filter(scene => Number.isFinite(scene.sceneNumber) && !!scene.videoUrl);
 
     if (sceneVideos.length === 0) {
-      return { success: false, error: 'No generated scene videos found. Generate scene videos first.' };
+      return {
+        success: false,
+        error: 'No generated scene videos found. Generate scene videos first.',
+      };
     }
 
     sceneVideos.sort((a, b) => a.sceneNumber - b.sceneNumber);
@@ -4236,7 +4856,7 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
       });
     }
 
-    const combinationScenes = sceneVideos.map((scene) => {
+    const combinationScenes = sceneVideos.map(scene => {
       const meta = sceneMeta.get(scene.sceneNumber);
       const settings = scene.runwaySettings as { duration?: unknown } | undefined;
       let runwayDuration: number | undefined;
@@ -4246,12 +4866,11 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
         const parsed = Number(settings.duration);
         if (Number.isFinite(parsed)) runwayDuration = parsed;
       }
-      const durationCandidates = [
-        runwayDuration,
-        scene.duration,
-        meta?.duration,
-      ];
-      const duration = durationCandidates.find((value) => typeof value === 'number' && Number.isFinite(value) && Number(value) > 0) ?? 5;
+      const durationCandidates = [runwayDuration, scene.duration, meta?.duration];
+      const duration =
+        durationCandidates.find(
+          value => typeof value === 'number' && Number.isFinite(value) && Number(value) > 0
+        ) ?? 5;
       return {
         sceneNumber: scene.sceneNumber,
         videoUrl: String(scene.videoUrl),
@@ -4260,9 +4879,12 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
       };
     });
 
-    const recipeTitle = typeof scriptData.recipeTitle === 'string'
-      ? scriptData.recipeTitle
-      : (typeof scriptData.title === 'string' ? scriptData.title : undefined);
+    const recipeTitle =
+      typeof scriptData.recipeTitle === 'string'
+        ? scriptData.recipeTitle
+        : typeof scriptData.title === 'string'
+          ? scriptData.title
+          : undefined;
 
     const { combineVideoScenes } = await import('@/lib/video-combination');
     const combinationOptions: VideoCombinationOptions = {
@@ -4276,7 +4898,10 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
     const combinationResult = await combineVideoScenes(combinationOptions);
 
     if (combinationResult.success && combinationResult.combinedVideoUrl) {
-      const fallbackDuration = combinationScenes.reduce((sum, scene) => sum + (scene.duration ?? 0), 0);
+      const fallbackDuration = combinationScenes.reduce(
+        (sum, scene) => sum + (scene.duration ?? 0),
+        0
+      );
       await docRef.update({
         combinedVideoUrl: combinationResult.combinedVideoUrl,
         combinedVideoDuration: combinationResult.duration ?? fallbackDuration,
@@ -4303,7 +4928,10 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
           },
         });
       } catch (logErr) {
-        console.warn('Failed to log combined video asset:', logErr instanceof Error ? logErr.message : logErr);
+        console.warn(
+          'Failed to log combined video asset:',
+          logErr instanceof Error ? logErr.message : logErr
+        );
       }
 
       return {
@@ -4317,11 +4945,14 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
     }
 
     if (combinationResult.instructions) {
-      await docRef.set({
-        combinedVideoInstructions: combinationResult.instructions,
-        combinedVideoProcessingMethod: combinationResult.processingMethod ?? 'manual',
-        combinedVideoGeneratedAt: new Date(),
-      }, { merge: true });
+      await docRef.set(
+        {
+          combinedVideoInstructions: combinationResult.instructions,
+          combinedVideoProcessingMethod: combinationResult.processingMethod ?? 'manual',
+          combinedVideoGeneratedAt: new Date(),
+        },
+        { merge: true }
+      );
     }
 
     return {
@@ -4342,7 +4973,10 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
 /**
  * Share an individual scene video to Instagram as a Reel
  */
-export async function shareSceneVideoToInstagram(recipeId: string, sceneNumber: number): Promise<{
+export async function shareSceneVideoToInstagram(
+  recipeId: string,
+  sceneNumber: number
+): Promise<{
   success: boolean;
   instagramPostId?: string;
   permalink?: string;
@@ -4357,8 +4991,9 @@ export async function shareSceneVideoToInstagram(recipeId: string, sceneNumber: 
       } catch (importErr) {
         return {
           success: false,
-          error: 'Failed to load Instagram API module: ' +
-                 (importErr instanceof Error ? importErr.message : String(importErr))
+          error:
+            'Failed to load Instagram API module: ' +
+            (importErr instanceof Error ? importErr.message : String(importErr)),
         };
       }
     }
@@ -4367,93 +5002,119 @@ export async function shareSceneVideoToInstagram(recipeId: string, sceneNumber: 
     if (!instagramApi || !instagramApi.isConfigured()) {
       return {
         success: false,
-        error: 'Instagram API not configured. Please set up environment variables.'
-      }
+        error: 'Instagram API not configured. Please set up environment variables.',
+      };
     }
 
-    if (!getDb) {
-      const adminConfig = await import('../../config/firebase-admin')
-      getDb = adminConfig.getDb
-    }
-    const db = getDb!()
+    const db = await ensureFirestore();
 
     // Get recipe details
-    const recipeDoc = await db.collection('recipes').doc(recipeId).get()
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     if (!recipeDoc.exists) {
-      return { success: false, error: 'Recipe not found' }
+      return { success: false, error: 'Recipe not found' };
     }
 
-    const recipe = recipeDoc.data()
+    const recipe = recipeDoc.data();
     if (!recipe) {
-      return { success: false, error: 'Recipe data is empty' }
+      return { success: false, error: 'Recipe data is empty' };
     }
 
     // Get the multi-scene video data
-    const scriptDoc = await db.collection('multi_scene_video_scripts').doc(recipeId).get()
+    const scriptDoc = await db.collection('multi_scene_video_scripts').doc(recipeId).get();
     if (!scriptDoc.exists || !scriptDoc.data()?.sceneVideos) {
-      return { success: false, error: 'No scene videos found. Please generate scene videos first.' }
+      return {
+        success: false,
+        error: 'No scene videos found. Please generate scene videos first.',
+      };
     }
 
-    const scriptData = scriptDoc.data()
+    const scriptData = scriptDoc.data();
     if (!scriptData || !scriptData.sceneVideos) {
-      return { success: false, error: 'Scene videos data is empty' }
+      return { success: false, error: 'Scene videos data is empty' };
     }
 
     // Find the specific scene
-    const scene = scriptData.sceneVideos.find((s: { sceneNumber: number; videoUrl?: string; script?: string }) => s.sceneNumber === sceneNumber)
+    const scene = scriptData.sceneVideos.find(
+      (s: { sceneNumber: number; videoUrl?: string; script?: string }) =>
+        s.sceneNumber === sceneNumber
+    );
     if (!scene || !scene.videoUrl) {
-      return { success: false, error: `Scene ${sceneNumber} video not found.` }
+      return { success: false, error: `Scene ${sceneNumber} video not found.` };
     }
 
-    const videoUrl = scene.videoUrl
-    const sceneScript = scene.script || 'Recipe cooking scene'
+    const videoUrl = scene.videoUrl;
+    const sceneScript = scene.script || 'Recipe cooking scene';
 
     // Build caption for scene video
-    async function generateSceneVideoCaption(recipeObj: { title?: string; ingredients?: string[] | string; cuisine?: string }, sceneNumber: number, sceneScript: string): Promise<string> {
+    async function generateSceneVideoCaption(
+      recipeObj: { title?: string; ingredients?: string[] | string; cuisine?: string },
+      sceneNumber: number,
+      sceneScript: string
+    ): Promise<string> {
       try {
-        const title = typeof recipeObj.title === 'string' && recipeObj.title.trim() ? recipeObj.title : 'Recipe Video'
+        const title =
+          typeof recipeObj.title === 'string' && recipeObj.title.trim()
+            ? recipeObj.title
+            : 'Recipe Video';
 
         // Extract ingredient keywords for hashtags
         const rawIngredients: string[] = Array.isArray(recipeObj.ingredients)
           ? recipeObj.ingredients.filter(Boolean).map(String)
-          : (typeof recipeObj.ingredients === 'string' ? recipeObj.ingredients.split(/[,;\n]/).map((s: string) => s.trim()).filter(Boolean) : [])
+          : typeof recipeObj.ingredients === 'string'
+            ? recipeObj.ingredients
+                .split(/[,;\n]/)
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : [];
 
         const ingredientKeywords = rawIngredients
-          .map((s) => s.replace(/\(.+?\)/g, '').trim().split(' ')[0])
-          .filter((s) => !!s && s.length > 1)
+          .map(
+            s =>
+              s
+                .replace(/\(.+?\)/g, '')
+                .trim()
+                .split(' ')[0]
+          )
+          .filter(s => !!s && s.length > 1)
           .slice(0, 4)
-          .map((s) => `#${s.replace(/[^a-z0-9]/gi, '')}`)
+          .map(s => `#${s.replace(/[^a-z0-9]/gi, '')}`);
 
-        const cuisineTag = recipeObj.cuisine ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}` : ''
-        const baseTags = ['#recipe', '#reel', '#foodie', '#cooking', '#homemade', cuisineTag].filter(Boolean)
-        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords])).slice(0, 8).join(' ')
+        const cuisineTag = recipeObj.cuisine
+          ? `#${String(recipeObj.cuisine).replace(/\s+/g, '')}`
+          : '';
+        const baseTags = ['#recipe', '#reel', '#foodie', '#cooking', '#homemade', cuisineTag].filter(
+          Boolean
+        );
+        const tags = Array.from(new Set([...baseTags, ...ingredientKeywords]))
+          .slice(0, 8)
+          .join(' ');
 
         const captionParts = [
           `🎬 ${title} - Scene ${sceneNumber}`,
           sceneScript.substring(0, 100) + (sceneScript.length > 100 ? '...' : ''),
           tags || undefined,
-          `Full recipe: banoscookbook.com`
-        ].filter(Boolean)
+          `Full recipe: banoscookbook.com`,
+        ].filter(Boolean);
 
-        return captionParts.join('\n\n')
+        return captionParts.join('\n\n');
       } catch {
-        return `🎬 ${recipe && recipe.title ? String(recipe.title) : 'Recipe Video'} - Scene ${sceneNumber}\nFull recipe: banoscookbook.com`
+        return `🎬 ${recipe && recipe.title ? String(recipe.title) : 'Recipe Video'} - Scene ${sceneNumber}\nFull recipe: banoscookbook.com`;
       }
     }
 
-    const caption = await generateSceneVideoCaption(recipe, sceneNumber, sceneScript)
+    const caption = await generateSceneVideoCaption(recipe, sceneNumber, sceneScript);
 
     // Post video to Instagram as Reel
     if (!instagramApi) {
       return {
         success: false,
-        error: 'Instagram API not initialized. Please check configuration.'
-      }
+        error: 'Instagram API not initialized. Please check configuration.',
+      };
     }
-    const result = await instagramApi.publishVideoPost({
+    const result = (await instagramApi.publishVideoPost({
       videoUrl: videoUrl,
-      caption: caption.trim()
-    }) as { id: string; permalink: string; timestamp: string }
+      caption: caption.trim(),
+    })) as { id: string; permalink: string; timestamp: string };
 
     // Save Instagram post mapping to Firestore
     await db.collection('instagram_scene_video_posts').add({
@@ -4467,38 +5128,35 @@ export async function shareSceneVideoToInstagram(recipeId: string, sceneNumber: 
       sceneScript,
       likeCount: 0,
       commentsCount: 0,
-      lastSyncedAt: new Date()
-    })
+      lastSyncedAt: new Date(),
+    });
 
-    console.log(`✅ Scene ${sceneNumber} video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`)
+    console.warn(
+      `✅ Scene ${sceneNumber} video "${recipe.title}" posted to Instagram as Reel: ${result.permalink}`
+    );
 
     return {
       success: true,
       instagramPostId: result.id,
-      permalink: result.permalink
-    }
-
+      permalink: result.permalink,
+    };
   } catch (_error) {
-    console.error('❌ Error posting scene video to Instagram:', _error)
+    console.error('❌ Error posting scene video to Instagram:', _error);
     try {
-      if (!getDb) {
-        const adminConfig = await import('../../config/firebase-admin')
-        getDb = adminConfig.getDb
-      }
-      const db = getDb!()
+      const db = await ensureFirestore();
       await db.collection('instagram_scene_video_post_attempts').add({
         recipeId,
         sceneNumber,
         error: _error instanceof Error ? _error.message : String(_error),
         createdAt: new Date(),
-      })
+      });
     } catch (logErr) {
-      console.warn('Failed to log instagram_scene_video_post_attempts:', logErr)
+      console.warn('Failed to log instagram_scene_video_post_attempts:', logErr);
     }
     return {
       success: false,
-      error: _error instanceof Error ? _error.message : 'Failed to post scene video to Instagram'
-    }
+      error: _error instanceof Error ? _error.message : 'Failed to post scene video to Instagram',
+    };
   }
 }
 
@@ -4513,18 +5171,15 @@ export async function fetchAssetsForRecipe(recipeId: string) {
   try {
     const adminConfig = await import('../../config/firebase-admin');
     const db = adminConfig.getDb();
-    const snapshot = await db
-      .collection('asset_library')
-      .where('recipeId', '==', recipeId)
-      .get();
+    const snapshot = await db.collection('asset_library').where('recipeId', '==', recipeId).get();
 
-    const assets = snapshot.docs.map((doc) => {
+    const assets = snapshot.docs.map((doc: FirebaseFirestore.DocumentSnapshot) => {
       const data = doc.data();
       return {
         ...data,
         id: doc.id,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate(),
+        createdAt: data?.createdAt?.toDate() || new Date(),
+        updatedAt: data?.updatedAt?.toDate(),
       };
     });
 
@@ -4562,7 +5217,7 @@ export async function deleteAsset(assetId: string) {
     if (storagePath) {
       try {
         await storage.bucket().file(storagePath).delete();
-        console.log('🎬 Deleted file from storage:', storagePath);
+        console.warn('🎬 Deleted file from storage:', storagePath);
       } catch (storageError) {
         console.warn('🎬 Storage delete warning:', storageError);
         // Continue even if storage delete fails (file might not exist)
@@ -4571,7 +5226,7 @@ export async function deleteAsset(assetId: string) {
 
     // Delete from Firestore
     await assetDoc.ref.delete();
-    console.log('🎬 Deleted asset document:', assetId);
+    console.warn('🎬 Deleted asset document:', assetId);
 
     return { success: true };
   } catch (error) {
@@ -4591,10 +5246,11 @@ export async function saveTimeline(timeline: { id: string; [key: string]: unknow
     const adminConfig = await import('../../config/firebase-admin');
     const db = adminConfig.getDb();
     const admin = adminConfig.getAdmin();
+    const { FieldValue } = admin.firestore;
 
     const timelineData = {
       ...timeline,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // Check if timeline exists
@@ -4608,11 +5264,11 @@ export async function saveTimeline(timeline: { id: string; [key: string]: unknow
       // Create new
       await timelineDoc.set({
         ...timelineData,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
 
-    console.log('🎬 Timeline saved:', timeline.id);
+    console.warn('🎬 Timeline saved:', timeline.id);
     return { success: true };
   } catch (error) {
     console.error('🎬 Save timeline error:', error);
@@ -4686,6 +5342,7 @@ export async function getOrCreateTimelineForRecipe(recipeId: string, recipeName:
 
     // Create new timeline
     const admin = adminConfig.getAdmin();
+    const { FieldValue } = admin.firestore;
     const newTimeline = {
       id: `timeline-${Date.now()}`,
       recipeId,
@@ -4694,8 +5351,8 @@ export async function getOrCreateTimelineForRecipe(recipeId: string, recipeName:
       fps: 30,
       resolution: { width: 1280, height: 720 },
       tracks: [],
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     await db.collection('timelines').doc(newTimeline.id).set(newTimeline);

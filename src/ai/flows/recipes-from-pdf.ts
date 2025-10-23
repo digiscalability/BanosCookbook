@@ -8,19 +8,16 @@
  * - RecipesFromPdfOutput - The return type for the extractRecipesFromPdf function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { z } from 'genkit';
 import * as pdfjs from 'pdf-parse';
+
+import { ai } from '@/ai/genkit';
 
 const RecipeSchema = z.object({
   title: z.string().describe('The title of the recipe.'),
   description: z.string().describe('A brief description of the recipe.'),
-  ingredients: z
-    .string()
-    .describe('The list of ingredients, with each ingredient on a new line.'),
-  instructions: z
-    .string()
-    .describe('The cooking instructions, with each step on a new line.'),
+  ingredients: z.string().describe('The list of ingredients, with each ingredient on a new line.'),
+  instructions: z.string().describe('The cooking instructions, with each step on a new line.'),
   prepTime: z.string().describe("The preparation time, e.g., '20 mins'."),
   cookTime: z.string().describe("The cooking time, e.g., '45 mins'."),
   servings: z.coerce.number().describe('The number of servings.'),
@@ -50,8 +47,8 @@ export async function extractRecipesFromPdf(
 
 const prompt = ai.definePrompt({
   name: 'recipesFromPdfPrompt',
-  input: {schema: z.object({text: z.string()})},
-  output: {schema: RecipesFromPdfOutputSchema},
+  input: { schema: z.object({ text: z.string() }) },
+  output: { schema: RecipesFromPdfOutputSchema },
   prompt: `You are an expert recipe transcriber. Analyze the provided text which was extracted from a PDF and extract all the recipes you can find. For each recipe, provide the following information:
 - Recipe Title
 - A short description of the dish
@@ -78,20 +75,18 @@ const recipesFromPdfFlow = ai.defineFlow(
     outputSchema: RecipesFromPdfOutputSchema,
   },
   async input => {
-    const {pdfDataUri} = input;
-    const base64Data = pdfDataUri.substring(
-      'data:application/pdf;base64,'.length
-    );
+    const { pdfDataUri } = input;
+    const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
     const pdfBuffer = Buffer.from(base64Data, 'base64');
 
     const data = await pdfjs.default(pdfBuffer);
     const text = data.text;
 
     if (!text) {
-      return {recipes: []};
+      return { recipes: [] };
     }
-    
-    const {output} = await prompt({text});
-    return output || {recipes: []};
+
+    const { output } = await prompt({ text });
+    return output || { recipes: [] };
   }
 );

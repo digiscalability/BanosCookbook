@@ -8,8 +8,9 @@
  * - RecipeFromImageOutput - The return type for the extractRecipeFromImage function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
 
 const RecipeFromImageInputSchema = z.object({
   photoDataUri: z
@@ -21,18 +22,16 @@ const RecipeFromImageInputSchema = z.object({
 export type RecipeFromImageInput = z.infer<typeof RecipeFromImageInputSchema>;
 
 const RecipeFromImageOutputSchema = z.object({
-    title: z.string().describe("The title of the recipe."),
-    description: z.string().describe("A brief description of the recipe."),
-    ingredients: z.string().describe("The list of ingredients, with each ingredient on a new line."),
-    instructions: z.string().describe("The cooking instructions, with each step on a new line."),
-    prepTime: z.string().describe("The preparation time, e.g., '20 mins'."),
-    cookTime: z.string().describe("The cooking time, e.g., '45 mins'."),
-    servings: z.coerce.number().describe("The number of servings."),
-    cuisine: z.string().describe("The cuisine type, e.g., 'Italian'."),
+  title: z.string().describe('The title of the recipe.'),
+  description: z.string().describe('A brief description of the recipe.'),
+  ingredients: z.string().describe('The list of ingredients, with each ingredient on a new line.'),
+  instructions: z.string().describe('The cooking instructions, with each step on a new line.'),
+  prepTime: z.string().describe("The preparation time, e.g., '20 mins'."),
+  cookTime: z.string().describe("The cooking time, e.g., '45 mins'."),
+  servings: z.coerce.number().describe('The number of servings.'),
+  cuisine: z.string().describe("The cuisine type, e.g., 'Italian'."),
 });
-export type RecipeFromImageOutput = z.infer<
-  typeof RecipeFromImageOutputSchema
->;
+export type RecipeFromImageOutput = z.infer<typeof RecipeFromImageOutputSchema>;
 
 export async function extractRecipeFromImage(
   input: RecipeFromImageInput
@@ -42,8 +41,8 @@ export async function extractRecipeFromImage(
 
 const prompt = ai.definePrompt({
   name: 'recipeFromImagePrompt',
-  input: {schema: RecipeFromImageInputSchema},
-  output: {schema: RecipeFromImageOutputSchema},
+  input: { schema: RecipeFromImageInputSchema },
+  output: { schema: RecipeFromImageOutputSchema },
   prompt: `You are an expert recipe transcriber. Analyze the provided image of a handwritten recipe and extract the following information:
 - Recipe Title
 - A short description of the dish
@@ -67,7 +66,10 @@ const recipeFromImageFlow = ai.defineFlow(
     outputSchema: RecipeFromImageOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const { output } = await prompt(input);
+    if (!output) {
+      throw new Error('Failed to extract recipe from image');
+    }
+    return output;
   }
 );

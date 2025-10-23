@@ -5,28 +5,31 @@
  * This implementation uses hybrid text extraction + OCR + AI enhancement for maximum accuracy.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import * as pdfjs from 'pdf-parse';
 import pdf2pic from 'pdf2pic';
 import sharp from 'sharp';
 import { createWorker } from 'tesseract.js';
 
+import { ai } from '@/ai/genkit';
+
 const RecipeSchema = z.object({
   title: z.string().describe('The title of the recipe.'),
   description: z.string().describe('A brief description of the recipe.'),
-  ingredients: z
-    .string()
-    .describe('The list of ingredients, with each ingredient on a new line.'),
-  instructions: z
-    .string()
-    .describe('The cooking instructions, with each step on a new line.'),
+  ingredients: z.string().describe('The list of ingredients, with each ingredient on a new line.'),
+  instructions: z.string().describe('The cooking instructions, with each step on a new line.'),
   prepTime: z.string().describe("The preparation time, e.g., '20 mins'."),
   cookTime: z.string().describe("The cooking time, e.g., '45 mins'."),
   servings: z.coerce.number().describe('The number of servings.'),
   cuisine: z.string().describe("The cuisine type, e.g., 'Italian'."),
-  difficulty: z.string().optional().describe("The difficulty level, e.g., 'Easy', 'Medium', 'Hard'."),
-  tags: z.array(z.string()).optional().describe('Recipe tags like "vegetarian", "gluten-free", etc.'),
+  difficulty: z
+    .string()
+    .optional()
+    .describe("The difficulty level, e.g., 'Easy', 'Medium', 'Hard'."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe('Recipe tags like "vegetarian", "gluten-free", etc.'),
   nutritionInfo: z.string().optional().describe('Nutritional information if available.'),
   source: z.string().optional().describe('Source of the recipe if mentioned.'),
 });
@@ -37,10 +40,19 @@ const AdvancedRecipesFromPdfInputSchema = z.object({
     .describe(
       "A PDF file encoded as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."
     ),
-  processingMode: z.enum(['text-only', 'ocr-only', 'hybrid', 'auto']).default('auto').describe('Processing mode for PDF extraction.'),
+  processingMode: z
+    .enum(['text-only', 'ocr-only', 'hybrid', 'auto'])
+    .default('auto')
+    .describe('Processing mode for PDF extraction.'),
   ocrLanguage: z.string().default('eng').describe('OCR language code.'),
-  imageQuality: z.enum(['low', 'medium', 'high']).default('high').describe('Image processing quality.'),
-  enableAIEnhancement: z.boolean().default(true).describe('Enable AI-powered text cleaning and enhancement.'),
+  imageQuality: z
+    .enum(['low', 'medium', 'high'])
+    .default('high')
+    .describe('Image processing quality.'),
+  enableAIEnhancement: z
+    .boolean()
+    .default(true)
+    .describe('Enable AI-powered text cleaning and enhancement.'),
 });
 export type AdvancedRecipesFromPdfInput = z.infer<typeof AdvancedRecipesFromPdfInputSchema>;
 
@@ -68,8 +80,8 @@ export async function extractRecipesFromPdfAdvanced(
 // AI-powered text cleaning and enhancement
 const textCleaningPrompt = ai.definePrompt({
   name: 'textCleaningPrompt',
-  input: {schema: z.object({text: z.string(), source: z.string()})},
-  output: {schema: z.object({cleanedText: z.string(), confidence: z.number()})},
+  input: { schema: z.object({ text: z.string(), source: z.string() }) },
+  output: { schema: z.object({ cleanedText: z.string(), confidence: z.number() }) },
   prompt: `You are an expert text processor specializing in recipe extraction from PDFs. Your task is to clean and enhance raw text extracted from PDFs (including OCR text) to make it more readable and structured for recipe extraction.
 
 IMPORTANT INSTRUCTIONS:
@@ -94,8 +106,8 @@ Return the cleaned text and a confidence score (0-1) indicating how well you cou
 // Advanced recipe extraction with AI enhancement
 const advancedRecipePrompt = ai.definePrompt({
   name: 'advancedRecipePrompt',
-  input: {schema: z.object({text: z.string(), processingInfo: z.object({})})},
-  output: {schema: z.object({recipes: z.array(RecipeSchema)})},
+  input: { schema: z.object({ text: z.string(), processingInfo: z.object({}) }) },
+  output: { schema: z.object({ recipes: z.array(RecipeSchema) }) },
   prompt: `You are an expert recipe transcriber and culinary analyst. Extract ALL recipes from the provided text with maximum accuracy and detail.
 
 CRITICAL REQUIREMENTS:
@@ -146,9 +158,7 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
       enableAIEnhancement = true,
     } = input;
 
-    const base64Data = pdfDataUri.substring(
-      'data:application/pdf;base64,'.length
-    );
+    const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
     const pdfBuffer = Buffer.from(base64Data, 'base64');
 
     let allText = '';
@@ -166,19 +176,25 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
         textData = await pdfjs.default(pdfBuffer, {
           // Add options to handle problematic PDFs
           max: 0, // Parse all pages
-          version: 'v1.10.100' // Use specific version
+          version: 'v1.10.100', // Use specific version
         });
         basicText = textData.text || '';
         totalPages = textData.numpages || 0;
       } catch (pdfError) {
-        console.warn('PDF parsing failed, trying alternative method:', pdfError instanceof Error ? pdfError.message : String(pdfError));
+        console.warn(
+          'PDF parsing failed, trying alternative method:',
+          pdfError instanceof Error ? pdfError.message : String(pdfError)
+        );
         // Fallback: try with minimal options
         try {
           textData = await pdfjs.default(pdfBuffer, { max: 0 });
           basicText = textData.text || '';
           totalPages = textData.numpages || 0;
         } catch (fallbackError) {
-          console.warn('PDF parsing completely failed:', fallbackError instanceof Error ? fallbackError.message : String(fallbackError));
+          console.warn(
+            'PDF parsing completely failed:',
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          );
           basicText = '';
           totalPages = 0;
         }
@@ -224,7 +240,7 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
 
       if (enableAIEnhancement && allText) {
         try {
-          const {output: cleanedResult} = await textCleaningPrompt({
+          const { output: cleanedResult } = await textCleaningPrompt({
             text: allText,
             source: `PDF with ${processingModeUsed} processing`,
           });
@@ -234,7 +250,10 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
             aiEnhanced = true;
           }
         } catch (aiError) {
-          console.warn('AI enhancement failed, using raw text:', aiError instanceof Error ? aiError.message : String(aiError));
+          console.warn(
+            'AI enhancement failed, using raw text:',
+            aiError instanceof Error ? aiError.message : String(aiError)
+          );
           // Continue with raw text if AI fails
         }
       }
@@ -258,7 +277,7 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
 
       let recipeResult;
       try {
-        const {output} = await advancedRecipePrompt({
+        const { output } = await advancedRecipePrompt({
           text: finalText,
           processingInfo: {
             mode: processingModeUsed,
@@ -269,19 +288,25 @@ const advancedRecipesFromPdfFlow = ai.defineFlow(
         });
         recipeResult = output;
       } catch (recipeError) {
-        console.warn('Recipe extraction failed, trying fallback:', recipeError instanceof Error ? recipeError.message : String(recipeError));
+        console.warn(
+          'Recipe extraction failed, trying fallback:',
+          recipeError instanceof Error ? recipeError.message : String(recipeError)
+        );
         // Fallback: try with basic recipe extraction
         try {
-          const {output: fallbackResult} = await ai.definePrompt({
+          const { output: fallbackResult } = await ai.definePrompt({
             name: 'fallbackRecipePrompt',
-            input: {schema: z.object({text: z.string()})},
-            output: {schema: z.object({recipes: z.array(RecipeSchema)})},
+            input: { schema: z.object({ text: z.string() }) },
+            output: { schema: z.object({ recipes: z.array(RecipeSchema) }) },
             prompt: `Extract recipes from this text. Find any cooking instructions, ingredients, or recipe information.`,
-          })({text: finalText});
+          })({ text: finalText });
           recipeResult = fallbackResult;
         } catch (fallbackError) {
-          console.warn('Fallback recipe extraction also failed:', fallbackError instanceof Error ? fallbackError.message : String(fallbackError));
-          recipeResult = {recipes: []};
+          console.warn(
+            'Fallback recipe extraction also failed:',
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          );
+          recipeResult = { recipes: [] };
         }
       }
 
@@ -323,8 +348,17 @@ function assessTextQuality(text: string): number {
 
   // Check for common recipe indicators
   const recipeIndicators = [
-    'ingredients', 'instructions', 'prep time', 'cook time', 'servings',
-    'cups', 'tablespoons', 'teaspoons', 'degrees', 'minutes', 'hours'
+    'ingredients',
+    'instructions',
+    'prep time',
+    'cook time',
+    'servings',
+    'cups',
+    'tablespoons',
+    'teaspoons',
+    'degrees',
+    'minutes',
+    'hours',
   ];
 
   const foundIndicators = recipeIndicators.filter(indicator =>
@@ -338,7 +372,8 @@ function assessTextQuality(text: string): number {
 
   // Calculate quality score
   const indicatorScore = foundIndicators / recipeIndicators.length;
-  const structureScore = (hasIngredients ? 0.3 : 0) + (hasInstructions ? 0.3 : 0) + (hasMeasurements ? 0.4 : 0);
+  const structureScore =
+    (hasIngredients ? 0.3 : 0) + (hasInstructions ? 0.3 : 0) + (hasMeasurements ? 0.4 : 0);
 
   return Math.min(1, (indicatorScore + structureScore) / 2);
 }
@@ -346,9 +381,9 @@ function assessTextQuality(text: string): number {
 // Advanced OCR processing with image optimization
 async function processWithOCR(
   pdfBuffer: Buffer,
-  options: {language: string; quality: string}
-): Promise<{text: string; imagesProcessed: number; accuracy: number}> {
-  const {language, quality} = options;
+  options: { language: string; quality: string }
+): Promise<{ text: string; imagesProcessed: number; accuracy: number }> {
+  const { language, quality } = options;
 
   try {
     // Check if GraphicsMagick/ImageMagick is available
@@ -362,7 +397,10 @@ async function processWithOCR(
         width: quality === 'high' ? 2000 : quality === 'medium' ? 1500 : 1000,
       });
     } catch (gmError) {
-      console.warn('GraphicsMagick/ImageMagick not available, skipping OCR:', gmError instanceof Error ? gmError.message : String(gmError));
+      console.warn(
+        'GraphicsMagick/ImageMagick not available, skipping OCR:',
+        gmError instanceof Error ? gmError.message : String(gmError)
+      );
       return {
         text: '',
         imagesProcessed: 0,
@@ -379,7 +417,7 @@ async function processWithOCR(
       try {
         // Enhance image quality before OCR
         const enhancedImageBuffer = await sharp(result.path)
-          .resize(2000, 2800, {fit: 'inside', withoutEnlargement: true})
+          .resize(2000, 2800, { fit: 'inside', withoutEnlargement: true })
           .normalize()
           .sharpen()
           .png()
@@ -388,19 +426,25 @@ async function processWithOCR(
         // OCR with optimized settings
         const worker = await createWorker(language);
         const tessParams: Record<string, string | number> = {
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?()[]{}"\'/\\-:;',
+          tessedit_char_whitelist:
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?()[]{}"\'/\\-:;',
           tessedit_pageseg_mode: 6, // Uniform block of text
           tessedit_ocr_engine_mode: 1, // LSTM OCR Engine
         };
-  await worker.setParameters(tessParams as unknown as Record<string, unknown>);
+        await worker.setParameters(tessParams as unknown as Record<string, unknown>);
 
-        const {data: {text, confidence}} = await worker.recognize(enhancedImageBuffer);
+        const {
+          data: { text, confidence },
+        } = await worker.recognize(enhancedImageBuffer);
         await worker.terminate();
 
         ocrTexts.push(text);
         totalConfidence += confidence;
       } catch (ocrError) {
-        console.warn('OCR failed for page:', ocrError instanceof Error ? ocrError.message : String(ocrError));
+        console.warn(
+          'OCR failed for page:',
+          ocrError instanceof Error ? ocrError.message : String(ocrError)
+        );
         ocrTexts.push('');
         totalConfidence += 0;
       }

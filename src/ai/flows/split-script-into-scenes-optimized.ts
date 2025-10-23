@@ -1,14 +1,17 @@
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
 
 const SplitScriptInputSchema = z.object({
   script: z.string(),
   sceneCount: z.number().min(2).max(10).default(3),
-  visualContext: z.object({
-    recipeTitle: z.string(),
-    keyIngredients: z.array(z.string()).optional(),
-    cookingTechniques: z.array(z.string()).optional(),
-  }).optional(),
+  visualContext: z
+    .object({
+      recipeTitle: z.string(),
+      keyIngredients: z.array(z.string()).optional(),
+      cookingTechniques: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 // Enhanced scene structure with visual continuity markers
@@ -17,14 +20,22 @@ const OptimizedSceneSchema = z.object({
   script: z.string().describe('Narration/text for this scene'),
   description: z.string().describe('Visual summary of scene action'),
   visualElements: z.array(z.string()).describe('Key visual elements, props, ingredients visible'),
-  cameraWork: z.string().describe('Primary camera technique: overhead, close-up, wide, tracking, static'),
+  cameraWork: z
+    .string()
+    .describe('Primary camera technique: overhead, close-up, wide, tracking, static'),
   lighting: z.string().describe('Lighting style: natural, warm, dramatic, bright'),
   colorPalette: z.string().describe('Dominant colors in frame'),
   keyMoments: z.array(z.string()).describe('Specific visual beats within the scene'),
   runwayPrompt: z.string().describe('Optimized prompt for Runway ML video generation'),
-  transitionTo: z.string().describe('How to transition to next scene: match-cut on [object], fade through [action], quick cut'),
+  transitionTo: z
+    .string()
+    .describe(
+      'How to transition to next scene: match-cut on [object], fade through [action], quick cut'
+    ),
   continuityNotes: z.object({
-    propsFromPrevious: z.array(z.string()).describe('Props/elements that should carry over from previous scene'),
+    propsFromPrevious: z
+      .array(z.string())
+      .describe('Props/elements that should carry over from previous scene'),
     propsForNext: z.array(z.string()).describe('Props/elements to maintain for next scene'),
     lightingConsistency: z.string().describe('Lighting consistency requirement'),
     compositionHint: z.string().describe('Composition guidance for visual flow'),
@@ -80,21 +91,25 @@ const SPLIT_SCRIPT_OPTIMIZED_PROMPT = `You are an expert video editor and cinema
 
 Split the script into {sceneCount} visually coherent scenes that tell a complete story.`;
 
-export const splitScriptIntoScenesOptimizedFlow = ai.defineFlow({
-  name: 'splitScriptIntoScenesOptimizedFlow',
-  inputSchema: SplitScriptInputSchema,
-  outputSchema: SplitScriptOutputSchema,
-}, async (input) => {
-  const { script, sceneCount, visualContext } = input;
+export const splitScriptIntoScenesOptimizedFlow = ai.defineFlow(
+  {
+    name: 'splitScriptIntoScenesOptimizedFlow',
+    inputSchema: SplitScriptInputSchema,
+    outputSchema: SplitScriptOutputSchema,
+  },
+  async input => {
+    const { script, sceneCount, visualContext } = input;
 
-  const contextInfo = visualContext ? `
+    const contextInfo = visualContext
+      ? `
 **Recipe Context:**
 - Title: ${visualContext.recipeTitle}
 - Key Ingredients: ${visualContext.keyIngredients?.join(', ') || 'N/A'}
 - Techniques: ${visualContext.cookingTechniques?.join(', ') || 'N/A'}
-` : '';
+`
+      : '';
 
-  const userPrompt = `Split this recipe video script into ${sceneCount} scenes with full visual continuity planning:
+    const userPrompt = `Split this recipe video script into ${sceneCount} scenes with full visual continuity planning:
 
 ${contextInfo}
 
@@ -111,25 +126,26 @@ ${script}
 
 Generate optimized scenes for seamless AI video generation.`;
 
-  try {
-    const result = await ai.generate({
-      model: 'googleai/gemini-2.5-pro',
-      prompt: `${SPLIT_SCRIPT_OPTIMIZED_PROMPT}\n\n${userPrompt}`,
-      output: {
-        schema: SplitScriptOutputSchema,
-      },
-      config: {
-        temperature: 0.6, // Balanced: creative but consistent
-        maxOutputTokens: 2500,
-      },
-    });
+    try {
+      const result = await ai.generate({
+        model: 'googleai/gemini-2.5-pro',
+        prompt: `${SPLIT_SCRIPT_OPTIMIZED_PROMPT}\n\n${userPrompt}`,
+        output: {
+          schema: SplitScriptOutputSchema,
+        },
+        config: {
+          temperature: 0.6, // Balanced: creative but consistent
+          maxOutputTokens: 2500,
+        },
+      });
 
-    return result.output as SplitScriptOutput;
-  } catch (error) {
-    console.error('Optimized scene splitting failed, using enhanced fallback:', error);
-    return createEnhancedFallbackScenes(input);
+      return result.output as SplitScriptOutput;
+    } catch (error) {
+      console.error('Optimized scene splitting failed, using enhanced fallback:', error);
+      return createEnhancedFallbackScenes(input);
+    }
   }
-});
+);
 
 /**
  * Enhanced fallback: Intelligently split script with basic continuity awareness
@@ -149,7 +165,8 @@ function createEnhancedFallbackScenes(input: SplitScriptInput): SplitScriptOutpu
 
   let previousProps: string[] = [];
   const globalLighting = 'warm, natural kitchen lighting';
-  const globalStyle = 'Cinematic food videography, shallow depth of field, appetizing color grading';
+  const globalStyle =
+    'Cinematic food videography, shallow depth of field, appetizing color grading';
 
   for (let i = 0; i < sceneCount; i++) {
     const chunk = semanticChunks.slice(i * chunkSize, (i + 1) * chunkSize).join(' ');
@@ -198,7 +215,8 @@ function createEnhancedFallbackScenes(input: SplitScriptInput): SplitScriptOutpu
   return {
     scenes,
     overallStyle: globalStyle,
-    continuityGuidelines: 'Maintain warm, natural lighting and consistent kitchen setting throughout. Use same wooden utensils and ceramic bowls across scenes for visual continuity.',
+    continuityGuidelines:
+      'Maintain warm, natural lighting and consistent kitchen setting throughout. Use same wooden utensils and ceramic bowls across scenes for visual continuity.',
   };
 }
 
@@ -206,13 +224,11 @@ function createEnhancedFallbackScenes(input: SplitScriptInput): SplitScriptOutpu
  * Remove generic intro/outro patterns from script
  */
 function removeGenericIntroOutro(script: string): string {
-  const introRegex = /^(welcome|hi|hello|today we're|let's|in this video|introduction).{0,100}?\./im;
+  const introRegex =
+    /^(welcome|hi|hello|today we're|let's|in this video|introduction).{0,100}?\./im;
   const outroRegex = /(enjoy|thanks for watching|bon appétit|see you|hope you).{0,100}?$/im;
 
-  return script
-    .replace(introRegex, '')
-    .replace(outroRegex, '')
-    .trim();
+  return script.replace(introRegex, '').replace(outroRegex, '').trim();
 }
 
 /**
@@ -220,12 +236,16 @@ function removeGenericIntroOutro(script: string): string {
  */
 function splitOnSemanticBoundaries(script: string): string[] {
   // Split on action verbs and ingredient mentions
-  const actionMarkers = /(?<=\.)[\s]*(?=[A-Z][a-z]*\s+(heat|add|mix|stir|cook|pour|chop|dice|blend|season|garnish|serve))/g;
+  const actionMarkers =
+    /(?<=\.)[\s]*(?=[A-Z][a-z]*\s+(heat|add|mix|stir|cook|pour|chop|dice|blend|season|garnish|serve))/g;
   const chunks = script.split(actionMarkers).filter(Boolean);
 
   // If splitting resulted in too few chunks, fall back to sentence splitting
   if (chunks.length < 2) {
-    return script.split(/\.\s+/).filter(Boolean).map(s => s + '.');
+    return script
+      .split(/\.\s+/)
+      .filter(Boolean)
+      .map(s => s + '.');
   }
 
   return chunks;
@@ -273,14 +293,19 @@ function buildRunwayPrompt(params: {
   previousProps: string[];
   lighting: string;
 }): string {
-  const { recipeTitle, sceneNumber, script, cameraWork, visualElements, previousProps, lighting } = params;
+  const { recipeTitle, sceneNumber, script, cameraWork, visualElements, previousProps, lighting } =
+    params;
   // totalScenes is kept in params for future use (e.g., final scene handling)
 
-  const continuityPhrase = sceneNumber > 1 && previousProps.length > 0
-    ? `Continuing from previous scene with ${previousProps.join(', ')} visible. `
-    : '';
+  const continuityPhrase =
+    sceneNumber > 1 && previousProps.length > 0
+      ? `Continuing from previous scene with ${previousProps.join(', ')} visible. `
+      : '';
 
   const cleanScript = script.replace(/\s+/g, ' ').trim().slice(0, 300);
 
-  return `${continuityPhrase}${cameraWork} of ${recipeTitle}. ${cleanScript}. ${visualElements.length > 0 ? `Key elements: ${visualElements.join(', ')}.` : ''} ${lighting}, cinematic food videography, shallow depth of field, appetizing.`.slice(0, 800);
+  return `${continuityPhrase}${cameraWork} of ${recipeTitle}. ${cleanScript}. ${visualElements.length > 0 ? `Key elements: ${visualElements.join(', ')}.` : ''} ${lighting}, cinematic food videography, shallow depth of field, appetizing.`.slice(
+    0,
+    800
+  );
 }

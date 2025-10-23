@@ -1,5 +1,6 @@
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
 import adminConfig from '../../../../../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -16,7 +17,7 @@ export const revalidate = 0;
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; commentId: string }> },
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     const { id, commentId } = await params;
@@ -27,18 +28,30 @@ export async function POST(
     const admin = getAdmin();
     const recipeRef = db.collection('recipes').doc(id);
 
-    const result = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(recipeRef);
       if (!snapshot.exists) {
         throw new Error('Recipe not found');
       }
 
       const data = snapshot.data() as Record<string, unknown>;
-      const comments = (data?.comments as Array<{ id: string; likes?: number; likedBy?: string[]; replies?: Array<{ id: string; likes?: number; likedBy?: string[]; [key: string]: unknown }>; [key: string]: unknown }>) || [];
+      const comments =
+        (data?.comments as Array<{
+          id: string;
+          likes?: number;
+          likedBy?: string[];
+          replies?: Array<{
+            id: string;
+            likes?: number;
+            likedBy?: string[];
+            [key: string]: unknown;
+          }>;
+          [key: string]: unknown;
+        }>) || [];
 
       // Find the comment (including nested replies)
       let commentFound = false;
-      const updatedComments = comments.map((comment) => {
+      const updatedComments = comments.map(comment => {
         if (comment.id === commentId) {
           commentFound = true;
           const likes = comment.likes || 0;
@@ -64,28 +77,30 @@ export async function POST(
 
         // Check nested replies
         if (comment.replies && Array.isArray(comment.replies)) {
-          const updatedReplies = comment.replies.map((reply: { id: string; likes?: number; likedBy?: string[]; [key: string]: unknown }) => {
-            if (reply.id === commentId) {
-              commentFound = true;
-              const likes = reply.likes || 0;
-              const likedBy = (reply.likedBy as string[]) || [];
+          const updatedReplies = comment.replies.map(
+            (reply: { id: string; likes?: number; likedBy?: string[]; [key: string]: unknown }) => {
+              if (reply.id === commentId) {
+                commentFound = true;
+                const likes = reply.likes || 0;
+                const likedBy = (reply.likedBy as string[]) || [];
 
-              if (likedBy.includes(userId)) {
-                return {
-                  ...reply,
-                  likes: Math.max(0, likes - 1),
-                  likedBy: likedBy.filter((id: string) => id !== userId),
-                };
-              } else {
-                return {
-                  ...reply,
-                  likes: likes + 1,
-                  likedBy: [...likedBy, userId],
-                };
+                if (likedBy.includes(userId)) {
+                  return {
+                    ...reply,
+                    likes: Math.max(0, likes - 1),
+                    likedBy: likedBy.filter((id: string) => id !== userId),
+                  };
+                } else {
+                  return {
+                    ...reply,
+                    likes: likes + 1,
+                    likedBy: [...likedBy, userId],
+                  };
+                }
               }
+              return reply;
             }
-            return reply;
-          });
+          );
 
           return { ...comment, replies: updatedReplies };
         }
@@ -103,8 +118,14 @@ export async function POST(
       });
 
       // Find the updated comment to return
-      const updatedComment = updatedComments.find(c => c.id === commentId) ||
-        updatedComments.flatMap(c => c.replies || []).find((r: { id: string; likes?: number; likedBy?: string[]; [key: string]: unknown }) => r.id === commentId);
+      const updatedComment =
+        updatedComments.find(c => c.id === commentId) ||
+        updatedComments
+          .flatMap(c => c.replies || [])
+          .find(
+            (r: { id: string; likes?: number; likedBy?: string[]; [key: string]: unknown }) =>
+              r.id === commentId
+          );
 
       return {
         success: true,

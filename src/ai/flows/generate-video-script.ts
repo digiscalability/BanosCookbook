@@ -1,5 +1,6 @@
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
 
 const GenerateVideoScriptInputSchema = z.object({
   title: z.string(),
@@ -46,48 +47,57 @@ Step 1. Mix ingredients
 
 Format clearly with blank lines between sections.`;
 
-export const generateVideoScriptFlow = ai.defineFlow({
-  name: 'generateVideoScriptFlow',
-  inputSchema: GenerateVideoScriptInputSchema,
-  outputSchema: GenerateVideoScriptOutputSchema,
-}, async (input) => {
-  const { title, description, ingredients, instructions, cuisine } = input;
-  const userPrompt = `Recipe Title: ${title}\nDescription: ${description}\nCuisine: ${cuisine || ''}\nIngredients: ${ingredients.join(', ')}\nInstructions: ${instructions.join(' ')}\n`;
-  // IMPORTANT: Use 'googleai/gemini-2.5-pro' or 'googleai/gemini-2.5-flash' as the model name.
-  // Your API key/project must have access to Gemini 2.5 Pro or Flash (see https://ai.google.dev/gemini-api/docs/models)
-  const result = await ai.generate({
-    model: 'googleai/gemini-2.5-pro',
-    prompt: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
-    config: {
-      temperature: 0.8,
-      maxOutputTokens: 800,
-    },
-  });
-  // Remove debug log in production. If script is empty, model/config is likely misconfigured.
-  let script = result.text;
+export const generateVideoScriptFlow = ai.defineFlow(
+  {
+    name: 'generateVideoScriptFlow',
+    inputSchema: GenerateVideoScriptInputSchema,
+    outputSchema: GenerateVideoScriptOutputSchema,
+  },
+  async input => {
+    const { title, description, ingredients, instructions, cuisine } = input;
+    const userPrompt = `Recipe Title: ${title}\nDescription: ${description}\nCuisine: ${cuisine || ''}\nIngredients: ${ingredients.join(', ')}\nInstructions: ${instructions.join(' ')}\n`;
+    // IMPORTANT: Use 'googleai/gemini-2.5-pro' or 'googleai/gemini-2.5-flash' as the model name.
+    // Your API key/project must have access to Gemini 2.5 Pro or Flash (see https://ai.google.dev/gemini-api/docs/models)
+    const result = await ai.generate({
+      model: 'googleai/gemini-2.5-pro',
+      prompt: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
+      config: {
+        temperature: 0.8,
+        maxOutputTokens: 800,
+      },
+    });
+    // Remove debug log in production. If script is empty, model/config is likely misconfigured.
+    let script = result.text;
 
-  // POST-PROCESSING: Clean any production cues that AI might still generate
-  // Remove bracketed scene markers
-  script = script.replace(/\[[A-Z][A-Za-z0-9 _\-:]*\]/g, '');
-  // Remove "On-Screen Text:" and similar labels
-  script = script.replace(/^(On[-\s]Screen\s+Text|Narrator|Voiceover|Voice\s+Over)\s*[:(]?[^:]*[:\)]?\s*/gim, '');
-  // Remove step numbering
-  script = script.replace(/^(Step\s+)?\d+[.):]\s*/gim, '');
-  // Remove parenthetical voiceover cues
-  script = script.replace(/\([vV]oice[-\s]?over\)/g, '');
-  script = script.replace(/\([nN]arrat(ion|or)\)/g, '');
-  // Clean up excessive whitespace
-  script = script.replace(/\n{3,}/g, '\n\n').trim();
+    // POST-PROCESSING: Clean any production cues that AI might still generate
+    // Remove bracketed scene markers
+    script = script.replace(/\[[A-Z][A-Za-z0-9 _\-:]*\]/g, '');
+    // Remove "On-Screen Text:" and similar labels
+    script = script.replace(
+      /^(On[-\s]Screen\s+Text|Narrator|Voiceover|Voice\s+Over)\s*[:(]?[^:]*[:\)]?\s*/gim,
+      ''
+    );
+    // Remove step numbering
+    script = script.replace(/^(Step\s+)?\d+[.):]\s*/gim, '');
+    // Remove parenthetical voiceover cues
+    script = script.replace(/\([vV]oice[-\s]?over\)/g, '');
+    script = script.replace(/\([nN]arrat(ion|or)\)/g, '');
+    // Clean up excessive whitespace
+    script = script.replace(/\n{3,}/g, '\n\n').trim();
 
-  let marketingIdeas: string[] = [];
-  // Only parse marketing ideas if the marker is present
-  if (script.includes('Marketing Ideas:')) {
-    const match = script.match(/Marketing Ideas:([\s\S]*)$/);
-    if (match) {
-      marketingIdeas = match[1].split(/\n|\*/).map((s: string) => s.trim()).filter(Boolean);
-      script = script.replace(/Marketing Ideas:([\s\S]*)$/, '').trim();
+    let marketingIdeas: string[] = [];
+    // Only parse marketing ideas if the marker is present
+    if (script.includes('Marketing Ideas:')) {
+      const match = script.match(/Marketing Ideas:([\s\S]*)$/);
+      if (match) {
+        marketingIdeas = match[1]
+          .split(/\n|\*/)
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+        script = script.replace(/Marketing Ideas:([\s\S]*)$/, '').trim();
+      }
     }
+    // Always return the main script text, even if marketing ideas are not found
+    return { script, marketingIdeas };
   }
-  // Always return the main script text, even if marketing ideas are not found
-  return { script, marketingIdeas };
-});
+);

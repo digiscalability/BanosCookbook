@@ -1,4 +1,5 @@
 import { collection, getDocs, getFirestore, orderBy, query } from 'firebase/firestore';
+
 import app from './firebase';
 
 export interface VideoScriptDoc {
@@ -18,7 +19,7 @@ export async function fetchAllVideoScripts(): Promise<VideoScriptDoc[]> {
     const scripts = snapshot.docs.map(doc => doc.data() as VideoScriptDoc);
     if (typeof window !== 'undefined') {
       // eslint-disable-next-line no-console
-      console.log('[fetchAllVideoScripts] fetched', scripts.length, 'scripts:', scripts);
+      console.warn('[fetchAllVideoScripts] fetched', scripts.length, 'scripts:', scripts);
     }
     return scripts;
   } catch (err) {

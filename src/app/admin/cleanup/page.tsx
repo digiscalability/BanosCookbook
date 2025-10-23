@@ -1,10 +1,11 @@
 'use client';
 
+import { AlertCircle, CheckCircle, Loader2, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, CheckCircle, Loader2, Trash2 } from 'lucide-react';
-import { useState } from 'react';
 
 export default function AdminCleanupPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +30,7 @@ export default function AdminCleanupPage() {
     } catch (error) {
       setResult({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to remove duplicates'
+        error: error instanceof Error ? error.message : 'Failed to remove duplicates',
       });
     } finally {
       setIsLoading(false);
@@ -37,15 +38,15 @@ export default function AdminCleanupPage() {
   };
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Admin: Database Cleanup</h1>
+    <div className="container mx-auto max-w-4xl py-8">
+      <h1 className="mb-6 text-3xl font-bold">Admin: Database Cleanup</h1>
 
       <Card>
         <CardHeader>
           <CardTitle>Remove Duplicate Recipes</CardTitle>
           <CardDescription>
-            This tool will scan your database for duplicate recipes (based on title) and remove them.
-            The oldest recipe will be kept, and newer duplicates will be deleted.
+            This tool will scan your database for duplicate recipes (based on title) and remove
+            them. The oldest recipe will be kept, and newer duplicates will be deleted.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -80,12 +81,13 @@ export default function AdminCleanupPage() {
                     ) : (
                       <div>
                         <p className="mb-2">
-                          Successfully removed <strong>{result.removed}</strong> duplicate recipe(s).
+                          Successfully removed <strong>{result.removed}</strong> duplicate
+                          recipe(s).
                         </p>
                         {result.duplicates && result.duplicates.length > 0 && (
                           <div className="mt-3">
-                            <p className="font-semibold mb-1">Cleaned up:</p>
-                            <ul className="list-disc list-inside space-y-1">
+                            <p className="mb-1 font-semibold">Cleaned up:</p>
+                            <ul className="list-inside list-disc space-y-1">
                               {result.duplicates.map((dup, index) => (
                                 <li key={index}>
                                   <strong>{dup.title}</strong> - removed {dup.count} duplicate(s)
@@ -117,7 +119,7 @@ export default function AdminCleanupPage() {
           <CardTitle>How it works</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+          <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
             <li>Scans all recipes in the database</li>
             <li>Groups recipes by title (case-insensitive)</li>
             <li>Identifies groups with multiple recipes (duplicates)</li>

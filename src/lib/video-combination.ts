@@ -21,7 +21,9 @@ function ensureFfmpegPath(): void {
   if (!ffmpegReady) {
     const binaryPath = resolveFfmpegBinary();
     if (!binaryPath) {
-      throw new Error('Unable to locate ffmpeg binary. Set FFMPEG_PATH to the executable as a fallback.');
+      throw new Error(
+        'Unable to locate ffmpeg binary. Set FFMPEG_PATH to the executable as a fallback.'
+      );
     }
     ffmpeg.setFfmpegPath(binaryPath);
     ffmpegReady = true;
@@ -31,12 +33,18 @@ function ensureFfmpegPath(): void {
 function resolveFfmpegBinary(): string {
   const candidatePaths: string[] = [];
 
-  const envBinary = process.env.FFMPEG_PATH || process.env.FFMPEG_BINARY || process.env.FFMPEG_BINARY_PATH;
+  const envBinary =
+    process.env.FFMPEG_PATH || process.env.FFMPEG_BINARY || process.env.FFMPEG_BINARY_PATH;
   if (envBinary) candidatePaths.push(envBinary);
   if (ffmpegBinaryPath) candidatePaths.push(ffmpegBinaryPath);
 
   const cwd = process.cwd();
-  const defaultModulePath = path.join(cwd, 'node_modules', 'ffmpeg-static', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+  const defaultModulePath = path.join(
+    cwd,
+    'node_modules',
+    'ffmpeg-static',
+    process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  );
   candidatePaths.push(defaultModulePath);
 
   if (process.env.VERCEL) {
@@ -97,10 +105,12 @@ export interface VideoCombinationResult {
  * Combine multiple video scenes into a single video.
  * Prefers Cloudinary when available, falls back to local FFmpeg stitching.
  */
-export async function combineVideoScenes(options: VideoCombinationOptions): Promise<VideoCombinationResult> {
+export async function combineVideoScenes(
+  options: VideoCombinationOptions
+): Promise<VideoCombinationResult> {
   try {
     const scenes = Array.isArray(options.scenes) ? options.scenes : [];
-    console.log('🎬 Starting video combination process...', { sceneCount: scenes.length });
+    console.warn('🎬 Starting video combination process...', { sceneCount: scenes.length });
 
     if (scenes.length === 0) {
       return generateFallbackResponse(options, 'No scene videos available to combine.');
@@ -116,7 +126,10 @@ export async function combineVideoScenes(options: VideoCombinationOptions): Prom
       if (cloudResult.success && cloudResult.combinedVideoUrl) {
         return cloudResult;
       }
-      console.warn('Cloudinary combination unavailable, falling back to local FFmpeg pipeline.', cloudResult.error);
+      console.warn(
+        'Cloudinary combination unavailable, falling back to local FFmpeg pipeline.',
+        cloudResult.error
+      );
     } else {
       console.warn('Cloudinary credentials not configured, using local FFmpeg pipeline.');
     }
@@ -128,18 +141,25 @@ export async function combineVideoScenes(options: VideoCombinationOptions): Prom
   }
 }
 
-async function combineVideosLocally(options: VideoCombinationOptions): Promise<VideoCombinationResult> {
+async function combineVideosLocally(
+  options: VideoCombinationOptions
+): Promise<VideoCombinationResult> {
   try {
     ensureFfmpegPath();
   } catch (setupError) {
     console.error('FFmpeg setup failed:', setupError);
-    return generateFallbackResponse(options, setupError instanceof Error ? setupError.message : String(setupError));
+    return generateFallbackResponse(
+      options,
+      setupError instanceof Error ? setupError.message : String(setupError)
+    );
   }
 
   const outputFormat = options.outputFormat ?? 'mp4';
 
   if (options.audioUrl || options.voiceOverUrl) {
-    console.warn('Audio mixing is not yet supported in the local FFmpeg pipeline. Continuing without extra audio.');
+    console.warn(
+      'Audio mixing is not yet supported in the local FFmpeg pipeline. Continuing without extra audio.'
+    );
   }
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), TEMP_PREFIX));
@@ -149,7 +169,9 @@ async function combineVideosLocally(options: VideoCombinationOptions): Promise<V
     for (const [index, scene] of options.scenes.entries()) {
       const response = await fetch(scene.videoUrl);
       if (!response.ok) {
-        throw new Error(`Failed to download scene ${scene.sceneNumber} (status ${response.status})`);
+        throw new Error(
+          `Failed to download scene ${scene.sceneNumber} (status ${response.status})`
+        );
       }
       const buffer = Buffer.from(await response.arrayBuffer());
       const scenePath = path.join(tempDir, `scene-${String(index).padStart(3, '0')}.mp4`);
@@ -171,19 +193,23 @@ async function combineVideosLocally(options: VideoCombinationOptions): Promise<V
     }
 
     const listPath = path.join(tempDir, 'files.txt');
-    const fileList = localFiles
-      .map((filePath) => `file '${toConcatPath(filePath)}'`)
-      .join('\n');
+    const fileList = localFiles.map(filePath => `file '${toConcatPath(filePath)}'`).join('\n');
     await fs.writeFile(listPath, fileList, 'utf8');
 
     const outputPath = path.join(tempDir, `combined.${outputFormat}`);
 
     let concatError: unknown | undefined;
     try {
-      await runFfmpegConcat(listPath, outputPath, { reencode: false, frameRate: options.frameRate });
+      await runFfmpegConcat(listPath, outputPath, {
+        reencode: false,
+        frameRate: options.frameRate,
+      });
     } catch (err) {
       concatError = err;
-      console.warn('Lossless concatenation failed, retrying with re-encode.', err instanceof Error ? err.message : err);
+      console.warn(
+        'Lossless concatenation failed, retrying with re-encode.',
+        err instanceof Error ? err.message : err
+      );
     }
 
     if (concatError) {
@@ -203,20 +229,36 @@ async function combineVideosLocally(options: VideoCombinationOptions): Promise<V
     };
   } catch (error) {
     console.error('Local FFmpeg combination failed:', error);
-    return generateFallbackResponse(options, error instanceof Error ? error.message : String(error));
+    return generateFallbackResponse(
+      options,
+      error instanceof Error ? error.message : String(error)
+    );
   } finally {
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
     } catch (cleanupError) {
-      console.warn('Temporary directory cleanup failed:', cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
+      console.warn(
+        'Temporary directory cleanup failed:',
+        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+      );
     }
   }
 }
 
-async function combineVideosWithCloudinary(options: VideoCombinationOptions): Promise<VideoCombinationResult> {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
-  const apiKey = process.env.CLOUDINARY_API_KEY!;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+async function combineVideosWithCloudinary(
+  options: VideoCombinationOptions
+): Promise<VideoCombinationResult> {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return {
+      success: false,
+      error: 'Cloudinary credentials missing',
+      processingMethod: 'cloudinary',
+    };
+  }
 
   try {
     const transformation = buildCloudinaryTransformation(options);
@@ -255,7 +297,11 @@ function sumSceneDurations(scenes: VideoScene[]): number {
   }, 0);
 }
 
-async function runFfmpegConcat(listPath: string, outputPath: string, options: { reencode: boolean; frameRate?: number }): Promise<void> {
+async function runFfmpegConcat(
+  listPath: string,
+  outputPath: string,
+  options: { reencode: boolean; frameRate?: number }
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const command = ffmpeg()
       .input(listPath)
@@ -281,20 +327,26 @@ async function runFfmpegConcat(listPath: string, outputPath: string, options: { 
 
     command
       .once('end', () => resolve())
-  .once('error', (err: Error) => reject(err))
+      .once('error', (err: Error) => reject(err))
       .run();
   });
 }
 
 function slugifySegment(value?: string): string {
-  return (value || 'video')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50) || 'video';
+  return (
+    (value || 'video')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 50) || 'video'
+  );
 }
 
-async function uploadCombinedVideo(buffer: Buffer, outputFormat: 'mp4' | 'webm', options: VideoCombinationOptions): Promise<{ url: string; storagePath: string }> {
+async function uploadCombinedVideo(
+  buffer: Buffer,
+  outputFormat: 'mp4' | 'webm',
+  options: VideoCombinationOptions
+): Promise<{ url: string; storagePath: string }> {
   const { getAdmin } = await import('../../config/firebase-admin');
   const admin = getAdmin();
   const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
@@ -305,7 +357,8 @@ async function uploadCombinedVideo(buffer: Buffer, outputFormat: 'mp4' | 'webm',
 
   const bucket = admin.storage().bucket(bucketName);
   const folder = options.recipeId ? `combined_videos/${options.recipeId}` : 'combined_videos/misc';
-  const baseName = options.preferredFilename || `${slugifySegment(options.recipeTitle)}-${randomUUID()}`;
+  const baseName =
+    options.preferredFilename || `${slugifySegment(options.recipeTitle)}-${randomUUID()}`;
   const destination = `${folder}/${baseName}.${outputFormat}`;
   const file = bucket.file(destination);
 
@@ -323,7 +376,10 @@ async function uploadCombinedVideo(buffer: Buffer, outputFormat: 'mp4' | 'webm',
       publicUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
     }
   } catch (err) {
-    console.warn('makePublic failed for combined video:', err instanceof Error ? err.message : String(err));
+    console.warn(
+      'makePublic failed for combined video:',
+      err instanceof Error ? err.message : String(err)
+    );
   }
 
   if (!publicUrl) {
@@ -331,11 +387,19 @@ async function uploadCombinedVideo(buffer: Buffer, outputFormat: 'mp4' | 'webm',
       const candidate = file as unknown as StorageFileLike;
       const getter = candidate.getSignedUrl;
       if (typeof getter === 'function') {
-        const [signedUrl] = await getter.call(file, { action: 'read', expires: Date.now() + ONE_YEAR_IN_MS });
-        publicUrl = signedUrl;
+        const signedUrls = await getter.call(file, {
+          action: 'read',
+          expires: Date.now() + ONE_YEAR_IN_MS,
+        });
+        if (Array.isArray(signedUrls) && signedUrls[0]) {
+          publicUrl = signedUrls[0];
+        }
       }
     } catch (err) {
-      console.warn('Signed URL generation failed for combined video:', err instanceof Error ? err.message : String(err));
+      console.warn(
+        'Signed URL generation failed for combined video:',
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
@@ -346,7 +410,10 @@ async function uploadCombinedVideo(buffer: Buffer, outputFormat: 'mp4' | 'webm',
   return { url: publicUrl, storagePath: destination };
 }
 
-function generateFallbackResponse(options: VideoCombinationOptions, reason?: string): VideoCombinationResult {
+function generateFallbackResponse(
+  options: VideoCombinationOptions,
+  reason?: string
+): VideoCombinationResult {
   const ffmpegCommand = generateFFmpegCommand(options);
   const instructions = generateCombinationInstructions(options, ffmpegCommand);
 
@@ -354,7 +421,9 @@ function generateFallbackResponse(options: VideoCombinationOptions, reason?: str
     success: false,
     processingMethod: 'manual',
     instructions,
-    error: reason ? `Automatic combination failed: ${reason}` : 'Automatic combination is not available. Use the provided instructions to combine videos manually.',
+    error: reason
+      ? `Automatic combination failed: ${reason}`
+      : 'Automatic combination is not available. Use the provided instructions to combine videos manually.',
   };
 }
 
@@ -366,7 +435,7 @@ function buildCloudinaryTransformation(options: VideoCombinationOptions): string
 
   if (options.scenes.length > 1) {
     const videoLayers = options.scenes
-      .map((scene) => {
+      .map(scene => {
         const startTime = scene.startTime || 0;
         return `l_video:${scene.videoUrl.replace('https://', '')},so_${startTime},du_${scene.duration}`;
       })
@@ -391,7 +460,7 @@ function buildCloudinaryTransformation(options: VideoCombinationOptions): string
 async function processVideosWithCloudinary(
   scenes: VideoScene[],
   transformation: string,
-  credentials: { cloudName: string; apiKey: string; apiSecret: string },
+  credentials: { cloudName: string; apiKey: string; apiSecret: string }
 ): Promise<{ videoUrl: string; thumbnailUrl: string }> {
   const publicId = `combined-video-${Date.now()}`;
 
@@ -405,11 +474,18 @@ async function processVideosWithCloudinary(
  * Generate FFmpeg command for video concatenation (for manual workflows)
  */
 function generateFFmpegCommand(options: VideoCombinationOptions): string {
-  const { scenes, audioUrl, voiceOverUrl, outputFormat = 'mp4', resolution = '1080p', frameRate = 30 } = options;
+  const {
+    scenes,
+    audioUrl,
+    voiceOverUrl,
+    outputFormat = 'mp4',
+    resolution = '1080p',
+    frameRate = 30,
+  } = options;
 
   let command = 'ffmpeg';
 
-  scenes.forEach((scene) => {
+  scenes.forEach(scene => {
     command += ` -i "${scene.videoUrl}"`;
   });
 
@@ -460,7 +536,10 @@ function generateFFmpegCommand(options: VideoCombinationOptions): string {
 /**
  * Generate detailed combination instructions for manual workflows
  */
-function generateCombinationInstructions(options: VideoCombinationOptions, ffmpegCommand: string): string {
+function generateCombinationInstructions(
+  options: VideoCombinationOptions,
+  ffmpegCommand: string
+): string {
   const { scenes } = options;
 
   let instructions = `# Video Combination Instructions\n\n`;
@@ -468,7 +547,7 @@ function generateCombinationInstructions(options: VideoCombinationOptions, ffmpe
   instructions += `Combining ${scenes.length} video scenes into a single video.\n\n`;
 
   instructions += `## Scene Details\n`;
-  scenes.forEach((scene) => {
+  scenes.forEach(scene => {
     instructions += `**Scene ${scene.sceneNumber}:**\n`;
     instructions += `- Duration: ${scene.duration} seconds\n`;
     instructions += `- Video URL: ${scene.videoUrl}\n`;
@@ -495,7 +574,9 @@ function generateCombinationInstructions(options: VideoCombinationOptions, ffmpe
 /**
  * Validate video URLs before processing
  */
-export async function validateVideoUrls(urls: string[]): Promise<{ valid: string[]; invalid: string[] }> {
+export async function validateVideoUrls(
+  urls: string[]
+): Promise<{ valid: string[]; invalid: string[] }> {
   const valid: string[] = [];
   const invalid: string[] = [];
 
@@ -518,7 +599,10 @@ export async function validateVideoUrls(urls: string[]): Promise<{ valid: string
 /**
  * Estimate combined video file size
  */
-export function estimateCombinedVideoSize(scenes: VideoScene[], options: VideoCombinationOptions): number {
+export function estimateCombinedVideoSize(
+  scenes: VideoScene[],
+  options: VideoCombinationOptions
+): number {
   const totalDuration = scenes.reduce((sum, scene) => sum + scene.duration, 0);
   const minutes = totalDuration / 60;
 

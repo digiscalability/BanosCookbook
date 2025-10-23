@@ -1,7 +1,12 @@
-export function showNotification(message: string, type: 'info' | 'success' | 'error' = 'info', timeout = 4000) {
+export function showNotification(
+  message: string,
+  type: 'info' | 'success' | 'error' = 'info',
+  timeout = 4000
+) {
   if (typeof window === 'undefined') {
-    // Server side - no-op
-    console[type === 'error' ? 'error' : 'log'](message);
+    // Server side - no-op but keep server logs using allowed console methods
+    if (type === 'error') console.error(message);
+    else console.warn(message);
     return;
   }
 
@@ -59,8 +64,17 @@ export function showNotification(message: string, type: 'info' | 'success' | 'er
       clearTimeout(tid);
     }, timeout);
   } catch (error) {
-    console.warn('Notification rendering failed:', error);
-    // fallback for extreme cases when DOM manipulation fails
-    try { window.alert(message); } catch {}
+    // Use console.warn (allowed) and avoid `alert` in library code.
+    console.warn(
+      'Notification rendering failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+    // In development only, fall back to alert to ensure visibility during debugging
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        // eslint-disable-next-line no-alert
+        window.alert(message);
+      } catch {}
+    }
   }
 }

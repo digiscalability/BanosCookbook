@@ -109,9 +109,18 @@ export async function generateOptimizedVideoScriptWithOpenAI(
 
   const openai = new OpenAI({ apiKey: API_KEY });
 
-  const { title, description, ingredients, instructions, cuisine, targetDuration = 45, style = 'trendy' } = input;
+  const {
+    title,
+    description,
+    ingredients,
+    instructions,
+    cuisine,
+    targetDuration = 45,
+    style = 'trendy',
+  } = input;
 
-  const ingredientsList = ingredients.slice(0, 5).join(', ') + (ingredients.length > 5 ? '...' : '');
+  const ingredientsList =
+    ingredients.slice(0, 5).join(', ') + (ingredients.length > 5 ? '...' : '');
   const keySteps = instructions.slice(0, 3).join(' → ');
 
   const styleGuidance = {
@@ -149,7 +158,7 @@ Return structured JSON matching the VideoScriptSchema.`;
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: OPTIMIZED_SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: userPrompt },
       ],
       response_format: { type: 'json_object' },
       max_tokens: 2000,
@@ -200,7 +209,7 @@ function createFallbackStructure(input: OptimizedVideoScriptInput): OpenAIVideoS
             visual: `Close-up of hands ${instructions[0] || 'preparing ingredients'}`,
             narration: 'The key is fresh ingredients',
             cameraWork: 'Close-up, tracking hands, warm lighting',
-          }
+          },
         ],
         description: 'Introduction and ingredient setup',
         cameraWork: 'Overhead establishing shot transitioning to close-up',
@@ -223,7 +232,7 @@ function createFallbackStructure(input: OptimizedVideoScriptInput): OpenAIVideoS
             visual: 'Close-up of sizzling, bubbling, or transforming food',
             narration: 'The transformation',
             cameraWork: 'Extreme close-up, shallow depth of field',
-          }
+          },
         ],
         description: 'Core cooking action and transformation',
         cameraWork: 'Medium to close-up progression',
@@ -240,14 +249,14 @@ function createFallbackStructure(input: OptimizedVideoScriptInput): OpenAIVideoS
             visual: `Close-up of final plated ${title}, garnish being added`,
             narration: 'Perfection achieved',
             cameraWork: 'Close-up on plate, slow motion garnish drop',
-          }
+          },
         ],
         description: 'Final plating and presentation',
         cameraWork: 'Close-up, static, perfect composition',
         lighting: 'Bright, natural, appetizing',
         visualElements: ['plate', 'garnish', 'final dish'],
         transition: 'Fade to end card',
-      }
+      },
     ],
     musicSuggestion: 'Upbeat, modern instrumental (120-130 BPM)',
     marketingIdeas: [
@@ -256,7 +265,8 @@ function createFallbackStructure(input: OptimizedVideoScriptInput): OpenAIVideoS
       'Challenge viewers to recreate',
     ],
     totalDuration: targetDuration,
-    styleConsistency: 'Warm, natural lighting throughout. Consistent kitchen setting. Same props and utensils across scenes.',
+    styleConsistency:
+      'Warm, natural lighting throughout. Consistent kitchen setting. Same props and utensils across scenes.',
     colorPalette: 'Warm oranges, browns, fresh greens, natural wood tones',
   };
 }

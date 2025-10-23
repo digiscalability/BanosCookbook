@@ -8,6 +8,7 @@
 
 import * as fabric from 'fabric';
 import { useEffect, useRef, useState } from 'react';
+
 import type { Clip, ClipProperties, Effect } from '../types';
 
 interface CanvasOverlayProps {
@@ -88,12 +89,7 @@ export function CanvasOverlay({
     canvas.renderAll();
   }, [activeClip, currentTime]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 pointer-events-none z-10"
-    />
-  );
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10" />;
 }
 
 // ============================================================================
@@ -103,8 +99,8 @@ export function CanvasOverlay({
 function applyClipProperties(
   canvas: fabric.Canvas,
   properties: ClipProperties,
-  currentTime: number,
-  clip: Clip
+  _currentTime: number,
+  _clip: Clip
 ) {
   // Apply opacity
   if (properties.opacity !== undefined) {
@@ -127,27 +123,35 @@ function applyClipProperties(
     const filters: unknown[] = [];
 
     if (properties.filters.brightness !== undefined && properties.filters.brightness !== 100) {
-      filters.push(new fabric.filters.Brightness({
-        brightness: (properties.filters.brightness - 100) / 100,
-      }));
+      filters.push(
+        new fabric.filters.Brightness({
+          brightness: (properties.filters.brightness - 100) / 100,
+        })
+      );
     }
 
     if (properties.filters.contrast !== undefined && properties.filters.contrast !== 100) {
-      filters.push(new fabric.filters.Contrast({
-        contrast: (properties.filters.contrast - 100) / 100,
-      }));
+      filters.push(
+        new fabric.filters.Contrast({
+          contrast: (properties.filters.contrast - 100) / 100,
+        })
+      );
     }
 
     if (properties.filters.saturation !== undefined && properties.filters.saturation !== 100) {
-      filters.push(new fabric.filters.Saturation({
-        saturation: (properties.filters.saturation - 100) / 100,
-      }));
+      filters.push(
+        new fabric.filters.Saturation({
+          saturation: (properties.filters.saturation - 100) / 100,
+        })
+      );
     }
 
     if (properties.filters.blur && properties.filters.blur > 0) {
-      filters.push(new fabric.filters.Blur({
-        blur: properties.filters.blur / 10,
-      }));
+      filters.push(
+        new fabric.filters.Blur({
+          blur: properties.filters.blur / 10,
+        })
+      );
     }
 
     if (properties.filters.sepia && properties.filters.sepia > 0) {
@@ -165,15 +169,10 @@ function applyClipProperties(
   }
 }
 
-function renderEffects(
-  canvas: fabric.Canvas,
-  effects: Effect[],
-  currentTime: number,
-  clip: Clip
-) {
+function renderEffects(canvas: fabric.Canvas, effects: Effect[], currentTime: number, clip: Clip) {
   const relativeTime = currentTime - clip.startTime;
 
-  effects.forEach((effect) => {
+  effects.forEach(effect => {
     const effectStart = effect.startTime;
     const effectEnd = effect.startTime + effect.duration;
 
@@ -236,15 +235,27 @@ function renderZoomEffect(canvas: fabric.Canvas, progress: number, direction: 'i
 function renderTextOverlay(canvas: fabric.Canvas, properties: ClipProperties) {
   if (!properties.text || properties.text.length === 0) return;
 
-  properties.text.forEach((textData) => {
-    const { content, fontSize, fontFamily, color, x, y, shadow, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY } = textData;
+  properties.text.forEach(textData => {
+    const {
+      content,
+      fontSize,
+      fontFamily,
+      color,
+      x,
+      y,
+      shadow,
+      shadowColor,
+      shadowBlur,
+      shadowOffsetX,
+      shadowOffsetY,
+    } = textData;
 
     const canvasWidth = canvas.width || 1920;
     const canvasHeight = canvas.height || 1080;
 
     const text = new fabric.Text(content, {
-      left: (x || 50) * canvasWidth / 100,
-      top: (y || 50) * canvasHeight / 100,
+      left: ((x || 50) * canvasWidth) / 100,
+      top: ((y || 50) * canvasHeight) / 100,
       fontSize: fontSize || 48,
       fontFamily: fontFamily || 'Arial',
       fill: color || '#ffffff',
@@ -252,12 +263,14 @@ function renderTextOverlay(canvas: fabric.Canvas, properties: ClipProperties) {
       originY: 'center',
       selectable: false,
       evented: false,
-      shadow: shadow ? new fabric.Shadow({
-        color: shadowColor || 'rgba(0, 0, 0, 0.8)',
-        blur: shadowBlur || 4,
-        offsetX: shadowOffsetX || 2,
-        offsetY: shadowOffsetY || 2,
-      }) : undefined,
+      shadow: shadow
+        ? new fabric.Shadow({
+            color: shadowColor || 'rgba(0, 0, 0, 0.8)',
+            blur: shadowBlur || 4,
+            offsetX: shadowOffsetX || 2,
+            offsetY: shadowOffsetY || 2,
+          })
+        : undefined,
     });
 
     canvas.add(text);

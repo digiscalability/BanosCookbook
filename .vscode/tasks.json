@@ -1,0 +1,273 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Typecheck (tsc)",
+      "type": "shell",
+      "command": "npm run typecheck",
+      "group": "test",
+      "problemMatcher": ["$tsc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "Lint (eslint)",
+      "type": "shell",
+      "command": "npm run lint -- --format unix",
+      "group": "test",
+      "problemMatcher": [
+        {
+          "owner": "eslint",
+          "fileLocation": ["relative","${workspaceFolder}"],
+          "pattern": {
+            "regexp": "^(.*):(\\d+):(\\d+): (error|warning) (.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          }
+        }
+      ],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+
+    // ===== Development Servers =====
+    {
+      "label": "▶️ Dev: Next.js Server",
+      "type": "shell",
+      "command": "npm run dev",
+      "problemMatcher": ["$tsc", "$eslint-compact"],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "servers"
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    },
+    {
+      "label": "▶️ Dev: Genkit Server",
+      "type": "shell",
+      "command": "npm run genkit:dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "servers"
+      }
+    },
+    {
+      "label": "▶️ Dev: Start All Servers",
+      "dependsOn": [
+        "▶️ Dev: Next.js Server",
+        "▶️ Dev: Genkit Server"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+
+    // ===== Build & Quality Checks =====
+    {
+      "label": "🔨 Build: Production",
+      "type": "shell",
+      "command": "npm run build",
+      "problemMatcher": ["$tsc", "$eslint-compact"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔨 Build: Clean & Build",
+      "type": "shell",
+      "command": "rm -rf .next && npm run build",
+      "problemMatcher": ["$tsc", "$eslint-compact"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔍 Type Check",
+      "type": "shell",
+      "command": "npm run typecheck",
+      "problemMatcher": ["$tsc"],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "✨ Lint: Check",
+      "type": "shell",
+      "command": "npm run lint",
+      "problemMatcher": ["$eslint-compact"],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "✨ Lint: Fix All",
+      "type": "shell",
+      "command": "npm run lint -- --fix",
+      "problemMatcher": ["$eslint-compact"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "✅ Quality: Full Check",
+      "dependsOn": [
+        "🔍 Type Check",
+        "✨ Lint: Check"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Firebase Operations =====
+    {
+      "label": "🔥 Firebase: Deploy",
+      "type": "shell",
+      "command": "firebase deploy",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔥 Firebase: Deploy Hosting",
+      "type": "shell",
+      "command": "firebase deploy --only hosting",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔥 Firebase: Deploy Firestore Rules",
+      "type": "shell",
+      "command": "firebase deploy --only firestore:rules",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Instagram Operations =====
+    {
+      "label": "📸 Instagram: Setup",
+      "type": "shell",
+      "command": "npm run instagram:setup",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "📸 Instagram: Test Connection",
+      "type": "shell",
+      "command": "npm run instagram:test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Maintenance Operations =====
+    {
+      "label": "🧹 Cleanup: Generated Images (Dry Run)",
+      "type": "shell",
+      "command": "npm run cleanup:generated:dry",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🧹 Cleanup: Generated Images (Execute)",
+      "type": "shell",
+      "command": "npm run cleanup:generated",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔍 Check: Recipe Images",
+      "type": "shell",
+      "command": "npm run check:images",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Utility Operations =====
+    {
+      "label": "📦 Install: Dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🗑️ Clean: All Build Artifacts",
+      "type": "shell",
+      "command": "rm -rf .next node_modules/.cache tsconfig.tsbuildinfo",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🔄 Restart: Full Reset",
+      "dependsOn": [
+        "🗑️ Clean: All Build Artifacts",
+        "📦 Install: Dependencies"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

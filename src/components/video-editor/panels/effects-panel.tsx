@@ -5,20 +5,13 @@
 
 'use client';
 
+import { CircleDashed, Contrast, Droplets, Eye, Palette, Sparkles, Sun, Zap } from 'lucide-react';
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
-import {
-    CircleDashed,
-    Contrast,
-    Droplets,
-    Eye,
-    Palette,
-    Sparkles,
-    Sun,
-    Zap,
-} from 'lucide-react';
-import { useState } from 'react';
+
 import type { ClipProperties, Effect, EffectType } from '../types';
 
 interface EffectsPanelProps {
@@ -88,13 +81,13 @@ export function EffectsPanel({
 
   if (!selectedClipId) {
     return (
-      <div className="h-full flex flex-col bg-gray-900">
-        <div className="p-4 border-b border-gray-800">
+      <div className="flex h-full flex-col bg-gray-900">
+        <div className="border-b border-gray-800 p-4">
           <h3 className="text-sm font-medium">Effects & Filters</h3>
         </div>
-        <div className="flex-1 flex items-center justify-center text-gray-500">
+        <div className="flex flex-1 items-center justify-center text-gray-500">
           <div className="text-center">
-            <Sparkles className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <Sparkles className="mx-auto mb-2 h-12 w-12 opacity-50" />
             <p className="text-sm">Select a clip to add effects</p>
           </div>
         </div>
@@ -103,10 +96,10 @@ export function EffectsPanel({
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="flex h-full flex-col bg-gray-900">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <h3 className="text-sm font-medium mb-3">Effects & Filters</h3>
+      <div className="border-b border-gray-800 p-4">
+        <h3 className="mb-3 text-sm font-medium">Effects & Filters</h3>
 
         {/* Tabs */}
         <div className="flex gap-1">
@@ -116,7 +109,7 @@ export function EffectsPanel({
             onClick={() => setActiveTab('effects')}
             className="flex-1"
           >
-            <Sparkles className="h-4 w-4 mr-1.5" />
+            <Sparkles className="mr-1.5 h-4 w-4" />
             Effects
           </Button>
           <Button
@@ -125,7 +118,7 @@ export function EffectsPanel({
             onClick={() => setActiveTab('filters')}
             className="flex-1"
           >
-            <Palette className="h-4 w-4 mr-1.5" />
+            <Palette className="mr-1.5 h-4 w-4" />
             Filters
           </Button>
         </div>
@@ -133,12 +126,12 @@ export function EffectsPanel({
 
       <ScrollArea className="flex-1">
         {activeTab === 'effects' ? (
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             {/* Effect Library */}
             <div>
-              <p className="text-xs text-gray-400 mb-2 uppercase font-medium">Add Effect</p>
+              <p className="mb-2 text-xs font-medium uppercase text-gray-400">Add Effect</p>
               <div className="grid grid-cols-2 gap-2">
-                {EFFECT_TEMPLATES.map((template) => {
+                {EFFECT_TEMPLATES.map(template => {
                   const Icon = template.icon;
                   return (
                     <button
@@ -151,7 +144,7 @@ export function EffectsPanel({
                           parameters: {},
                         });
                       }}
-                      className="flex flex-col items-center gap-2 p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors text-center"
+                      className="hover:bg-gray-750 flex flex-col items-center gap-2 rounded-lg bg-gray-800 p-3 text-center transition-colors"
                     >
                       <Icon className={`h-6 w-6 ${template.color}`} />
                       <span className="text-xs font-medium">{template.name}</span>
@@ -165,18 +158,23 @@ export function EffectsPanel({
             {/* Active Effects */}
             {clipEffects.length > 0 && (
               <div>
-                <p className="text-xs text-gray-400 mb-2 uppercase font-medium">Active Effects ({clipEffects.length})</p>
+                <p className="mb-2 text-xs font-medium uppercase text-gray-400">
+                  Active Effects ({clipEffects.length})
+                </p>
                 <div className="space-y-2">
-                  {clipEffects.map((effect) => {
-                    const template = EFFECT_TEMPLATES.find((t) => t.type === effect.type);
+                  {clipEffects.map(effect => {
+                    const template = EFFECT_TEMPLATES.find(t => t.type === effect.type);
                     if (!template) return null;
 
                     const Icon = template.icon;
                     return (
-                      <div key={effect.id} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
+                      <div
+                        key={effect.id}
+                        className="flex items-center gap-2 rounded-lg bg-gray-800 p-2"
+                      >
                         <Icon className={`h-4 w-4 ${template.color}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{template.name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{template.name}</p>
                           <p className="text-xs text-gray-400">
                             {effect.startTime.toFixed(1)}s • {effect.duration.toFixed(1)}s
                           </p>
@@ -197,10 +195,10 @@ export function EffectsPanel({
             )}
           </div>
         ) : (
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             {/* Brightness */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sun className="h-4 w-4 text-yellow-500" />
                   <label className="text-sm font-medium">Brightness</label>
@@ -223,7 +221,7 @@ export function EffectsPanel({
 
             {/* Contrast */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Contrast className="h-4 w-4 text-gray-400" />
                   <label className="text-sm font-medium">Contrast</label>
@@ -246,7 +244,7 @@ export function EffectsPanel({
 
             {/* Saturation */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Droplets className="h-4 w-4 text-blue-500" />
                   <label className="text-sm font-medium">Saturation</label>
@@ -269,7 +267,7 @@ export function EffectsPanel({
 
             {/* Blur */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CircleDashed className="h-4 w-4 text-purple-500" />
                   <label className="text-sm font-medium">Blur</label>

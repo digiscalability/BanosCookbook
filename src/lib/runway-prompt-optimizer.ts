@@ -72,13 +72,12 @@ export function buildRunwayPromptWithContinuity(
   }
 
   // 2. CAMERA/COMPOSITION (Most important for Runway)
-  const cameraSpec = spec.cameraWork || inferCameraWork(continuity?.sceneNumber || 1, continuity?.totalScenes || 3);
+  const cameraSpec =
+    spec.cameraWork || inferCameraWork(continuity?.sceneNumber || 1, continuity?.totalScenes || 3);
   segments.push(formatCameraSpec(cameraSpec));
 
   // 3. SUBJECT/ACTION (What's happening)
-  const recipeContext = continuity?.sceneNumber === 1
-    ? `${spec.recipeTitle} preparation.`
-    : '';
+  const recipeContext = continuity?.sceneNumber === 1 ? `${spec.recipeTitle} preparation.` : '';
 
   if (recipeContext) segments.push(recipeContext);
 
@@ -93,7 +92,8 @@ export function buildRunwayPromptWithContinuity(
   }
 
   // 5. LIGHTING & MOOD
-  const lighting = spec.lighting || continuity?.previousScene?.lighting || 'warm, natural kitchen lighting';
+  const lighting =
+    spec.lighting || continuity?.previousScene?.lighting || 'warm, natural kitchen lighting';
   segments.push(lighting);
 
   // 6. CINEMATOGRAPHY STYLE (Food videography essentials)
@@ -143,7 +143,28 @@ function compressScriptToVisualAction(script: string, description?: string): str
   }
 
   // Extract visual verbs and nouns from script
-  const visualVerbs = ['pour', 'stir', 'mix', 'chop', 'dice', 'sauté', 'sizzle', 'melt', 'drizzle', 'garnish', 'plate', 'serve', 'cook', 'heat', 'add', 'combine', 'whisk', 'fold', 'simmer', 'boil'];
+  const visualVerbs = [
+    'pour',
+    'stir',
+    'mix',
+    'chop',
+    'dice',
+    'sauté',
+    'sizzle',
+    'melt',
+    'drizzle',
+    'garnish',
+    'plate',
+    'serve',
+    'cook',
+    'heat',
+    'add',
+    'combine',
+    'whisk',
+    'fold',
+    'simmer',
+    'boil',
+  ];
 
   // Split into sentences, find ones with visual verbs
   const sentences = script.split(/[.!?]+/).filter(Boolean);
@@ -325,8 +346,16 @@ export function validateRunwayPrompt(prompt: string): {
 
   // Negative patterns (vague language)
   const vaguePatterns = [
-    { pattern: /\bnice\b|\bgood\b|\bgreat\b/i, deduction: 5, message: 'Avoid vague adjectives (nice, good, great)' },
-    { pattern: /\bmake\b|\bcreate\b(?! with)/i, deduction: 5, message: 'Use specific verbs instead of "make/create"' },
+    {
+      pattern: /\bnice\b|\bgood\b|\bgreat\b/i,
+      deduction: 5,
+      message: 'Avoid vague adjectives (nice, good, great)',
+    },
+    {
+      pattern: /\bmake\b|\bcreate\b(?! with)/i,
+      deduction: 5,
+      message: 'Use specific verbs instead of "make/create"',
+    },
   ];
 
   vaguePatterns.forEach(({ pattern, deduction, message }) => {

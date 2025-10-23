@@ -18,12 +18,15 @@ export async function generateMultiSceneVideo(
       cameraWork?: string;
       lighting?: string;
       runwayPrompt?: string; // Pre-generated optimized prompt from AI flow
-      continuityNotes?: string | { // Continuity metadata from optimized splitting
-        propsFromPrevious?: string[];
-        propsForNext?: string[];
-        lightingConsistency?: string;
-        compositionHint?: string;
-      };
+      continuityNotes?:
+        | string
+        | {
+            // Continuity metadata from optimized splitting
+            propsFromPrevious?: string[];
+            propsForNext?: string[];
+            lightingConsistency?: string;
+            compositionHint?: string;
+          };
     }>;
   },
   model: RunwayModel = 'gen4_turbo',
@@ -42,7 +45,8 @@ export async function generateMultiSceneVideo(
   combinedInstructions: string;
 }> {
   // Import the optimized prompt builder
-  const { buildRunwayPromptWithContinuity, extractVisualContinuity, validateRunwayPrompt } = await import('./runway-prompt-optimizer');
+  const { buildRunwayPromptWithContinuity, extractVisualContinuity, validateRunwayPrompt } =
+    await import('./runway-prompt-optimizer');
 
   const sceneVideos: Array<{
     sceneNumber: number;
@@ -59,7 +63,8 @@ export async function generateMultiSceneVideo(
   let previousSceneContinuity: ReturnType<typeof extractVisualContinuity> | undefined;
 
   for (const scene of multiSceneScript.scenes) {
-    const sceneNumber = typeof scene.sceneNumber === 'number' ? scene.sceneNumber : sceneVideos.length + 1;
+    const sceneNumber =
+      typeof scene.sceneNumber === 'number' ? scene.sceneNumber : sceneVideos.length + 1;
     const script = sanitizeSceneText(scene.script);
     const description = sanitizeSceneText(scene.description || '');
     const visuals = Array.isArray(scene.visualElements)
@@ -71,22 +76,30 @@ export async function generateMultiSceneVideo(
     let prompt: string;
     if (scene.runwayPrompt && scene.runwayPrompt.trim().length > 0) {
       prompt = scene.runwayPrompt;
-      console.log(`✨ Using pre-generated optimized prompt for Scene ${sceneNumber} (${prompt.length} chars)`);
+      console.warn(
+        `✨ Using pre-generated optimized prompt for Scene ${sceneNumber} (${prompt.length} chars)`
+      );
 
       // If continuity data is available, prepend continuity context
       if (previousSceneContinuity && scene.continuityNotes) {
         const continuityPrefix = `Continuing from previous scene: ${previousSceneContinuity.endingAction}. `;
-        if (!prompt.toLowerCase().includes('continuing') && !prompt.toLowerCase().includes('from previous')) {
+        if (
+          !prompt.toLowerCase().includes('continuing') &&
+          !prompt.toLowerCase().includes('from previous')
+        ) {
           prompt = continuityPrefix + prompt;
           // Trim to stay under limit
           if (prompt.length > 950) {
-            prompt = continuityPrefix + scene.runwayPrompt.substring(0, 950 - continuityPrefix.length);
+            prompt =
+              continuityPrefix + scene.runwayPrompt.substring(0, 950 - continuityPrefix.length);
           }
         }
       }
     } else {
       // Fallback: build prompt dynamically (for legacy scenes or manual edits)
-      console.log(`⚙️  Building prompt dynamically for Scene ${sceneNumber} (no pre-generated prompt found)`);
+      console.warn(
+        `⚙️  Building prompt dynamically for Scene ${sceneNumber} (no pre-generated prompt found)`
+      );
       prompt = buildRunwayPromptWithContinuity(
         {
           recipeTitle,
@@ -99,40 +112,65 @@ export async function generateMultiSceneVideo(
           negativePrompt: scene.advancedOptions?.negativePrompt,
           duration: scene.duration,
         },
-        previousSceneContinuity ? {
-          previousScene: previousSceneContinuity,
-          sceneNumber,
-          totalScenes,
-          transition: scene.transition,
-        } : undefined
+        previousSceneContinuity
+          ? {
+              previousScene: previousSceneContinuity,
+              sceneNumber,
+              totalScenes,
+              transition: scene.transition,
+            }
+          : undefined
       );
     }
 
     // Validate prompt quality
     const validation = validateRunwayPrompt(prompt);
     if (!validation.valid) {
-      console.warn(`⚠️  Scene ${sceneNumber} prompt quality: ${validation.score}/100`, validation.warnings);
+      console.warn(
+        `⚠️  Scene ${sceneNumber} prompt quality: ${validation.score}/100`,
+        validation.warnings
+      );
     } else {
-      console.log(`✅ Scene ${sceneNumber} prompt quality: ${validation.score}/100`);
+      console.warn(`✅ Scene ${sceneNumber} prompt quality: ${validation.score}/100`);
     }
 
     const ratio = typeof options?.ratio === 'string' ? options.ratio : '1280:720';
-    const duration = typeof scene.duration === 'number' ? scene.duration : (typeof options?.duration === 'number' ? options.duration : 5);
+    const duration =
+      typeof scene.duration === 'number'
+        ? scene.duration
+        : typeof options?.duration === 'number'
+          ? options.duration
+          : 5;
     const requestOptions: Record<string, unknown> = {};
     if (typeof options?.maxRetries === 'number') requestOptions['maxRetries'] = options.maxRetries;
     if (typeof options?.timeoutMs === 'number') requestOptions['timeout'] = options.timeoutMs;
 
     const referenceImage = selectReferenceImage(scene, recipeImageUrl);
 
-    console.log(`🎬 Generating Scene ${sceneNumber}/${totalScenes} with optimized prompt (${prompt.length} chars, quality: ${validation.score}/100)`);
+    console.warn(
+      `🎬 Generating Scene ${sceneNumber}/${totalScenes} with optimized prompt (${prompt.length} chars, quality: ${validation.score}/100)`
+    );
 
-    const task = await getRunwayClient().imageToVideo.create({
-      model,
-      promptImage: referenceImage,
-      promptText: prompt,
-      ratio: ratio as "1280:720" | "720:1280" | "1104:832" | "832:1104" | "960:960" | "1584:672" | "1280:768" | "768:1280",
-      duration: duration as 2 | 3 | 5 | 4 | 6 | 7 | 8 | 9 | 10 | undefined,
-    }, requestOptions as unknown as Record<string, unknown>).waitForTaskOutput();
+    const task = await getRunwayClient()
+      .imageToVideo.create(
+        {
+          model,
+          promptImage: referenceImage,
+          promptText: prompt,
+          ratio: ratio as
+            | '1280:720'
+            | '720:1280'
+            | '1104:832'
+            | '832:1104'
+            | '960:960'
+            | '1584:672'
+            | '1280:768'
+            | '768:1280',
+          duration: duration as 2 | 3 | 5 | 4 | 6 | 7 | 8 | 9 | 10 | undefined,
+        },
+        requestOptions as unknown as Record<string, unknown>
+      )
+      .waitForTaskOutput();
 
     const videoUrl = task.output?.[0];
     if (!videoUrl) {
@@ -147,9 +185,10 @@ export async function generateMultiSceneVideo(
       promptText: prompt,
       settings: { model, ratio, duration },
       referenceImage,
-      promptSummary: [description, visuals.join(', ')].filter(Boolean).join(' — ') || script.substring(0, 120),
+      promptSummary:
+        [description, visuals.join(', ')].filter(Boolean).join(' — ') || script.substring(0, 120),
     });
-    console.log(`✅ Scene ${sceneNumber} video generated:`, videoUrl);
+    console.warn(`✅ Scene ${sceneNumber} video generated:`, videoUrl);
 
     // Extract continuity for next scene
     previousSceneContinuity = extractVisualContinuity({
@@ -171,7 +210,10 @@ export async function generateMultiSceneVideo(
     })),
   };
 
-  const combinedInstructions = createVideoCombinationInstructions(normalizedForInstructions, sceneVideos);
+  const combinedInstructions = createVideoCombinationInstructions(
+    normalizedForInstructions,
+    sceneVideos
+  );
   return {
     sceneVideos,
     combinedInstructions,
@@ -181,7 +223,9 @@ export async function generateMultiSceneVideo(
 /**
  * Check the status of a RunwayML video generation task
  */
-export async function checkVideoStatus(taskId: string): Promise<{ status: string; progress?: number; output?: unknown }> {
+export async function checkVideoStatus(
+  taskId: string
+): Promise<{ status: string; progress?: number; output?: unknown }> {
   const client = getRunwayClient();
   const task = await client.tasks.retrieve(taskId);
   return {
@@ -238,25 +282,33 @@ export function buildScenePromptAndConfig(
   const segments: string[] = [];
 
   if (context) {
-    segments.push(`Scene ${context.sceneNumber} of ${context.totalScenes} for the recipe "${recipeTitle}".`);
+    segments.push(
+      `Scene ${context.sceneNumber} of ${context.totalScenes} for the recipe "${recipeTitle}".`
+    );
     if (context.previousSummary) {
       segments.push(`Continue naturally from the prior moment where ${context.previousSummary}.`);
     } else {
       segments.push(`Open the story for "${recipeTitle}" with an inviting moment.`);
     }
     if (context.transition) {
-      segments.push(`Lead with a ${context.transition.toLowerCase()} transition into the new action.`);
+      segments.push(
+        `Lead with a ${context.transition.toLowerCase()} transition into the new action.`
+      );
     }
     if (context.previousTransition) {
-      segments.push(`Respect the previous transition (${context.previousTransition.toLowerCase()}) to keep pacing smooth.`);
+      segments.push(
+        `Respect the previous transition (${context.previousTransition.toLowerCase()}) to keep pacing smooth.`
+      );
     }
   } else {
     segments.push(`Recipe video: "${recipeTitle}".`);
   }
 
   if (context?.description) segments.push(`Focus on ${context.description}.`);
-  if (context?.visualElements?.length) segments.push(`Key visuals: ${context.visualElements.join(', ')}.`);
-  if (context?.previousVisuals?.length) segments.push(`Maintain continuity of props like ${context.previousVisuals.join(', ')}.`);
+  if (context?.visualElements?.length)
+    segments.push(`Key visuals: ${context.visualElements.join(', ')}.`);
+  if (context?.previousVisuals?.length)
+    segments.push(`Maintain continuity of props like ${context.previousVisuals.join(', ')}.`);
 
   const cleanedScript = sceneScript.replace(/\s+/g, ' ').trim();
   if (cleanedScript) segments.push(cleanedScript);
@@ -279,8 +331,16 @@ export function buildScenePromptAndConfig(
 // Supported Runway models
 export type RunwayModel = 'gen4_turbo' | 'gen3a_turbo' | 'veo3';
 export const RUNWAY_MODELS: { id: RunwayModel; name: string; description: string }[] = [
-  { id: 'gen4_turbo', name: 'Gen-4 Turbo', description: 'Fast, high-quality food video generation (recommended)' },
-  { id: 'gen3a_turbo', name: 'Gen-3 Alpha Turbo', description: 'Previous-gen, stylized video model' },
+  {
+    id: 'gen4_turbo',
+    name: 'Gen-4 Turbo',
+    description: 'Fast, high-quality food video generation (recommended)',
+  },
+  {
+    id: 'gen3a_turbo',
+    name: 'Gen-3 Alpha Turbo',
+    description: 'Previous-gen, stylized video model',
+  },
   { id: 'veo3', name: 'Veo 3', description: 'Experimental, cinematic video model (may be slower)' },
 ];
 /**
@@ -292,7 +352,6 @@ export const RUNWAY_MODELS: { id: RunwayModel; name: string; description: string
  *
  * When OpenAI releases a text-to-video API, this can be easily upgraded.
  */
-
 
 export interface VideoGenerationInput {
   script: string;
@@ -316,7 +375,12 @@ if (typeof process !== 'undefined' && process.env && !process.env.RUNWAYML_API_S
 }
 
 // Set the environment variable that the SDK expects before any imports
-if (typeof process !== 'undefined' && process.env && !process.env.RUNWAYML_API_SECRET && process.env.RUNWAY_API_KEY) {
+if (
+  typeof process !== 'undefined' &&
+  process.env &&
+  !process.env.RUNWAYML_API_SECRET &&
+  process.env.RUNWAY_API_KEY
+) {
   process.env.RUNWAYML_API_SECRET = process.env.RUNWAY_API_KEY;
 }
 
@@ -366,7 +430,11 @@ export type SceneMeta = {
   cameraShot?: string; // e.g. 'close-up, top-down, dolly in'
 };
 
-export async function optimizePromptForRunway(recipeTitle: string, videoScript: string, meta?: SceneMeta): Promise<string> {
+export async function optimizePromptForRunway(
+  recipeTitle: string,
+  videoScript: string,
+  meta?: SceneMeta
+): Promise<string> {
   // Import the new optimizer for better results
   const { buildRunwayPromptWithContinuity } = await import('./runway-prompt-optimizer');
 
@@ -385,56 +453,93 @@ export async function generateRecipeVideo(
   videoScript: string,
   model: RunwayModel = 'gen4_turbo',
   options?: RunwayRequestOptions
-): Promise<{ videoUrl: string; taskId?: string; promptText: string; settings: { model: RunwayModel; ratio: string; duration: number } }> {
+): Promise<{
+  videoUrl: string;
+  taskId?: string;
+  promptText: string;
+  settings: { model: RunwayModel; ratio: string; duration: number };
+}> {
   try {
     // OPTIMIZATION: Clean video script from production cues
     const { prepareForVideoGeneration } = await import('./text-pruning');
     const cleanedScript = prepareForVideoGeneration(videoScript);
 
-    console.log('🎬 Generating video with Runway ML');
-    console.log('Recipe:', recipeTitle);
-    console.log('Image URL:', recipeImageUrl);
-    console.log('Script cleaned:', videoScript.substring(0, 50), '→', cleanedScript.substring(0, 50));
+    console.warn('🎬 Generating video with Runway ML');
+    console.warn('Recipe:', recipeTitle);
+    console.warn('Image URL:', recipeImageUrl);
+    console.warn(
+      'Script cleaned:',
+      videoScript.substring(0, 50),
+      '→',
+      cleanedScript.substring(0, 50)
+    );
 
-      // Use unified builder for prompt/config unless a custom prompt override is supplied
-      const advOpts = options?.advancedOptions || {};
-      const overridePrompt = typeof options?.promptOverride === 'string' && options.promptOverride.trim().length > 0 ? options.promptOverride.trim() : undefined;
-      const { prompt, config } = overridePrompt
-        ? { prompt: overridePrompt, config: { ratio: options?.ratio, duration: options?.duration } }
-        : buildScenePromptAndConfig('runwayml', recipeTitle, cleanedScript, advOpts);
-      console.log('Prompt:', prompt.substring(0, 100) + '...');
-      // Prepare request params
-    const ratio = typeof config.ratio === 'string' ? config.ratio : (typeof options?.ratio === 'string' ? options.ratio : '1280:720');
-    const duration = typeof config.duration === 'number' ? config.duration : (typeof options?.duration === 'number' ? options.duration : 5);
-      const requestOptions: Record<string, unknown> = {};
-      if (typeof options?.maxRetries === 'number') requestOptions['maxRetries'] = options!.maxRetries;
-      if (typeof options?.timeoutMs === 'number') requestOptions['timeout'] = options!.timeoutMs;
-      // Create a new image-to-video task using selected Runway model
-      // Add audioUrl to the request if provided (some Runway SDK versions support audio merging)
-      const createParams: Record<string, unknown> = {
-        model,
-        promptImage: recipeImageUrl,
-        promptText: prompt,
-        ratio: ratio as "1280:720" | "720:1280" | "1104:832" | "832:1104" | "960:960" | "1584:672" | "1280:768" | "768:1280",
-        duration: duration as 2 | 3 | 5 | 4 | 6 | 7 | 8 | 9 | 10 | undefined,
-      };
-      if (options && typeof options === 'object' && (options as Record<string, unknown>).audioUrl) {
-        createParams['audioUrl'] = (options as Record<string, unknown>).audioUrl;
-      }
+    // Use unified builder for prompt/config unless a custom prompt override is supplied
+    const advOpts = options?.advancedOptions || {};
+    const overridePrompt =
+      typeof options?.promptOverride === 'string' && options.promptOverride.trim().length > 0
+        ? options.promptOverride.trim()
+        : undefined;
+    const { prompt, config } = overridePrompt
+      ? { prompt: overridePrompt, config: { ratio: options?.ratio, duration: options?.duration } }
+      : buildScenePromptAndConfig('runwayml', recipeTitle, cleanedScript, advOpts);
+    console.warn('Prompt:', prompt.substring(0, 100) + '...');
+    // Prepare request params
+    const ratio =
+      typeof config.ratio === 'string'
+        ? config.ratio
+        : typeof options?.ratio === 'string'
+          ? options.ratio
+          : '1280:720';
+    const duration =
+      typeof config.duration === 'number'
+        ? config.duration
+        : typeof options?.duration === 'number'
+          ? options.duration
+          : 5;
+    const requestOptions: Record<string, unknown> = {};
+    if (typeof options?.maxRetries === 'number')
+      requestOptions['maxRetries'] = options.maxRetries as number;
+    if (typeof options?.timeoutMs === 'number')
+      requestOptions['timeout'] = options.timeoutMs as number;
+    // Create a new image-to-video task using selected Runway model
+    // Add audioUrl to the request if provided (some Runway SDK versions support audio merging)
+    const createParams: Record<string, unknown> = {
+      model,
+      promptImage: recipeImageUrl,
+      promptText: prompt,
+      ratio: ratio as
+        | '1280:720'
+        | '720:1280'
+        | '1104:832'
+        | '832:1104'
+        | '960:960'
+        | '1584:672'
+        | '1280:768'
+        | '768:1280',
+      duration: duration as 2 | 3 | 5 | 4 | 6 | 7 | 8 | 9 | 10 | undefined,
+    };
+    if (options && typeof options === 'object' && (options as Record<string, unknown>).audioUrl) {
+      createParams['audioUrl'] = (options as Record<string, unknown>).audioUrl;
+    }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const createPromise = getRunwayClient().imageToVideo.create(createParams as any, requestOptions as Record<string, unknown>);
-      const task = await createPromise.waitForTaskOutput();
-      const videoUrl = task.output?.[0];
-      if (!videoUrl) {
-        throw new Error('No video URL returned');
-      }
-      return {
-        videoUrl,
-        taskId: task.id,
-        promptText: prompt,
-        settings: { model, ratio, duration }
-      };
+    // Type assertion needed for Runway SDK parameter compatibility
+    const createPromise = getRunwayClient().imageToVideo.create(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      createParams as any,
+      requestOptions as Record<string, unknown>
+    );
+    const task = await createPromise.waitForTaskOutput();
+    const videoUrl = task.output?.[0];
+    if (!videoUrl) {
+      throw new Error('No video URL returned');
+    }
+    return {
+      videoUrl,
+      taskId: task.id,
+      promptText: prompt,
+      settings: { model, ratio, duration },
+    };
     // Only new builder-based logic should remain above. Errors handled here:
   } catch (error) {
     if (error instanceof TaskFailedError) {
@@ -458,7 +563,7 @@ function sanitizeSceneText(value: unknown): string {
 
 function selectReferenceImage(
   scene: { imageUrls?: unknown; keyframeUrl?: unknown },
-  fallback: string,
+  fallback: string
 ): string {
   if (Array.isArray(scene.imageUrls)) {
     for (const candidate of scene.imageUrls) {
@@ -488,7 +593,12 @@ function createVideoCombinationInstructions(
       referenceImage?: string;
     }>;
   },
-  sceneVideos: Array<{ sceneNumber: number; videoUrl: string; script: string; referenceImage?: string }>
+  sceneVideos: Array<{
+    sceneNumber: number;
+    videoUrl: string;
+    script: string;
+    referenceImage?: string;
+  }>
 ): string {
   const instructions = [
     'MULTI-SCENE VIDEO COMBINATION INSTRUCTIONS',
@@ -498,7 +608,7 @@ function createVideoCombinationInstructions(
     '',
   ];
 
-  multiSceneScript.scenes.forEach((scene) => {
+  multiSceneScript.scenes.forEach(scene => {
     const video = sceneVideos.find(v => v.sceneNumber === scene.sceneNumber);
     if (video) {
       instructions.push(`Scene ${scene.sceneNumber} (${scene.duration}s):`);

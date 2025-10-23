@@ -1,19 +1,13 @@
 'use client';
 
+import { AlertCircle, Brain, CheckCircle, Clock, TestTube, Upload } from 'lucide-react';
+import React, { useState } from 'react';
+
 import { extractRecipeDataFromPdfAdvanced } from '@/app/actions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import {
-    AlertCircle,
-    Brain,
-    CheckCircle,
-    Clock,
-    TestTube,
-    Upload
-} from 'lucide-react';
-import React, { useState } from 'react';
 
 export default function TestRealPDFPage() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -30,7 +24,14 @@ export default function TestRealPDFPage() {
         ocrAccuracy?: number;
         aiEnhanced?: boolean;
       };
-      recipes: Array<{ title: string; cuisine?: string; servings?: number; prepTime?: string; cookTime?: string; ingredients?: string; }>;
+      recipes: Array<{
+        title: string;
+        cuisine?: string;
+        servings?: number;
+        prepTime?: string;
+        cookTime?: string;
+        ingredients?: string;
+      }>;
       rawText?: string;
     };
     error?: string;
@@ -40,7 +41,11 @@ export default function TestRealPDFPage() {
   const [results, setResults] = useState<RealResult[]>([]);
   const [currentTest, setCurrentTest] = useState<string>('');
 
-  const processPDF = async (file: File, mode: 'auto'|'text-only'|'ocr-only'|'hybrid', description: string) => {
+  const processPDF = async (
+    file: File,
+    mode: 'auto' | 'text-only' | 'ocr-only' | 'hybrid',
+    description: string
+  ) => {
     setIsProcessing(true);
     setCurrentTest(description);
     setProcessingProgress(0);
@@ -48,16 +53,19 @@ export default function TestRealPDFPage() {
     try {
       // Convert file to data URI
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = async e => {
         const pdfDataUri = e.target?.result as string;
 
         if (!pdfDataUri) {
-          setResults(prev => [...prev, {
-            mode,
-            description,
-            error: 'Failed to read PDF file',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              mode,
+              description,
+              error: 'Failed to read PDF file',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
           setIsProcessing(false);
           return;
         }
@@ -82,28 +90,37 @@ export default function TestRealPDFPage() {
           setProcessingProgress(100);
 
           if (result.success && result.data) {
-            setResults(prev => [...prev, {
-              mode,
-              description,
-              result: result.data,
-              timestamp: new Date().toISOString()
-            }]);
+            setResults(prev => [
+              ...prev,
+              {
+                mode,
+                description,
+                result: result.data,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
           } else {
-            setResults(prev => [...prev, {
-              mode,
-              description,
-              error: result.error,
-              timestamp: new Date().toISOString()
-            }]);
+            setResults(prev => [
+              ...prev,
+              {
+                mode,
+                description,
+                error: result.error,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
           }
         } catch (error) {
           clearInterval(progressInterval);
-          setResults(prev => [...prev, {
-            mode,
-            description,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              mode,
+              description,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
         } finally {
           setIsProcessing(false);
           setProcessingProgress(0);
@@ -113,12 +130,15 @@ export default function TestRealPDFPage() {
       reader.readAsDataURL(file);
     } catch (error) {
       setIsProcessing(false);
-      setResults(prev => [...prev, {
-        mode,
-        description,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          mode,
+          description,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
@@ -126,11 +146,14 @@ export default function TestRealPDFPage() {
     const file = event.target.files?.[0];
     if (file && file.type === 'application/pdf') {
       // Test with different modes
-      const modes: Array<{mode: 'auto'|'text-only'|'ocr-only'|'hybrid'; description: string}> = [
+      const modes: Array<{
+        mode: 'auto' | 'text-only' | 'ocr-only' | 'hybrid';
+        description: string;
+      }> = [
         { mode: 'auto', description: 'AI Auto-Detection' },
         { mode: 'text-only', description: 'Text Extraction Only' },
         { mode: 'ocr-only', description: 'OCR Processing Only' },
-        { mode: 'hybrid', description: 'Hybrid Text + OCR' }
+        { mode: 'hybrid', description: 'Hybrid Text + OCR' },
       ];
 
       setResults([]);
@@ -140,17 +163,20 @@ export default function TestRealPDFPage() {
         }, index * 2000); // Stagger the tests
       });
     } else {
-      setResults(prev => [...prev, {
-        mode: 'error',
-        description: 'Invalid File',
-        error: 'Please select a valid PDF file',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          mode: 'error',
+          description: 'Invalid File',
+          error: 'Please select a valid PDF file',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -173,7 +199,7 @@ export default function TestRealPDFPage() {
               accept=".pdf"
               onChange={handleFileChange}
               disabled={isProcessing}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
             />
           </div>
 
@@ -214,37 +240,39 @@ export default function TestRealPDFPage() {
                     {result.error ? (
                       <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Error: {result.error}
-                        </AlertDescription>
+                        <AlertDescription>Error: {result.error}</AlertDescription>
                       </Alert>
                     ) : (
                       <div className="space-y-4">
                         {result.result && (
                           <>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                               <div>
                                 <strong>Pages:</strong> {result.result.processingInfo.totalPages}
                               </div>
                               <div>
-                                <strong>Text Extracted:</strong> {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}
+                                <strong>Text Extracted:</strong>{' '}
+                                {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}
                               </div>
                               <div>
-                                <strong>Images Processed:</strong> {result.result.processingInfo.imagesProcessed}
+                                <strong>Images Processed:</strong>{' '}
+                                {result.result.processingInfo.imagesProcessed}
                               </div>
                               <div>
-                                <strong>Processing Time:</strong> {result.result.processingInfo.processingTime}ms
+                                <strong>Processing Time:</strong>{' '}
+                                {result.result.processingInfo.processingTime}ms
                               </div>
                             </div>
 
                             {typeof result.result.processingInfo.ocrAccuracy === 'number' && (
                               <div className="text-sm">
-                                <strong>OCR Accuracy:</strong> {Math.round(result.result.processingInfo.ocrAccuracy * 100)}%
+                                <strong>OCR Accuracy:</strong>{' '}
+                                {Math.round(result.result.processingInfo.ocrAccuracy * 100)}%
                               </div>
                             )}
 
                             {result.result.processingInfo.aiEnhanced && (
-                              <div className="text-sm text-green-600 flex items-center gap-1">
+                              <div className="flex items-center gap-1 text-sm text-green-600">
                                 <Brain className="h-3 w-3" />
                                 AI Enhancement Applied
                               </div>
@@ -257,14 +285,26 @@ export default function TestRealPDFPage() {
                             {result.result.recipes.length > 0 && (
                               <div className="space-y-2">
                                 <strong>Sample Recipe:</strong>
-                                <div className="p-3 bg-gray-50 rounded-md">
-                                  <div><strong>Title:</strong> {result.result.recipes[0].title}</div>
-                                  <div><strong>Cuisine:</strong> {result.result.recipes[0].cuisine}</div>
-                                  <div><strong>Servings:</strong> {result.result.recipes[0].servings}</div>
-                                  <div><strong>Prep Time:</strong> {result.result.recipes[0].prepTime}</div>
-                                  <div><strong>Cook Time:</strong> {result.result.recipes[0].cookTime}</div>
-                                  <div><strong>Ingredients:</strong></div>
-                                  <div className="text-xs bg-white p-2 rounded border max-h-32 overflow-y-auto">
+                                <div className="rounded-md bg-gray-50 p-3">
+                                  <div>
+                                    <strong>Title:</strong> {result.result.recipes[0].title}
+                                  </div>
+                                  <div>
+                                    <strong>Cuisine:</strong> {result.result.recipes[0].cuisine}
+                                  </div>
+                                  <div>
+                                    <strong>Servings:</strong> {result.result.recipes[0].servings}
+                                  </div>
+                                  <div>
+                                    <strong>Prep Time:</strong> {result.result.recipes[0].prepTime}
+                                  </div>
+                                  <div>
+                                    <strong>Cook Time:</strong> {result.result.recipes[0].cookTime}
+                                  </div>
+                                  <div>
+                                    <strong>Ingredients:</strong>
+                                  </div>
+                                  <div className="max-h-32 overflow-y-auto rounded border bg-white p-2 text-xs">
                                     {result.result.recipes[0].ingredients}
                                   </div>
                                 </div>
@@ -274,7 +314,7 @@ export default function TestRealPDFPage() {
                             {result.result.rawText && (
                               <div>
                                 <strong>Raw Text Preview:</strong>
-                                <div className="p-3 bg-gray-50 rounded-md text-xs max-h-32 overflow-y-auto">
+                                <div className="max-h-32 overflow-y-auto rounded-md bg-gray-50 p-3 text-xs">
                                   {result.result.rawText.substring(0, 500)}...
                                 </div>
                               </div>
@@ -294,8 +334,10 @@ export default function TestRealPDFPage() {
             <Upload className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-2">
-                <p><strong>Instructions:</strong></p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
+                <p>
+                  <strong>Instructions:</strong>
+                </p>
+                <ol className="list-inside list-decimal space-y-1 text-sm">
                   <li>Upload your MonAsal (Bana).pdf file using the file input above</li>
                   <li>The system will automatically test all processing modes</li>
                   <li>Compare the results to see which method works best for your PDF</li>

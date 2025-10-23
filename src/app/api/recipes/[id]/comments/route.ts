@@ -1,6 +1,8 @@
-import type { Comment } from '@/lib/types';
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
+import type { Comment } from '@/lib/types';
+
 import adminConfig from '../../../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -10,13 +12,17 @@ const { getDb, getAdmin } = adminConfig as unknown as {
 
 const formatComment = (raw: unknown): Comment => {
   const input = raw as Record<string, unknown> | undefined;
-  const timestamp = typeof input?.timestamp === 'string' && input.timestamp.trim().length > 0
-    ? input.timestamp
-    : new Date().toISOString();
+  const timestamp =
+    typeof input?.timestamp === 'string' && input.timestamp.trim().length > 0
+      ? input.timestamp
+      : new Date().toISOString();
 
   const comment: Comment = {
     id: typeof input?.id === 'string' && input.id.trim().length > 0 ? input.id : `c-${Date.now()}`,
-    author: typeof input?.author === 'string' && input.author.trim().length > 0 ? input.author : 'Guest User',
+    author:
+      typeof input?.author === 'string' && input.author.trim().length > 0
+        ? input.author
+        : 'Guest User',
     avatarUrl: typeof input?.avatarUrl === 'string' ? input.avatarUrl : '',
     text: typeof input?.text === 'string' ? input.text : '',
     timestamp,
@@ -48,10 +54,7 @@ const toFirestoreComment = (comment: Comment) => {
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
@@ -66,9 +69,9 @@ export async function POST(
       return NextResponse.json({ error: 'Comment text is required.' }, { status: 400 });
     }
 
-  const db = getDb();
-  const admin = getAdmin();
-  const recipeRef = db.collection('recipes').doc(id);
+    const db = getDb();
+    const admin = getAdmin();
+    const recipeRef = db.collection('recipes').doc(id);
     const snapshot = await recipeRef.get();
     if (!snapshot.exists) {
       return NextResponse.json({ error: 'Recipe not found.' }, { status: 404 });

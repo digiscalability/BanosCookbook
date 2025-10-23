@@ -1,11 +1,12 @@
 'use client';
 
+import { Check, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Check, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
-import { useState } from 'react';
 
 export interface AIGeneratedImage {
   url: string;
@@ -80,14 +81,14 @@ export function AIImagePreview({
       <Card className={cn('w-full', className)}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+            <Sparkles className="h-5 w-5 animate-pulse text-primary" />
             Generating AI Images
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-12">
-            <div className="text-center space-y-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+            <div className="space-y-4 text-center">
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
               <p className="text-muted-foreground">Creating custom images with AI...</p>
             </div>
           </div>
@@ -106,8 +107,8 @@ export function AIImagePreview({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <div className="py-8 text-center text-muted-foreground">
+            <ImageIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p>No images generated yet</p>
           </div>
         </CardContent>
@@ -127,7 +128,7 @@ export function AIImagePreview({
         </p>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {images.map((image, index) => {
             const isSelected = selectedImage?.url === image.url;
             const isLoading = loadingImages.has(image.url);
@@ -138,18 +139,21 @@ export function AIImagePreview({
               <div
                 key={image.url + index}
                 className={cn(
-                  'relative rounded-lg border-2 transition-all cursor-pointer overflow-hidden group',
+                  'group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all',
                   isSelected
                     ? 'border-primary ring-2 ring-primary ring-offset-2'
                     : 'border-border hover:border-primary/50',
-                  hasFailed && 'opacity-50 cursor-not-allowed'
+                  hasFailed && 'cursor-not-allowed opacity-50'
                 )}
                 onClick={() => handleImageClick(image)}
               >
                 {/* AI Badge */}
                 {isAIGenerated && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Badge variant="secondary" className="bg-primary/90 text-primary-foreground gap-1">
+                  <div className="absolute left-2 top-2 z-10">
+                    <Badge
+                      variant="secondary"
+                      className="gap-1 bg-primary/90 text-primary-foreground"
+                    >
                       <Sparkles className="h-3 w-3" />
                       AI Generated
                     </Badge>
@@ -158,8 +162,8 @@ export function AIImagePreview({
 
                 {/* Selected Badge */}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <div className="bg-primary text-primary-foreground rounded-full p-1">
+                  <div className="absolute right-2 top-2 z-10">
+                    <div className="rounded-full bg-primary p-1 text-primary-foreground">
                       <Check className="h-4 w-4" />
                     </div>
                   </div>
@@ -176,7 +180,7 @@ export function AIImagePreview({
                   {hasFailed ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-muted">
                       <div className="text-center text-muted-foreground">
-                        <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <ImageIcon className="mx-auto mb-2 h-12 w-12 opacity-50" />
                         <p className="text-sm">Failed to load</p>
                       </div>
                     </div>
@@ -186,7 +190,7 @@ export function AIImagePreview({
                     <img
                       src={image.url || createPlaceholderSvg(image.description)}
                       alt={image.description}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                       loading="eager"
                       crossOrigin="anonymous"
                       onLoad={() => handleImageLoad(image.url)}
@@ -196,9 +200,9 @@ export function AIImagePreview({
                 </div>
 
                 {/* Image Info */}
-                <div className="p-3 bg-background">
-                  <p className="font-medium text-sm truncate">{image.description}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                <div className="bg-background p-3">
+                  <p className="truncate text-sm font-medium">{image.description}</p>
+                  <div className="mt-1 flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {image.style}
                     </Badge>
@@ -207,13 +211,8 @@ export function AIImagePreview({
 
                 {/* Select Button Overlay */}
                 {!isSelected && !hasFailed && (
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="shadow-lg"
-                    >
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/20 group-hover:opacity-100">
+                    <Button type="button" variant="secondary" size="sm" className="shadow-lg">
                       Select This Image
                     </Button>
                   </div>

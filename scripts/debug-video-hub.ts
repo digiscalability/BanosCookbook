@@ -25,8 +25,11 @@ async function main(): Promise<void> {
   }
 
   const candidates = snapshot.docs
-    .map((doc) => ({ id: doc.id, data: doc.data() }))
-    .filter((entry) => Array.isArray(entry.data.sceneVideos) && entry.data.sceneVideos.length > 0);
+    .map((doc: FirebaseFirestore.DocumentSnapshot) => ({ id: doc.id, data: doc.data() }))
+    .filter(
+      (entry: { id: string; data: any }) =>
+        Array.isArray(entry.data.sceneVideos) && entry.data.sceneVideos.length > 0
+    );
 
   if (candidates.length === 0) {
     console.log('No script documents contain sceneVideos yet.');

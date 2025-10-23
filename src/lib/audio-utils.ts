@@ -27,7 +27,10 @@ export interface AudioResult {
 /**
  * Generate voice-over using ElevenLabs API
  */
-export async function generateVoiceOver(text: string, voiceId: string = '21m00Tcm4TlvDq8ikWAM'): Promise<string> {
+export async function generateVoiceOver(
+  text: string,
+  voiceId: string = '21m00Tcm4TlvDq8ikWAM'
+): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     throw new Error('ELEVENLABS_API_KEY not configured');
@@ -36,7 +39,7 @@ export async function generateVoiceOver(text: string, voiceId: string = '21m00Tc
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
-      'Accept': 'audio/mpeg',
+      Accept: 'audio/mpeg',
       'Content-Type': 'application/json',
       'xi-api-key': apiKey,
     },
@@ -86,7 +89,7 @@ export async function getBackgroundMusic(genre: string = 'upbeat'): Promise<stri
 export async function uploadAudioToStorage(audioBlob: Blob, filename: string): Promise<string> {
   // Implement using Firebase Admin SDK. This is server-side only.
   try {
-  const adminConfig = await import('../../config/firebase-admin');
+    const adminConfig = await import('../../config/firebase-admin');
     const getAdmin = adminConfig.getAdmin;
     const admin = getAdmin();
     const bucket = admin.storage().bucket();
@@ -104,9 +107,10 @@ export async function uploadAudioToStorage(audioBlob: Blob, filename: string): P
         await file.makePublic();
         return `https://storage.googleapis.com/${bucket.name}/${file.name}`;
       }
-  } catch {
-    // ignore and try signed URL
-  }    const expires = Date.now() + 1000 * 60 * 60 * 24 * 365;
+    } catch {
+      // ignore and try signed URL
+    }
+    const expires = Date.now() + 1000 * 60 * 60 * 24 * 365;
     const [signedUrl] = await file.getSignedUrl({ action: 'read', expires });
     return signedUrl;
   } catch (err) {
@@ -143,7 +147,7 @@ export async function combineAudio(
   }
 
   // Placeholder for combined audio
-  console.log(`Would combine voice-over and music with volume ${musicVolume}`);
+  console.warn(`Would combine voice-over and music with volume ${musicVolume}`);
   return `https://storage.googleapis.com/banos-cookbook-audio/combined-${Date.now()}.mp3`;
 }
 
@@ -157,24 +161,21 @@ export async function generateVideoAudio(options: AudioOptions): Promise<AudioRe
 
     // Generate voice-over if requested
     if (options.voiceOver?.text) {
-      console.log('🎤 Generating voice-over...');
-      voiceOverUrl = await generateVoiceOver(
-        options.voiceOver.text,
-        options.voiceOver.voice
-      );
+      console.warn('🎤 Generating voice-over...');
+      voiceOverUrl = await generateVoiceOver(options.voiceOver.text, options.voiceOver.voice);
     }
 
     // Get background music if requested
     if (options.backgroundMusic) {
-      console.log('🎵 Getting background music...');
-      musicUrl = options.backgroundMusic.url ||
-        await getBackgroundMusic(options.backgroundMusic.genre);
+      console.warn('🎵 Getting background music...');
+      musicUrl =
+        options.backgroundMusic.url || (await getBackgroundMusic(options.backgroundMusic.genre));
     }
 
     // Combine audio if both are present
     let combinedAudioUrl: string | undefined;
     if (voiceOverUrl || musicUrl) {
-      console.log('🔊 Combining audio...');
+      console.warn('🔊 Combining audio...');
       combinedAudioUrl = await combineAudio(
         voiceOverUrl,
         musicUrl,

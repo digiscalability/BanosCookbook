@@ -1,31 +1,27 @@
 'use client';
 
+import { Eye, EyeOff, FileAudio, Upload, Volume2, VolumeX } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import React, { useCallback, useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { AudioTrack, VideoClip } from '@/lib/types/video-editor';
-import {
-    Eye,
-    EyeOff,
-    FileAudio,
-    Upload,
-    Volume2,
-    VolumeX,
-    Waveform
-} from 'lucide-react';
-import dynamic from 'next/dynamic';
-import React, { useCallback, useState } from 'react';
 
 // Dynamically import WaveSurfer components to avoid SSR issues
+// Using type assertion to handle dynamic import
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const WaveSurferPlayer = dynamic(
-  () => import('@wavesurfer/react').then(mod => ({ default: mod.WavesurferPlayer })),
+  () => import('@wavesurfer/react').then(mod => ({ default: mod.useWavesurfer as any })),
   {
     ssr: false,
-    loading: () => <div className="h-16 bg-gray-100 animate-pulse rounded" />
+    loading: () => <div className="h-16 animate-pulse rounded bg-gray-100" />,
   }
-);
+) as any;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 interface AudioPanelProps {
   activeClip: VideoClip | null;
@@ -42,7 +38,7 @@ interface AudioPanelProps {
 }
 
 export default function AudioPanel({
-  activeClip,
+  activeClip: _activeClip,
   audioTracks,
   onAudioUpload,
   onVolumeChange,
@@ -52,28 +48,34 @@ export default function AudioPanel({
   onFadeOutChange,
   onAudioDelete,
   currentTime,
-  isPlaying
+  isPlaying: _isPlaying,
 }: AudioPanelProps) {
   const [dragOver, setDragOver] = useState(false);
   const [expandedTrack, setExpandedTrack] = useState<string | null>(null);
 
   // Audio upload handling
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith('audio/')) {
-      onAudioUpload(file);
-    }
-  }, [onAudioUpload]);
+  const handleFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file && file.type.startsWith('audio/')) {
+        onAudioUpload(file);
+      }
+    },
+    [onAudioUpload]
+  );
 
-  const handleDrop = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    setDragOver(false);
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      setDragOver(false);
 
-    const file = event.dataTransfer.files[0];
-    if (file && file.type.startsWith('audio/')) {
-      onAudioUpload(file);
-    }
-  }, [onAudioUpload]);
+      const file = event.dataTransfer.files[0];
+      if (file && file.type.startsWith('audio/')) {
+        onAudioUpload(file);
+      }
+    },
+    [onAudioUpload]
+  );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -96,11 +98,11 @@ export default function AudioPanel({
   const hasSoloedTrack = audioTracks.some(track => track.solo);
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-4">
+    <div className="flex h-full flex-col space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Waveform className="w-5 h-5" />
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
+          <Volume2 className="h-5 w-5" />
           Audio & Music
         </h3>
         <Badge variant="secondary" className="text-xs">
@@ -110,7 +112,7 @@ export default function AudioPanel({
 
       {/* Audio Upload Area */}
       <Card
-        className={`border-2 border-dashed transition-colors cursor-pointer ${
+        className={`cursor-pointer border-2 border-dashed transition-colors ${
           dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
         }`}
         onDrop={handleDrop}
@@ -126,37 +128,33 @@ export default function AudioPanel({
             id="audio-upload"
           />
           <label htmlFor="audio-upload" className="cursor-pointer">
-            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-            <p className="text-sm text-gray-600 mb-1">
-              Drop audio files here or click to browse
-            </p>
-            <p className="text-xs text-gray-400">
-              Supports MP3, WAV, OGG, M4A
-            </p>
+            <Upload className="mx-auto mb-2 h-8 w-8 text-gray-400" />
+            <p className="mb-1 text-sm text-gray-600">Drop audio files here or click to browse</p>
+            <p className="text-xs text-gray-400">Supports MP3, WAV, OGG, M4A</p>
           </label>
         </CardContent>
       </Card>
 
       {/* Audio Tracks */}
-      <div className="flex-1 overflow-y-auto space-y-3">
+      <div className="flex-1 space-y-3 overflow-y-auto">
         {audioTracks.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <FileAudio className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <div className="py-8 text-center text-gray-500">
+            <FileAudio className="mx-auto mb-3 h-12 w-12 text-gray-300" />
             <p className="text-sm">No audio tracks added yet</p>
             <p className="text-xs text-gray-400">Upload audio files to get started</p>
           </div>
         ) : (
-          audioTracks.map((track) => (
-            <Card key={track.id} className="bg-white border">
+          audioTracks.map(track => (
+            <Card key={track.id} className="border bg-white">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium truncate flex-1">
+                  <CardTitle className="flex-1 truncate text-sm font-medium">
                     {track.name}
                   </CardTitle>
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="ml-2 flex items-center gap-1">
                     {/* Solo Toggle */}
                     <Button
-                      variant={track.solo ? "default" : "ghost"}
+                      variant={track.solo ? 'default' : 'ghost'}
                       size="sm"
                       onClick={() => onSoloToggle(track.id)}
                       className="h-7 w-7 p-0"
@@ -167,13 +165,17 @@ export default function AudioPanel({
 
                     {/* Mute Toggle */}
                     <Button
-                      variant={track.muted ? "destructive" : "ghost"}
+                      variant={track.muted ? 'destructive' : 'ghost'}
                       size="sm"
                       onClick={() => onMuteToggle(track.id)}
                       className="h-7 w-7 p-0"
-                      title={track.muted ? "Unmute" : "Mute"}
+                      title={track.muted ? 'Unmute' : 'Mute'}
                     >
-                      {track.muted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                      {track.muted ? (
+                        <VolumeX className="h-3 w-3" />
+                      ) : (
+                        <Volume2 className="h-3 w-3" />
+                      )}
                     </Button>
 
                     {/* Expand Toggle */}
@@ -182,9 +184,13 @@ export default function AudioPanel({
                       size="sm"
                       onClick={() => setExpandedTrack(expandedTrack === track.id ? null : track.id)}
                       className="h-7 w-7 p-0"
-                      title={expandedTrack === track.id ? "Collapse" : "Expand"}
+                      title={expandedTrack === track.id ? 'Collapse' : 'Expand'}
                     >
-                      {expandedTrack === track.id ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      {expandedTrack === track.id ? (
+                        <EyeOff className="h-3 w-3" />
+                      ) : (
+                        <Eye className="h-3 w-3" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -197,7 +203,7 @@ export default function AudioPanel({
                   {track.muted && (
                     <>
                       <span>•</span>
-                      <Badge variant="destructive" className="text-xs px-1 py-0">
+                      <Badge variant="destructive" className="px-1 py-0 text-xs">
                         MUTED
                       </Badge>
                     </>
@@ -205,7 +211,7 @@ export default function AudioPanel({
                   {track.solo && (
                     <>
                       <span>•</span>
-                      <Badge variant="default" className="text-xs px-1 py-0">
+                      <Badge variant="default" className="px-1 py-0 text-xs">
                         SOLO
                       </Badge>
                     </>
@@ -213,7 +219,7 @@ export default function AudioPanel({
                   {hasSoloedTrack && !track.solo && !track.muted && (
                     <>
                       <span>•</span>
-                      <Badge variant="secondary" className="text-xs px-1 py-0">
+                      <Badge variant="secondary" className="px-1 py-0 text-xs">
                         DIMMED
                       </Badge>
                     </>
@@ -221,36 +227,39 @@ export default function AudioPanel({
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-0 space-y-4">
+              <CardContent className="space-y-4 pt-0">
                 {/* Waveform Visualization */}
                 {track.url && (
                   <div className="relative">
                     <WaveSurferPlayer
-                      height={expandedTrack === track.id ? 80 : 40}
-                      waveColor={track.muted ? "#d1d5db" : track.solo ? "#3b82f6" : "#6b7280"}
-                      progressColor={track.muted ? "#9ca3af" : track.solo ? "#1d4ed8" : "#374151"}
-                      url={track.url}
-                      onReady={(ws) => {
-                        // Sync waveform with video timeline
-                        if (currentTime > 0) {
-                          const relativeTime = Math.max(0, currentTime - track.startTime);
-                          if (relativeTime <= track.duration) {
-                            ws.seekTo(relativeTime / track.duration);
+                      {...{
+                        height: expandedTrack === track.id ? 80 : 40,
+                        waveColor: track.muted ? '#d1d5db' : track.solo ? '#3b82f6' : '#6b7280',
+                        progressColor: track.muted ? '#9ca3af' : track.solo ? '#1d4ed8' : '#374151',
+                        url: track.url,
+                        onReady: (ws: { seekTo: (progress: number) => void }) => {
+                          // Sync waveform with video timeline
+                          if (currentTime > 0) {
+                            const relativeTime = Math.max(0, currentTime - track.startTime);
+                            if (relativeTime <= track.duration) {
+                              ws.seekTo(relativeTime / track.duration);
+                            }
                           }
-                        }
-                      }}
-                      onPlay={() => {
-                        // Could sync with main video playback if needed
-                      }}
-                      onPause={() => {
-                        // Could sync with main video playback if needed
+                        },
+                        onPlay: () => {
+                          // Could sync with main video playback if needed
+                        },
+                        onPause: () => {
+                          // Could sync with main video playback if needed
+                        },
                       }}
                     />
 
                     {/* Playhead indicator */}
-                    {currentTime >= track.startTime && currentTime <= track.startTime + track.duration && (
-                      <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none playhead-indicator" />
-                    )}
+                    {currentTime >= track.startTime &&
+                      currentTime <= track.startTime + track.duration && (
+                        <div className="playhead-indicator pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500" />
+                      )}
                   </div>
                 )}
 
@@ -325,12 +334,12 @@ export default function AudioPanel({
 
       {/* Audio Mixing Info */}
       {audioTracks.length > 0 && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-3">
-            <p className="text-xs text-blue-700 mb-1">
+            <p className="mb-1 text-xs text-blue-700">
               <strong>Audio Mixing:</strong>
             </p>
-            <ul className="text-xs text-blue-600 space-y-1">
+            <ul className="space-y-1 text-xs text-blue-600">
               <li>• Solo isolates a single track</li>
               <li>• Multiple tracks will be mixed together</li>
               <li>• Adjust volume levels to balance audio</li>

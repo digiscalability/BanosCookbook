@@ -1,5 +1,8 @@
 'use client';
 
+import { Brain, CheckCircle, FileText, Image as ImageIcon, Settings, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+
 import type { AdvancedRecipesFromPdfOutput } from '@/ai/flows/recipes-from-pdf-advanced';
 import { extractRecipeDataFromPdfAdvanced } from '@/app/actions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -7,18 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import {
-    Brain,
-    CheckCircle,
-    FileText,
-    Image as ImageIcon,
-    Settings,
-    Zap
-} from 'lucide-react';
-import React, { useState } from 'react';
 
 interface PDFProcessorProps {
-  onRecipesExtracted: (recipes: AdvancedRecipesFromPdfOutput['recipes'], processingInfo: AdvancedRecipesFromPdfOutput['processingInfo']) => void;
+  onRecipesExtracted: (
+    recipes: AdvancedRecipesFromPdfOutput['recipes'],
+    processingInfo: AdvancedRecipesFromPdfOutput['processingInfo']
+  ) => void;
   onError: (error: string) => void;
 }
 
@@ -32,7 +29,9 @@ interface ProcessingOptions {
 export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcessorProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
-  const [processingInfo, setProcessingInfo] = useState<AdvancedRecipesFromPdfOutput['processingInfo'] | null>(null);
+  const [processingInfo, setProcessingInfo] = useState<
+    AdvancedRecipesFromPdfOutput['processingInfo'] | null
+  >(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [options, setOptions] = useState<ProcessingOptions>({
     processingMode: 'auto',
@@ -51,7 +50,7 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
     try {
       // Convert file to data URI
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = async e => {
         const pdfDataUri = e.target?.result as string;
 
         if (!pdfDataUri) {
@@ -74,8 +73,13 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
           setProcessingProgress(100);
 
           if (result.success && result.data) {
-            setProcessingInfo(result.data.processingInfo as AdvancedRecipesFromPdfOutput['processingInfo']);
-            onRecipesExtracted(result.data.recipes, result.data.processingInfo as AdvancedRecipesFromPdfOutput['processingInfo']);
+            setProcessingInfo(
+              result.data.processingInfo as AdvancedRecipesFromPdfOutput['processingInfo']
+            );
+            onRecipesExtracted(
+              result.data.recipes,
+              result.data.processingInfo as AdvancedRecipesFromPdfOutput['processingInfo']
+            );
           } else {
             onError(result.error || 'Failed to extract recipes');
           }
@@ -157,7 +161,7 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
               accept=".pdf"
               onChange={handleFileChange}
               disabled={isProcessing}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
             />
           </div>
 
@@ -183,9 +187,7 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
                     <span className="font-medium">
                       {processingInfo.processingMode.toUpperCase()} Processing
                     </span>
-                    <Badge variant="secondary">
-                      {processingInfo.totalPages} pages
-                    </Badge>
+                    <Badge variant="secondary">{processingInfo.totalPages} pages</Badge>
                   </div>
                   <div className="text-sm text-gray-600">
                     {getProcessingModeDescription(processingInfo.processingMode)}
@@ -199,7 +201,7 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
                     </div>
                   )}
                   {processingInfo.aiEnhanced && (
-                    <div className="text-sm text-green-600 flex items-center gap-1">
+                    <div className="flex items-center gap-1 text-sm text-green-600">
                       <Brain className="h-3 w-3" />
                       AI-enhanced text processing applied
                     </div>
@@ -225,17 +227,19 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
             </Button>
 
             {showAdvancedOptions && (
-              <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4 rounded-lg border bg-gray-50 p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Processing Mode</label>
                     <select
                       value={options.processingMode}
-                      onChange={(e) => setOptions(prev => ({
+                      onChange={e =>
+                        setOptions(prev => ({
                           ...prev,
-                          processingMode: e.target.value as ProcessingOptions['processingMode']
-                        }))}
-                      className="w-full p-2 border rounded-md"
+                          processingMode: e.target.value as ProcessingOptions['processingMode'],
+                        }))
+                      }
+                      className="w-full rounded-md border p-2"
                       aria-label="Processing Mode Selection"
                       title="Choose how to process the PDF"
                     >
@@ -250,11 +254,13 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
                     <label className="text-sm font-medium">OCR Language</label>
                     <select
                       value={options.ocrLanguage}
-                      onChange={(e) => setOptions(prev => ({
-                        ...prev,
-                        ocrLanguage: e.target.value
-                      }))}
-                      className="w-full p-2 border rounded-md"
+                      onChange={e =>
+                        setOptions(prev => ({
+                          ...prev,
+                          ocrLanguage: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-md border p-2"
                       aria-label="OCR Language Selection"
                       title="Choose the language for OCR processing"
                     >
@@ -270,11 +276,13 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
                     <label className="text-sm font-medium">Image Quality</label>
                     <select
                       value={options.imageQuality}
-                      onChange={(e) => setOptions(prev => ({
-                        ...prev,
-                        imageQuality: e.target.value as ProcessingOptions['imageQuality']
-                      }))}
-                      className="w-full p-2 border rounded-md"
+                      onChange={e =>
+                        setOptions(prev => ({
+                          ...prev,
+                          imageQuality: e.target.value as ProcessingOptions['imageQuality'],
+                        }))
+                      }
+                      className="w-full rounded-md border p-2"
                       aria-label="Image Quality Selection"
                       title="Choose the image processing quality"
                     >
@@ -289,10 +297,12 @@ export default function PDFProcessor({ onRecipesExtracted, onError }: PDFProcess
                       <input
                         type="checkbox"
                         checked={options.enableAIEnhancement}
-                        onChange={(e) => setOptions(prev => ({
-                          ...prev,
-                          enableAIEnhancement: e.target.checked
-                        }))}
+                        onChange={e =>
+                          setOptions(prev => ({
+                            ...prev,
+                            enableAIEnhancement: e.target.checked,
+                          }))
+                        }
                         className="rounded"
                       />
                       <span className="text-sm font-medium">AI Enhancement</span>

@@ -1,6 +1,9 @@
-import { syncInstagramComments, syncInstagramLikes } from '@/app/actions';
 import crypto from 'crypto';
+
 import { NextRequest, NextResponse } from 'next/server';
+
+import { syncInstagramComments, syncInstagramLikes } from '@/app/actions';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 /**
@@ -38,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   // Verify the token matches
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('✅ Instagram webhook verified');
+    console.warn('✅ Instagram webhook verified');
     return new NextResponse(challenge, { status: 200 });
   }
 
@@ -51,7 +54,6 @@ export async function GET(request: NextRequest) {
  * Instagram sends real-time updates here
  */
 export async function POST(request: NextRequest) {
-
   try {
     // Verify the request signature
     const signature = request.headers.get('x-hub-signature-256');
@@ -64,10 +66,10 @@ export async function POST(request: NextRequest) {
       rawBuffer = Buffer.from(arrayBuffer);
       // --- DEBUG: Log raw POST body and signature header as base64 for local testing ---
       const payloadBase64 = rawBuffer.toString('base64');
-      console.log('=== WEBHOOK DEBUG START ===');
-      console.log('WEBHOOK_PAYLOAD_BASE64:', payloadBase64);
-      console.log('WEBHOOK_SIGNATURE_HEADER:', signature || '');
-      console.log('=== WEBHOOK DEBUG END ===');
+      console.warn('=== WEBHOOK DEBUG START ===');
+      console.warn('WEBHOOK_PAYLOAD_BASE64:', payloadBase64);
+      console.warn('WEBHOOK_SIGNATURE_HEADER:', signature || '');
+      console.warn('=== WEBHOOK DEBUG END ===');
       // --- END DEBUG ---
     } catch (e) {
       console.error('❌ Failed to read/log debug payload/signature', e);
@@ -80,10 +82,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Read the raw body as bytes (must use raw bytes for HMAC verification)
-  // (rawBuffer is already set above in debug block)
+    // (rawBuffer is already set above in debug block)
 
     // Determine signature header (support sha256 header and fallback)
-  const signatureHeader = signature || request.headers.get('x-hub-signature');
+    const signatureHeader = signature || request.headers.get('x-hub-signature');
 
     if (signatureHeader) {
       // Header format is usually 'sha256=<hex>' or 'sha1=<hex>'
@@ -102,7 +104,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unsupported signature algorithm' }, { status: 403 });
       }
 
-      const expectedHex = crypto.createHmac(algo === 'sha256' ? 'sha256' : 'sha1', appSecret).update(rawBuffer).digest('hex');
+      const expectedHex = crypto
+        .createHmac(algo === 'sha256' ? 'sha256' : 'sha1', appSecret)
+        .update(rawBuffer)
+        .digest('hex');
 
       try {
         const sigBuf = Buffer.from(sigHex, 'hex');
@@ -112,11 +117,19 @@ export async function POST(request: NextRequest) {
         if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
           // Debug information to help diagnose signature mismatches in production
           try {
-            const srcIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+            const srcIp =
+              request.headers.get('x-forwarded-for') ||
+              request.headers.get('x-real-ip') ||
+              'unknown';
             const rawLen = rawBuffer ? rawBuffer.length : 'unknown';
             const sigPreview = sigHex.slice(0, 12);
             const expectedPreview = expectedHex.slice(0, 12);
-            console.error('❌ Invalid webhook signature', { srcIp, rawLen, sigPreview, expectedPreview });
+            console.error('❌ Invalid webhook signature', {
+              srcIp,
+              rawLen,
+              sigPreview,
+              expectedPreview,
+            });
           } catch (dbgErr) {
             console.error('❌ Invalid webhook signature (failed to build debug info)', dbgErr);
           }
@@ -134,38 +147,62 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(rawBody) as unknown;
 
     // Helper type guard
-    const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null;
 
     // Log a small summary to avoid leaking large payloads or tokens
     try {
-      const entries = isRecord(body) && Array.isArray((body as Record<string, unknown>)['entry']) ? (body as Record<string, unknown>)['entry'] as unknown[] : [];
-      const entriesSummary = entries.map((e) => {
+      const entries =
+        isRecord(body) && Array.isArray((body as Record<string, unknown>)['entry'])
+          ? ((body as Record<string, unknown>)['entry'] as unknown[])
+          : [];
+      const entriesSummary = entries.map(e => {
         if (!isRecord(e)) return { id: undefined, changes: [] };
         const id = typeof e.id === 'string' ? e.id : undefined;
-        const rawChanges = Array.isArray(e.changes) ? e.changes as unknown[] : [];
-        const changes = rawChanges.map((c) => (isRecord(c) && typeof c.field === 'string' ? c.field : undefined)).filter(Boolean);
+        const rawChanges = Array.isArray(e.changes) ? (e.changes as unknown[]) : [];
+        const changes = rawChanges
+          .map(c => (isRecord(c) && typeof c.field === 'string' ? c.field : undefined))
+          .filter(Boolean);
         return { id, changes };
       });
-      console.log('📥 Instagram webhook received (summary):', JSON.stringify(entriesSummary));
+      console.warn('📥 Instagram webhook received (summary):', JSON.stringify(entriesSummary));
     } catch {
-      console.log('📥 Instagram webhook received');
+      console.warn('📥 Instagram webhook received');
     }
 
     // Process each entry in the webhook
-    const entries = isRecord(body) && Array.isArray((body as Record<string, unknown>)['entry']) ? (body as Record<string, unknown>)['entry'] as unknown[] : [];
+    const entries =
+      isRecord(body) && Array.isArray((body as Record<string, unknown>)['entry'])
+        ? ((body as Record<string, unknown>)['entry'] as unknown[])
+        : [];
     for (const entry of entries) {
-      const changes = isRecord(entry) && Array.isArray((entry as Record<string, unknown>)['changes']) ? (entry as Record<string, unknown>)['changes'] as unknown[] : [];
+      const changes =
+        isRecord(entry) && Array.isArray((entry as Record<string, unknown>)['changes'])
+          ? ((entry as Record<string, unknown>)['changes'] as unknown[])
+          : [];
 
       for (const change of changes) {
-        const field = isRecord(change) && typeof change.field === 'string' ? (change.field as string) : undefined;
-        const value = isRecord(change) && 'value' in change ? (change as Record<string, unknown>)['value'] : undefined;
+        const field =
+          isRecord(change) && typeof change.field === 'string'
+            ? (change.field as string)
+            : undefined;
+        const value =
+          isRecord(change) && 'value' in change
+            ? (change as Record<string, unknown>)['value']
+            : undefined;
 
         // Handle different webhook events
         if (field === 'comments') {
-          if (isRecord(value)) await handleCommentEvent(value as { media_id?: string; id?: string; text?: string });
+          if (isRecord(value))
+            await handleCommentEvent(value as { media_id?: string; id?: string; text?: string });
         } else if (field === 'mentions') {
           await handleMentionEvent();
-        } else if (field === 'likes' || field === 'engagement' || (isRecord(value) && typeof (value as Record<string, unknown>)['like_count'] !== 'undefined')) {
+        } else if (
+          field === 'likes' ||
+          field === 'engagement' ||
+          (isRecord(value) &&
+            typeof (value as Record<string, unknown>)['like_count'] !== 'undefined')
+        ) {
           // Some Graph webhook configurations may send likes/engagement updates
           if (isRecord(value)) await handleLikeEvent(value as { media_id?: string });
         }
@@ -173,13 +210,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
-
   } catch (error) {
     console.error('❌ Error processing Instagram webhook:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -201,7 +234,7 @@ async function handleCommentEvent(value: {
       return;
     }
 
-    console.log(`💬 New comment on Instagram post ${mediaId}`);
+    console.warn(`💬 New comment on Instagram post ${mediaId}`);
 
     // Find which recipe this Instagram post belongs to
     const { getDb } = adminConfig;
@@ -222,9 +255,8 @@ async function handleCommentEvent(value: {
     const recipeId = instagramPost.recipeId;
 
     // Sync comments for this recipe
-    console.log(`🔄 Syncing comments for recipe ${recipeId}`);
+    console.warn(`🔄 Syncing comments for recipe ${recipeId}`);
     await syncInstagramComments(recipeId);
-
   } catch (error) {
     console.error('❌ Error handling comment event:', error);
   }
@@ -235,7 +267,7 @@ async function handleCommentEvent(value: {
  */
 async function handleMentionEvent() {
   try {
-    console.log(`📣 Mentioned in Instagram post/comment`);
+    console.warn(`📣 Mentioned in Instagram post/comment`);
     // You can implement mention handling logic here
     // For example, create a notification or auto-reply
   } catch (error) {
@@ -254,7 +286,7 @@ async function handleLikeEvent(value: { media_id?: string }) {
       return;
     }
 
-    console.log(`👍 Like update on Instagram post ${mediaId}`);
+    console.warn(`👍 Like update on Instagram post ${mediaId}`);
 
     const { getDb } = adminConfig;
     const db = getDb();
@@ -273,7 +305,7 @@ async function handleLikeEvent(value: { media_id?: string }) {
     const instagramPost = snapshot.docs[0].data();
     const recipeId = instagramPost.recipeId;
 
-    console.log(`🔄 Syncing likes for recipe ${recipeId}`);
+    console.warn(`🔄 Syncing likes for recipe ${recipeId}`);
     // Fire-and-forget is acceptable for webhooks but await to surface errors in logs
     await syncInstagramLikes(recipeId);
   } catch (error) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('firebase-admin') };
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const unusedOnly = searchParams.get('unused') === 'true';
 
-    console.log('🖼️ Admin: Fetching generated images', { unusedOnly });
+    console.warn('🖼️ Admin: Fetching generated images', { unusedOnly });
 
     const admin = getAdmin();
     const db = admin.firestore();
@@ -20,7 +21,11 @@ export async function GET(request: Request) {
 
     // Filter for unused images if requested
     if (unusedOnly) {
-      query = query.where('used', '==', false) as FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
+      query = query.where(
+        'used',
+        '==',
+        false
+      ) as FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
     }
 
     const snapshot = await query.limit(100).get();
@@ -32,19 +37,22 @@ export async function GET(request: Request) {
       usedAt: doc.data().usedAt?.toDate?.()?.toISOString() || null,
     }));
 
-    console.log(`📊 Found ${images.length} generated images`);
+    console.warn(`📊 Found ${images.length} generated images`);
 
     return NextResponse.json({
       success: true,
       count: images.length,
-      images
+      images,
     });
   } catch (error) {
     console.error('Error fetching generated images:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -56,7 +64,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const daysOld = parseInt(searchParams.get('daysOld') || '30');
 
-    console.log(`🗑️ Admin: Deleting unused images older than ${daysOld} days`);
+    console.warn(`🗑️ Admin: Deleting unused images older than ${daysOld} days`);
 
     const admin = getAdmin();
     const db = admin.firestore();
@@ -77,7 +85,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({
         success: true,
         deleted: 0,
-        message: 'No old unused images found'
+        message: 'No old unused images found',
       });
     }
 
@@ -89,18 +97,21 @@ export async function DELETE(request: Request) {
 
     await batch.commit();
 
-    console.log(`✅ Deleted ${snapshot.size} old unused images`);
+    console.warn(`✅ Deleted ${snapshot.size} old unused images`);
 
     return NextResponse.json({
       success: true,
       deleted: snapshot.size,
-      message: `Deleted ${snapshot.size} unused images older than ${daysOld} days`
+      message: `Deleted ${snapshot.size} unused images older than ${daysOld} days`,
     });
   } catch (error) {
     console.error('Error deleting old images:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }

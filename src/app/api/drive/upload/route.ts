@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('firebase-admin') };
 
 export const runtime = 'nodejs';
 
-async function uploadBufferToFirebaseStorage(buffer: Buffer, filename: string, contentType = 'application/octet-stream') {
+async function uploadBufferToFirebaseStorage(
+  buffer: Buffer,
+  filename: string,
+  contentType = 'application/octet-stream'
+) {
   const admin = getAdmin();
 
   // Resolve bucket (similar logic to images/upload route)
@@ -13,10 +18,11 @@ async function uploadBufferToFirebaseStorage(buffer: Buffer, filename: string, c
     const candidates: string[] = [];
     if (process.env.FIREBASE_STORAGE_BUCKET) candidates.push(process.env.FIREBASE_STORAGE_BUCKET);
     try {
-      const apps = (admin.apps as unknown) as Array<{ options?: Record<string, unknown> }>;
+      const apps = admin.apps as unknown as Array<{ options?: Record<string, unknown> }>;
       if (apps && apps.length > 0 && apps[0].options) {
         const opts = apps[0].options as Record<string, unknown>;
-        if (typeof opts.storageBucket === 'string' && opts.storageBucket) candidates.push(opts.storageBucket as string);
+        if (typeof opts.storageBucket === 'string' && opts.storageBucket)
+          candidates.push(opts.storageBucket as string);
         if (typeof opts.projectId === 'string' && opts.projectId) {
           const pid = opts.projectId as string;
           candidates.push(`${pid}.appspot.com`);
@@ -32,13 +38,17 @@ async function uploadBufferToFirebaseStorage(buffer: Buffer, filename: string, c
     }
 
     const seen = new Set<string>();
-    const uniq = candidates.filter((c) => c && !seen.has(c) && (seen.add(c), true));
+    const uniq = candidates.filter(c => c && !seen.has(c) && (seen.add(c), true));
 
     for (const name of uniq) {
       try {
         const b = admin.storage().bucket(name);
-        const existsResUnknown = await (b as unknown as { exists?: () => Promise<unknown> }).exists?.();
-        const exists = Array.isArray(existsResUnknown) ? (existsResUnknown as unknown[])[0] === true : Boolean(existsResUnknown);
+        const existsResUnknown = await (
+          b as unknown as { exists?: () => Promise<unknown> }
+        ).exists?.();
+        const exists = Array.isArray(existsResUnknown)
+          ? (existsResUnknown as unknown[])[0] === true
+          : Boolean(existsResUnknown);
         if (exists) return b;
       } catch (err) {
         console.warn('Bucket check failed for', name, err instanceof Error ? err.message : err);
@@ -55,7 +65,10 @@ async function uploadBufferToFirebaseStorage(buffer: Buffer, filename: string, c
 
   // Try make public, otherwise signed URL
   try {
-    const fileAsAny = file as unknown as { makePublic?: () => Promise<void>; getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]> };
+    const fileAsAny = file as unknown as {
+      makePublic?: () => Promise<void>;
+      getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]>;
+    };
     if (typeof fileAsAny.makePublic === 'function') {
       await fileAsAny.makePublic();
       return `https://storage.googleapis.com/${bucket.name}/${filename}`;
@@ -66,7 +79,9 @@ async function uploadBufferToFirebaseStorage(buffer: Buffer, filename: string, c
 
   try {
     const expires = Date.now() + 1000 * 60 * 60 * 24 * 365;
-    const fileAsAny2 = file as unknown as { getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]> };
+    const fileAsAny2 = file as unknown as {
+      getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]>;
+    };
     if (typeof fileAsAny2.getSignedUrl === 'function') {
       const [signedUrl] = await fileAsAny2.getSignedUrl({ action: 'read', expires });
       return signedUrl as string;
@@ -83,7 +98,11 @@ async function enforceGuestUploadLimitsDrive(request: NextRequest, captchaToken?
   const authHeader = request.headers.get('authorization');
   if (authHeader) return; // authenticated bypass
 
-  const ipRaw = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
+  const ipRaw =
+    request.headers.get('x-forwarded-for') ||
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
   const ip = ipRaw.split(',')[0].trim();
 
   const limit = Number(process.env.GUEST_UPLOAD_LIMIT_PER_HOUR || '10');
@@ -92,9 +111,9 @@ async function enforceGuestUploadLimitsDrive(request: NextRequest, captchaToken?
   const ref = admin.firestore().collection('upload_rate_limits').doc(ip);
   const snap = await ref.get();
   const now = Date.now();
-  const data = snap.exists ? snap.data() as { count?: number; windowStart?: number } : null;
+  const data = snap.exists ? (snap.data() as { count?: number; windowStart?: number }) : null;
 
-  if (!data || typeof data.windowStart !== 'number' || (now - (data.windowStart || 0)) > windowMs) {
+  if (!data || typeof data.windowStart !== 'number' || now - (data.windowStart || 0) > windowMs) {
     await ref.set({ count: 1, windowStart: now }, { merge: true });
     return;
   }
@@ -123,17 +142,26 @@ async function enforceGuestUploadLimitsDrive(request: NextRequest, captchaToken?
   await ref.set({ count: 1, windowStart: now }, { merge: true });
 }
 
-async function logUploadEventDrive(event: { path: string; ip: string; success: boolean; reason?: string; fallback?: boolean }) {
+async function logUploadEventDrive(event: {
+  path: string;
+  ip: string;
+  success: boolean;
+  reason?: string;
+  fallback?: boolean;
+}) {
   try {
     const admin = getAdmin();
-    await admin.firestore().collection('upload_events').add({
-      path: event.path,
-      ip: event.ip,
-      success: event.success,
-      reason: event.reason || null,
-      fallback: event.fallback || false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    await admin
+      .firestore()
+      .collection('upload_events')
+      .add({
+        path: event.path,
+        ip: event.ip,
+        success: event.success,
+        reason: event.reason || null,
+        fallback: event.fallback || false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
   } catch (e) {
     console.warn('Failed to log upload event', e);
   }
@@ -149,13 +177,29 @@ export async function POST(request: NextRequest) {
     try {
       await enforceGuestUploadLimitsDrive(request, captchaToken);
     } catch (limitErr: unknown) {
-      const ipRaw = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
+      const ipRaw =
+        request.headers.get('x-forwarded-for') ||
+        request.headers.get('cf-connecting-ip') ||
+        request.headers.get('x-real-ip') ||
+        'unknown';
       const ip = ipRaw.split(',')[0].trim();
-  const limitObj = (typeof limitErr === 'object' && limitErr !== null) ? limitErr as Record<string, unknown> : null;
-  const limitMsg = limitObj && 'message' in limitObj ? String(limitObj.message) : String(limitErr);
-  const statusCode = limitObj && 'status' in limitObj ? Number(limitObj.status) : 429;
-      await logUploadEventDrive({ path: '/api/drive/upload', ip, success: false, reason: limitMsg });
-      return NextResponse.json({ error: limitMsg || 'Rate limit exceeded' }, { status: statusCode || 429 });
+      const limitObj =
+        typeof limitErr === 'object' && limitErr !== null
+          ? (limitErr as Record<string, unknown>)
+          : null;
+      const limitMsg =
+        limitObj && 'message' in limitObj ? String(limitObj.message) : String(limitErr);
+      const statusCode = limitObj && 'status' in limitObj ? Number(limitObj.status) : 429;
+      await logUploadEventDrive({
+        path: '/api/drive/upload',
+        ip,
+        success: false,
+        reason: limitMsg,
+      });
+      return NextResponse.json(
+        { error: limitMsg || 'Rate limit exceeded' },
+        { status: statusCode || 429 }
+      );
     }
 
     const form = await request.formData();
@@ -164,18 +208,22 @@ export async function POST(request: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     // Dynamically import googleapis so build doesn't require it at build-time
-    const mod = await import('googleapis').catch((err) => {
+    const mod = await import('googleapis').catch(err => {
       console.error('googleapis import failed:', err);
       return null;
     });
     if (!mod) {
-      return NextResponse.json({ error: 'googleapis package not installed on server.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'googleapis package not installed on server.' },
+        { status: 500 }
+      );
     }
     const { google } = mod as typeof import('googleapis');
 
     // Resolve service account credentials
     let creds: Record<string, unknown> | null = null;
-    const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const saJson =
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (saJson) {
       try {
         creds = JSON.parse(saJson);
@@ -196,7 +244,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!creds) {
-      return NextResponse.json({ error: 'Service account credentials not configured (FIREBASE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS).' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error:
+            'Service account credentials not configured (FIREBASE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS).',
+        },
+        { status: 500 }
+      );
     }
 
     const auth = new google.auth.GoogleAuth({
@@ -241,7 +295,10 @@ export async function POST(request: NextRequest) {
       }
 
       const meta = await drive.files.get({ fileId, fields: 'id,name,webViewLink,webContentLink' });
-      const url = meta.data.webViewLink || meta.data.webContentLink || `https://drive.google.com/uc?id=${fileId}&export=download`;
+      const url =
+        meta.data.webViewLink ||
+        meta.data.webContentLink ||
+        `https://drive.google.com/uc?id=${fileId}&export=download`;
 
       // Save link to Firestore (best-effort)
       try {
@@ -255,9 +312,18 @@ export async function POST(request: NextRequest) {
         });
         // log success
         try {
-          const ipRaw = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
+          const ipRaw =
+            request.headers.get('x-forwarded-for') ||
+            request.headers.get('cf-connecting-ip') ||
+            request.headers.get('x-real-ip') ||
+            'unknown';
           const ip = ipRaw.split(',')[0].trim();
-          await logUploadEventDrive({ path: '/api/drive/upload', ip, success: true, fallback: false });
+          await logUploadEventDrive({
+            path: '/api/drive/upload',
+            ip,
+            success: true,
+            fallback: false,
+          });
         } catch {
           // ignore
         }
@@ -275,18 +341,30 @@ export async function POST(request: NextRequest) {
         const ext = (contentType.split('/')[1] || 'bin').split('+')[0];
         const filename = `drive-fallback/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
         const url = await uploadBufferToFirebaseStorage(buffer, filename, contentType);
-          // log fallback success
-          try {
-              const ipRaw = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
-              const ip = ipRaw.split(',')[0].trim();
-              await logUploadEventDrive({ path: '/api/drive/upload', ip, success: true, fallback: true });
-            } catch {
-              // ignore
-            }
-          return NextResponse.json({ url, fallback: true });
+        // log fallback success
+        try {
+          const ipRaw =
+            request.headers.get('x-forwarded-for') ||
+            request.headers.get('cf-connecting-ip') ||
+            request.headers.get('x-real-ip') ||
+            'unknown';
+          const ip = ipRaw.split(',')[0].trim();
+          await logUploadEventDrive({
+            path: '/api/drive/upload',
+            ip,
+            success: true,
+            fallback: true,
+          });
+        } catch {
+          // ignore
+        }
+        return NextResponse.json({ url, fallback: true });
       } catch (fallbackErr) {
         console.error('Firebase Storage fallback also failed:', fallbackErr);
-        return NextResponse.json({ error: 'Upload failed (drive + storage fallback)' }, { status: 500 });
+        return NextResponse.json(
+          { error: 'Upload failed (drive + storage fallback)' },
+          { status: 500 }
+        );
       }
     }
   } catch (error) {

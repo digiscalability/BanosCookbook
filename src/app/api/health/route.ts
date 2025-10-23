@@ -10,16 +10,16 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       services: {
-        googleAI: hasApiKey ? 'configured' : 'missing'
+        googleAI: hasApiKey ? 'configured' : 'missing',
       },
-      version: process.env.npm_package_version || '1.0.0'
+      version: process.env.npm_package_version || '1.0.0',
     });
   } catch (error) {
     return NextResponse.json(
       {
         status: 'error',
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );

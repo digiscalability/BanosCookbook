@@ -8,17 +8,14 @@
  * - NutritionalInformationOutput - The return type for the getNutritionalInformation function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
 
 const NutritionalInformationInputSchema = z.object({
-  ingredients: z
-    .string()
-    .describe('A list of ingredients for the recipe.'),
+  ingredients: z.string().describe('A list of ingredients for the recipe.'),
 });
-export type NutritionalInformationInput = z.infer<
-  typeof NutritionalInformationInputSchema
->;
+export type NutritionalInformationInput = z.infer<typeof NutritionalInformationInputSchema>;
 
 const NutritionalInformationOutputSchema = z.object({
   calories: z.string().describe('The approximate number of calories in the recipe.'),
@@ -26,9 +23,7 @@ const NutritionalInformationOutputSchema = z.object({
   carbs: z.string().describe('The approximate amount of carbohydrates in the recipe (in grams).'),
   fat: z.string().describe('The approximate amount of fat in the recipe (in grams).'),
 });
-export type NutritionalInformationOutput = z.infer<
-  typeof NutritionalInformationOutputSchema
->;
+export type NutritionalInformationOutput = z.infer<typeof NutritionalInformationOutputSchema>;
 
 export async function getNutritionalInformation(
   input: NutritionalInformationInput
@@ -38,8 +33,8 @@ export async function getNutritionalInformation(
 
 const prompt = ai.definePrompt({
   name: 'nutritionalInformationPrompt',
-  input: {schema: NutritionalInformationInputSchema},
-  output: {schema: NutritionalInformationOutputSchema},
+  input: { schema: NutritionalInformationInputSchema },
+  output: { schema: NutritionalInformationOutputSchema },
   prompt: `You are a nutritional expert. Please provide an approximate nutritional information (calories, protein, carbs, and fat) for the following recipe ingredients. Be as accurate as possible, but understand that these are only estimates.
 
 Ingredients: {{{ingredients}}}
@@ -55,7 +50,10 @@ const nutritionalInformationFlow = ai.defineFlow(
     outputSchema: NutritionalInformationOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const { output } = await prompt(input);
+    if (!output) {
+      throw new Error('Failed to generate nutritional information');
+    }
+    return output;
   }
 );

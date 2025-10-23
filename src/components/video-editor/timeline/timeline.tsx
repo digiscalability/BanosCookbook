@@ -5,23 +5,15 @@
 
 'use client';
 
+import { Eye, EyeOff, Lock, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import {
-    Eye,
-    EyeOff,
-    Lock,
-    Unlock,
-    ZoomIn,
-    ZoomOut
-} from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type {
-    Clip,
-    Timeline,
-    TrackType
-} from '../types';
+
+import type { Clip, Timeline, TrackType } from '../types';
 import { SNAP_THRESHOLD, TRACK_COLORS } from '../types';
+
 import { TimelinePlayhead } from './timeline-playhead';
 import { TimelineRuler } from './timeline-ruler';
 import { TimelineTrack } from './timeline-track';
@@ -66,17 +58,20 @@ export function TimelineEditor({
   const timelineWidth = timeline.duration * zoom;
 
   // Handle playhead click/drag
-  const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current) return;
+  const handleTimelineClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!timelineRef.current) return;
 
-    const rect = timelineRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const newTime = (clickX / zoom);
+      const rect = timelineRef.current.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const newTime = clickX / zoom;
 
-    // Clamp to timeline duration
-    const clampedTime = Math.max(0, Math.min(timeline.duration, newTime));
-    onTimeChange(clampedTime);
-  }, [zoom, timeline.duration, onTimeChange]);
+      // Clamp to timeline duration
+      const clampedTime = Math.max(0, Math.min(timeline.duration, newTime));
+      onTimeChange(clampedTime);
+    },
+    [zoom, timeline.duration, onTimeChange]
+  );
 
   // Handle clip drag start
   const handleClipDragStart = useCallback((clipId: string, trackId: string) => {
@@ -85,48 +80,51 @@ export function TimelineEditor({
   }, []);
 
   // Handle clip drag
-  const handleClipDrag = useCallback((deltaX: number) => {
-    if (!draggedClip) return;
+  const handleClipDrag = useCallback(
+    (deltaX: number) => {
+      if (!draggedClip) return;
 
-    const deltaTime = deltaX / zoom;
-    const track = timeline.tracks.find(t => t.id === draggedClip.trackId);
-    const clip = track?.clips.find(c => c.id === draggedClip.clipId);
+      const deltaTime = deltaX / zoom;
+      const track = timeline.tracks.find(t => t.id === draggedClip.trackId);
+      const clip = track?.clips.find(c => c.id === draggedClip.clipId);
 
-    if (!clip) return;
+      if (!clip) return;
 
-    const newStartTime = Math.max(0, clip.startTime + deltaTime);
-    const newEndTime = newStartTime + clip.duration;
+      const newStartTime = Math.max(0, clip.startTime + deltaTime);
+      const newEndTime = newStartTime + clip.duration;
 
-    // Check for snap points (other clips, playhead)
-    let snappedStartTime = newStartTime;
+      // Check for snap points (other clips, playhead)
+      let snappedStartTime = newStartTime;
 
-    // Snap to other clips
-    track?.clips.forEach(otherClip => {
-      if (otherClip.id === clip.id) return;
+      // Snap to other clips
+      track?.clips.forEach(otherClip => {
+        if (otherClip.id === clip.id) return;
 
-      const distToStart = Math.abs(newStartTime - otherClip.startTime);
-      const distToEnd = Math.abs(newStartTime - otherClip.endTime);
-      const distEndToStart = Math.abs(newEndTime - otherClip.startTime);
+        const distToStart = Math.abs(newStartTime - otherClip.startTime);
+        const distToEnd = Math.abs(newStartTime - otherClip.endTime);
+        const distEndToStart = Math.abs(newEndTime - otherClip.startTime);
 
-      if (distToStart < SNAP_THRESHOLD) {
-        snappedStartTime = otherClip.startTime;
-      } else if (distToEnd < SNAP_THRESHOLD) {
-        snappedStartTime = otherClip.endTime;
-      } else if (distEndToStart < SNAP_THRESHOLD) {
-        snappedStartTime = otherClip.startTime - clip.duration;
+        if (distToStart < SNAP_THRESHOLD) {
+          snappedStartTime = otherClip.startTime;
+        } else if (distToEnd < SNAP_THRESHOLD) {
+          snappedStartTime = otherClip.endTime;
+        } else if (distEndToStart < SNAP_THRESHOLD) {
+          snappedStartTime = otherClip.startTime - clip.duration;
+        }
+      });
+
+      // Snap to playhead
+      if (Math.abs(newStartTime - currentTime) < SNAP_THRESHOLD) {
+        snappedStartTime = currentTime;
       }
-    });
 
-    // Snap to playhead
-    if (Math.abs(newStartTime - currentTime) < SNAP_THRESHOLD) {
-      snappedStartTime = currentTime;
-    }
-
-    onClipUpdate(clip.id, {
-      startTime: snappedStartTime,
-      endTime: snappedStartTime + clip.duration,
-    });
-  }, [draggedClip, timeline.tracks, zoom, currentTime, onClipUpdate]);
+      onClipUpdate(clip.id, {
+        startTime: snappedStartTime,
+        endTime: snappedStartTime + clip.duration,
+      });
+    },
+    [draggedClip, timeline.tracks, zoom, currentTime, onClipUpdate]
+  );
 
   // Handle clip drag end
   const handleClipDragEnd = useCallback(() => {
@@ -178,9 +176,9 @@ export function TimelineEditor({
   }, [currentTime, zoom]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white">
+    <div className="flex h-full flex-col bg-gray-900 text-white">
       {/* Timeline Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Timeline</span>
           <span className="text-xs text-gray-400">
@@ -192,8 +190,8 @@ export function TimelineEditor({
           {/* Add Track Dropdown */}
           <select
             aria-label="Add new track"
-            className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1"
-            onChange={(e) => {
+            className="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs"
+            onChange={e => {
               const type = e.target.value as TrackType;
               if (type) {
                 onTrackAdd(type);
@@ -202,7 +200,9 @@ export function TimelineEditor({
             }}
             defaultValue=""
           >
-            <option value="" disabled>Add Track</option>
+            <option value="" disabled>
+              Add Track
+            </option>
             <option value="video">Video Track</option>
             <option value="audio">Audio Track</option>
             <option value="image">Image Track</option>
@@ -211,13 +211,8 @@ export function TimelineEditor({
           </select>
 
           {/* Zoom Controls */}
-          <div className="flex items-center gap-2 ml-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomOut}
-              className="h-8 w-8 p-0"
-            >
+          <div className="ml-4 flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleZoomOut} className="h-8 w-8 p-0">
               <ZoomOut className="h-4 w-4" />
             </Button>
 
@@ -230,40 +225,32 @@ export function TimelineEditor({
               className="w-24"
             />
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomIn}
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="ghost" size="sm" onClick={handleZoomIn} className="h-8 w-8 p-0">
               <ZoomIn className="h-4 w-4" />
             </Button>
 
-            <span className="text-xs text-gray-400 min-w-[60px]">
-              {zoom.toFixed(0)}px/s
-            </span>
+            <span className="min-w-[60px] text-xs text-gray-400">{zoom.toFixed(0)}px/s</span>
           </div>
         </div>
       </div>
 
       {/* Timeline Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* Track Labels (Left Column) */}
-        <div className="w-48 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+        <div className="w-48 overflow-y-auto border-r border-gray-700 bg-gray-800">
           <div className="h-12 border-b border-gray-700" /> {/* Spacer for ruler */}
-
           {timeline.tracks.map(track => (
             <div
               key={track.id}
-              className="h-16 flex items-center justify-between px-3 border-b border-gray-700"
+              className="flex h-16 items-center justify-between border-b border-gray-700 px-3"
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 {/* eslint-disable-next-line react/forbid-dom-props */}
                 <div
-                  className="w-3 h-3 rounded"
+                  className="h-3 w-3 rounded"
                   style={{ backgroundColor: TRACK_COLORS[track.type] }}
                 />
-                <span className="text-sm truncate">{track.name}</span>
+                <span className="truncate text-sm">{track.name}</span>
               </div>
 
               <div className="flex items-center gap-1">
@@ -298,10 +285,7 @@ export function TimelineEditor({
         </div>
 
         {/* Timeline Tracks (Right Column) */}
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-auto relative"
-        >
+        <div ref={scrollContainerRef} className="relative flex-1 overflow-auto">
           <div
             ref={timelineRef}
             className="relative"
@@ -310,11 +294,7 @@ export function TimelineEditor({
             onClick={handleTimelineClick}
           >
             {/* Time Ruler */}
-            <TimelineRuler
-              duration={timeline.duration}
-              zoom={zoom}
-              fps={timeline.fps}
-            />
+            <TimelineRuler duration={timeline.duration} zoom={zoom} fps={timeline.fps} />
 
             {/* Tracks */}
             {timeline.tracks.map(track => (
@@ -332,11 +312,7 @@ export function TimelineEditor({
             ))}
 
             {/* Playhead */}
-            <TimelinePlayhead
-              currentTime={currentTime}
-              duration={timeline.duration}
-              zoom={zoom}
-            />
+            <TimelinePlayhead currentTime={currentTime} duration={timeline.duration} zoom={zoom} />
           </div>
         </div>
       </div>

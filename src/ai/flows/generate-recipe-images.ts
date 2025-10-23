@@ -1,5 +1,7 @@
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
+
 import type { AIImageGenerationInput } from './ai-image-generation';
 import { generateAIImages } from './ai-image-generation';
 
@@ -52,14 +54,14 @@ const generateRecipeImagesFlow = ai.defineFlow(
     inputSchema: GenerateRecipeImagesInputSchema,
     outputSchema: GenerateRecipeImagesOutputSchema,
   },
-  async (input) => {
+  async input => {
     // Unused helper functions - kept for reference
     // const generateRecipeSpecificImages = async (title: string, cuisine: string, ingredients: string) => {...};
     // const getCuisineFallbackImages = (cuisine: string, title: string) => {...};
 
     try {
       // Step 1: Call AI image generator FIRST to generate custom images
-      console.log('🚀 Starting AI image generation for:', input.title);
+      console.warn('🚀 Starting AI image generation for:', input.title);
 
       try {
         const aiInput: AIImageGenerationInput = {
@@ -72,7 +74,7 @@ const generateRecipeImagesFlow = ai.defineFlow(
 
         const aiResult = await generateAIImages(aiInput);
         if (aiResult && Array.isArray(aiResult.images) && aiResult.images.length > 0) {
-          console.log('✅ AI generation returned', aiResult.images.length, 'images');
+          console.warn('✅ AI generation returned', aiResult.images.length, 'images');
           return aiResult;
         }
 
@@ -84,7 +86,6 @@ const generateRecipeImagesFlow = ai.defineFlow(
         // Return empty - let the AI image generation flow handle placeholders
         return { images: [] };
       }
-
     } catch (err) {
       console.error('Image generation flow failed:', err);
       return { images: [] };

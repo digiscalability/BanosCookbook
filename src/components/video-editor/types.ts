@@ -28,10 +28,10 @@ export interface Resolution {
 export const STANDARD_RESOLUTIONS = {
   '720p': { width: 1280, height: 720 },
   '1080p': { width: 1920, height: 1080 },
-  'tiktok': { width: 1080, height: 1920 }, // Vertical 9:16
+  tiktok: { width: 1080, height: 1920 }, // Vertical 9:16
   'instagram-story': { width: 1080, height: 1920 },
   'instagram-reel': { width: 1080, height: 1920 },
-  'youtube': { width: 1920, height: 1080 },
+  youtube: { width: 1920, height: 1080 },
 } as const;
 
 export interface Track {
@@ -76,7 +76,7 @@ export interface ClipProperties {
     top: number;
     bottom: number;
     left: number;
-    right: number
+    right: number;
   };
 
   // Filters
@@ -220,7 +220,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, Partial<ExportConfig>> = {
     codec: 'h264',
     audioCodec: 'aac',
   },
-  'tiktok': {
+  tiktok: {
     resolution: { width: 1080, height: 1920 },
     fps: 30,
     quality: 'high',
@@ -228,7 +228,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, Partial<ExportConfig>> = {
     codec: 'h264',
     audioCodec: 'aac',
   },
-  'youtube': {
+  youtube: {
     resolution: { width: 1920, height: 1080 },
     fps: 30,
     quality: 'ultra',
@@ -236,7 +236,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, Partial<ExportConfig>> = {
     codec: 'h264',
     audioCodec: 'aac',
   },
-  'facebook': {
+  facebook: {
     resolution: { width: 1280, height: 720 },
     fps: 30,
     quality: 'high',
@@ -244,7 +244,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, Partial<ExportConfig>> = {
     codec: 'h264',
     audioCodec: 'aac',
   },
-  'twitter': {
+  twitter: {
     resolution: { width: 1280, height: 720 },
     fps: 30,
     quality: 'medium',
@@ -252,7 +252,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, Partial<ExportConfig>> = {
     codec: 'h264',
     audioCodec: 'aac',
   },
-  'custom': {},
+  custom: {},
 };
 
 // ============================================================================
@@ -309,12 +309,7 @@ export interface UploadTask {
   assetId?: string; // Created asset ID after upload
 }
 
-export type UploadStatus =
-  | 'pending'
-  | 'uploading'
-  | 'processing'
-  | 'completed'
-  | 'error';
+export type UploadStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'error';
 
 // ============================================================================
 // Rendering

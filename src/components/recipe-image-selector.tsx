@@ -1,11 +1,12 @@
 'use client';
 
+import { Check, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Check, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 export interface GeneratedImage {
   url: string;
@@ -59,7 +60,7 @@ export function RecipeImageSelector({
         }
       }
       if (!cancelled) {
-        setResolvedMap((prev) => ({ ...prev, ...newMap }));
+        setResolvedMap(prev => ({ ...prev, ...newMap }));
         setIsResolving(false);
       }
     }
@@ -106,9 +107,11 @@ export function RecipeImageSelector({
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <div className="text-center space-y-2">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Creating and persisting images for your recipe (this may take a moment)</p>
+            <div className="space-y-2 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Creating and persisting images for your recipe (this may take a moment)
+              </p>
             </div>
           </div>
         </CardContent>
@@ -141,11 +144,13 @@ export function RecipeImageSelector({
           <ImageIcon className="h-5 w-5" />
           Choose a Recipe Image
         </CardTitle>
-        <p className="text-sm text-muted-foreground">Select the image that best represents your recipe</p>
+        <p className="text-sm text-muted-foreground">
+          Select the image that best represents your recipe
+        </p>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {images.map((image, index) => {
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {images.map((image, index) => {
             const isLoading = loadingImages.has(image.url) || isResolving;
             const hasFailed = failedImages.has(image.url);
             const isSelected = selectedImage?.url === image.url;
@@ -158,21 +163,23 @@ export function RecipeImageSelector({
               <div
                 key={index}
                 className={cn(
-                  'relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200',
-                  isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'
+                  'group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200',
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/20'
+                    : 'border-border hover:border-primary/50'
                 )}
-                  onClick={(e) => {
+                onClick={e => {
                   e.preventDefault();
                   if (hasFailed) return;
                   // Toggle selection: if this image is already selected, deselect it
                   if (isSelected) {
-                    onSelectImageAction((null as unknown) as GeneratedImage);
+                    onSelectImageAction(null as unknown as GeneratedImage);
                   } else {
                     onSelectImageAction(image);
                   }
                 }}
               >
-                <div className="aspect-video relative bg-muted">
+                <div className="relative aspect-video bg-muted">
                   {isLoading ? (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -180,7 +187,7 @@ export function RecipeImageSelector({
                   ) : hasFailed ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-muted">
                       <div className="text-center">
-                        <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                        <ImageIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground">Image failed to load</p>
                       </div>
                     </div>
@@ -189,7 +196,7 @@ export function RecipeImageSelector({
                     <img
                       src={resolvedUrl}
                       alt={image.description || 'Recipe image'}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                       onLoad={() => handleImageLoad(image.url)}
                       onError={() => handleImageError(image.url)}
                       loading="eager"
@@ -198,18 +205,18 @@ export function RecipeImageSelector({
                   )}
 
                   {isSelected && !hasFailed && (
-                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                    <div className="absolute right-2 top-2 rounded-full bg-primary p-1 text-primary-foreground">
                       <Check className="h-4 w-4" />
                     </div>
                   )}
 
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
                 </div>
 
-                <div className="p-3 space-y-2">
+                <div className="space-y-2 p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-medium text-sm line-clamp-2">{image.description}</h4>
-                    <Badge variant="secondary" className="text-xs shrink-0">
+                    <h4 className="line-clamp-2 text-sm font-medium">{image.description}</h4>
+                    <Badge variant="secondary" className="shrink-0 text-xs">
                       {image.style}
                     </Badge>
                   </div>
@@ -220,18 +227,22 @@ export function RecipeImageSelector({
                     size="sm"
                     className="w-full"
                     disabled={hasFailed}
-                      onClick={(e) => {
+                    onClick={e => {
                       e.preventDefault();
                       e.stopPropagation();
-                          if (hasFailed) return;
-                          if (isSelected) {
-                            onSelectImageAction((null as unknown) as GeneratedImage);
-                          } else {
-                            onSelectImageAction(image);
-                          }
+                      if (hasFailed) return;
+                      if (isSelected) {
+                        onSelectImageAction(null as unknown as GeneratedImage);
+                      } else {
+                        onSelectImageAction(image);
+                      }
                     }}
                   >
-                    {hasFailed ? 'Image Unavailable' : isSelected ? 'Selected' : 'Select This Image'}
+                    {hasFailed
+                      ? 'Image Unavailable'
+                      : isSelected
+                        ? 'Selected'
+                        : 'Select This Image'}
                   </Button>
                 </div>
               </div>

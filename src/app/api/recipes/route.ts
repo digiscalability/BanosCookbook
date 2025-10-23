@@ -1,7 +1,9 @@
-import { shareRecipeToInstagram } from '@/app/actions';
-import type { Comment, Recipe } from '@/lib/types';
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
+import { shareRecipeToInstagram } from '@/app/actions';
+import type { Comment, Recipe } from '@/lib/types';
+
 import adminConfig from '../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -20,7 +22,7 @@ export const revalidate = 0;
 
 const IMAGE_FETCH_TIMEOUT_MS = 3000;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const slugifyForImage = (value: string | undefined | null) =>
   (value ?? 'recipe')
@@ -39,7 +41,7 @@ const escapeHtml = (str: string) =>
 
 const coerceComments = (raw: unknown): Comment[] => {
   if (!raw || !Array.isArray(raw)) return [];
-  return (raw as unknown[]).map((item) => {
+  return (raw as unknown[]).map(item => {
     const comment = item as Record<string, unknown>;
     return {
       id: (comment.id as string) || '',
@@ -70,7 +72,7 @@ const serializeRecipe = (doc: firestore.DocumentSnapshot<firestore.DocumentData>
     description: (data?.['description'] as string) || '',
     author: (data?.['author'] as string) || 'Unknown',
     authorEmail: data?.['authorEmail'] as string | undefined,
-      imageUrl: data?.['imageUrl'] as string | undefined,
+    imageUrl: data?.['imageUrl'] as string | undefined,
     ingredients: Array.isArray(data?.['ingredients']) ? (data?.['ingredients'] as string[]) : [],
     instructions: Array.isArray(data?.['instructions']) ? (data?.['instructions'] as string[]) : [],
     prepTime: (data?.['prepTime'] as string) || '',
@@ -88,7 +90,7 @@ const serializeRecipe = (doc: firestore.DocumentSnapshot<firestore.DocumentData>
 
 const filterRecipeFields = (recipe: Recipe, fields: string[]) => {
   const filtered: Record<string, unknown> = {};
-  fields.forEach((field) => {
+  fields.forEach(field => {
     if (field in recipe) {
       filtered[field] = recipe[field as keyof Recipe];
     }
@@ -110,10 +112,15 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 20;
     const cuisineFilter = searchParams.get('cuisine');
     const fieldsParam = searchParams.get('fields');
-    const fields = fieldsParam ? fieldsParam.split(',').map((f) => f.trim()).filter(Boolean) : null;
+    const fields = fieldsParam
+      ? fieldsParam
+          .split(',')
+          .map(f => f.trim())
+          .filter(Boolean)
+      : null;
 
-  const db = getDb();
-  let queryRef: firestore.Query<firestore.DocumentData> = db.collection('recipes');
+    const db = getDb();
+    let queryRef: firestore.Query<firestore.DocumentData> = db.collection('recipes');
 
     if (cuisineFilter) {
       queryRef = queryRef.where('cuisine', '==', cuisineFilter);
@@ -122,8 +129,8 @@ export async function GET(request: NextRequest) {
     queryRef = queryRef.orderBy('createdAt', 'desc').limit(limit);
 
     const snapshot = await queryRef.get();
-    const recipes = snapshot.docs.map((doc) => serializeRecipe(doc));
-    const payload = fields ? recipes.map((recipe) => filterRecipeFields(recipe, fields)) : recipes;
+    const recipes = snapshot.docs.map(doc => serializeRecipe(doc));
+    const payload = fields ? recipes.map(recipe => filterRecipeFields(recipe, fields)) : recipes;
 
     return NextResponse.json({
       count: recipes.length,
@@ -132,10 +139,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching recipes:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch recipes' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch recipes' }, { status: 500 });
   }
 }
 
@@ -146,10 +150,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!recipeData.title || !recipeData.author) {
-      return NextResponse.json(
-        { error: 'Title and author are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Title and author are required' }, { status: 400 });
     }
 
     const admin = getAdmin();
@@ -157,22 +158,33 @@ export async function POST(request: NextRequest) {
     // If an image URL or data URI was provided by the client (selectedImageUrl),
     // attempt to upload it to Firebase Storage and replace imageId with a stable
     // public storage URL. This avoids storing fragile third-party redirect URLs.
-  let imageIdValue = recipeData.imageId as string | undefined;
-  // Prefer an explicit selectedImageUrl or imageUrl from the client payload over the legacy imageId.
-  const selectedImageUrl = (recipeData.selectedImageUrl as string) || (recipeData.imageUrl as string) || (recipeData.imageId as string) || '';
-  console.log('Recipe image inputs:', { providedImageId: recipeData.imageId, providedSelectedImageUrl: recipeData.selectedImageUrl, providedImageUrl: recipeData.imageUrl, resolvedSelectedImageUrl: selectedImageUrl });
+    let imageIdValue = recipeData.imageId as string | undefined;
+    // Prefer an explicit selectedImageUrl or imageUrl from the client payload over the legacy imageId.
+    const selectedImageUrl =
+      (recipeData.selectedImageUrl as string) ||
+      (recipeData.imageUrl as string) ||
+      (recipeData.imageId as string) ||
+      '';
+    console.warn('Recipe image inputs:', {
+      providedImageId: recipeData.imageId,
+      providedSelectedImageUrl: recipeData.selectedImageUrl,
+      providedImageUrl: recipeData.imageUrl,
+      resolvedSelectedImageUrl: selectedImageUrl,
+    });
 
     async function uploadImageToStorage(rawUrl: string) {
       if (!rawUrl) return undefined;
       // Resolve a bucket similar to the upload route so we don't attempt to write to a non-existent bucket
       async function resolveBucket() {
         const candidates: string[] = [];
-        if (process.env.FIREBASE_STORAGE_BUCKET) candidates.push(process.env.FIREBASE_STORAGE_BUCKET);
+        if (process.env.FIREBASE_STORAGE_BUCKET)
+          candidates.push(process.env.FIREBASE_STORAGE_BUCKET);
         try {
-          const apps = (admin.apps as unknown) as Array<{ options?: Record<string, unknown> }>;
+          const apps = admin.apps as unknown as Array<{ options?: Record<string, unknown> }>;
           if (apps && apps.length > 0 && apps[0].options) {
             const opts = apps[0].options as Record<string, unknown>;
-            if (typeof opts.storageBucket === 'string' && opts.storageBucket) candidates.push(opts.storageBucket as string);
+            if (typeof opts.storageBucket === 'string' && opts.storageBucket)
+              candidates.push(opts.storageBucket as string);
             if (typeof opts.projectId === 'string' && opts.projectId) {
               const pid = opts.projectId as string;
               candidates.push(`${pid}.appspot.com`);
@@ -187,7 +199,7 @@ export async function POST(request: NextRequest) {
           candidates.push(`${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`);
         }
         const seen = new Set<string>();
-        const uniq = candidates.filter((c) => {
+        const uniq = candidates.filter(c => {
           if (!c) return false;
           if (seen.has(c)) return false;
           seen.add(c);
@@ -196,10 +208,14 @@ export async function POST(request: NextRequest) {
         for (const name of uniq) {
           try {
             const b = admin.storage().bucket(name);
-            const existsResUnknown = await (b as unknown as { exists?: () => Promise<unknown> }).exists?.();
-            const exists = Array.isArray(existsResUnknown) ? (existsResUnknown as unknown[])[0] === true : Boolean(existsResUnknown);
+            const existsResUnknown = await (
+              b as unknown as { exists?: () => Promise<unknown> }
+            ).exists?.();
+            const exists = Array.isArray(existsResUnknown)
+              ? (existsResUnknown as unknown[])[0] === true
+              : Boolean(existsResUnknown);
             if (exists) {
-              console.log('Resolved storage bucket for recipes route:', name);
+              console.warn('Resolved storage bucket for recipes route:', name);
               return b;
             }
           } catch (err) {
@@ -231,8 +247,11 @@ export async function POST(request: NextRequest) {
           const backoffs = [0, 500, 1000];
           for (let attempt = 1; attempt <= 3; attempt++) {
             if (attempt > 1) await sleep(backoffs[attempt - 1]);
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS * 2) : undefined;
+            const controller =
+              typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller
+              ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS * 2)
+              : undefined;
             try {
               const resp = await fetch(rawUrl, { method: 'GET', signal: controller?.signal });
               if (!resp.ok) {
@@ -254,7 +273,10 @@ export async function POST(request: NextRequest) {
 
           if (!buffer) {
             const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-            console.warn('Failed to fetch external image for upload after retries', { url: rawUrl, error: errMsg });
+            console.warn('Failed to fetch external image for upload after retries', {
+              url: rawUrl,
+              error: errMsg,
+            });
             // Generate a simple SVG placeholder (so we don't persist fragile redirects)
             try {
               const safeText = slugifyForImage(rawUrl).replace(/[^a-z0-9\-]/gi, ' ');
@@ -270,31 +292,41 @@ export async function POST(request: NextRequest) {
 
         const ext = (contentType.split('/')[1] || 'jpg').split('+')[0];
         const filename = `recipes/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
-  const file = bucket.file(filename);
+        const file = bucket.file(filename);
 
         try {
           await file.save(buffer, { metadata: { contentType } });
         } catch (err) {
-          console.error('Failed to save file to storage', { url: rawUrl, filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.error('Failed to save file to storage', {
+            url: rawUrl,
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
           return undefined;
         }
 
         let madePublic = false;
         try {
-          if (typeof (file as unknown as StorageFileLike).makePublic === 'function') {
-            await (file as unknown as StorageFileLike).makePublic!();
+          const candidate = file as unknown as StorageFileLike;
+          if (typeof candidate.makePublic === 'function') {
+            await candidate.makePublic();
             madePublic = true;
           } else {
             madePublic = false;
           }
         } catch (err) {
-          console.warn('makePublic failed', { filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.warn('makePublic failed', {
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
           madePublic = false;
         }
 
         if (madePublic) {
           const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-          console.log('Persisted image (public):', { url: publicUrl, source: rawUrl });
+          console.warn('Persisted image (public):', { url: publicUrl, source: rawUrl });
           return publicUrl;
         }
 
@@ -304,26 +336,36 @@ export async function POST(request: NextRequest) {
           if (typeof signedUrlGetter === 'function') {
             const [signedUrl] = await signedUrlGetter.call(file, { action: 'read', expires });
             if (signedUrl) {
-              console.log('Persisted image (signed):', { url: signedUrl, source: rawUrl });
+              console.warn('Persisted image (signed):', { url: signedUrl, source: rawUrl });
               return signedUrl;
             }
           }
         } catch (err) {
-          console.warn('getSignedUrl failed', { filename, bucket: bucket.name, error: err instanceof Error ? err.message : String(err) });
+          console.warn('getSignedUrl failed', {
+            filename,
+            bucket: bucket.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
 
         const fallbackUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-        console.log('Persisted image (fallback):', { url: fallbackUrl, source: rawUrl });
+        console.warn('Persisted image (fallback):', { url: fallbackUrl, source: rawUrl });
         return fallbackUrl;
       } catch (error) {
-        console.warn('Failed to upload image to storage:', error instanceof Error ? error.message : error);
+        console.warn(
+          'Failed to upload image to storage:',
+          error instanceof Error ? error.message : error
+        );
         return undefined;
       }
     }
 
     // If the client provided a selectedImageUrl or imageId that looks like an external URL or data URI,
     // upload and replace it.
-    if (selectedImageUrl && (selectedImageUrl.startsWith('http') || selectedImageUrl.startsWith('data:'))) {
+    if (
+      selectedImageUrl &&
+      (selectedImageUrl.startsWith('http') || selectedImageUrl.startsWith('data:'))
+    ) {
       const uploaded = await uploadImageToStorage(selectedImageUrl);
       if (uploaded) {
         imageIdValue = uploaded;
@@ -345,11 +387,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-  // Additionally, the client may send an `imageUrl` field (for generated images). Avoid storing
+    // Additionally, the client may send an `imageUrl` field (for generated images). Avoid storing
     // very large data URIs or raw image data in Firestore (which has a ~1MB field limit). If we
     // detect a large data URI, attempt to upload it to Storage and replace it with a stable URL.
     let finalImageUrl: string | undefined = undefined;
-    const clientImageUrl = (recipeData as Record<string, unknown>)['imageUrl'] as string | undefined;
+    const clientImageUrl = (recipeData as Record<string, unknown>)['imageUrl'] as
+      | string
+      | undefined;
     try {
       if (clientImageUrl) {
         const looksLikeData = clientImageUrl.startsWith('data:');
@@ -381,9 +425,16 @@ export async function POST(request: NextRequest) {
 
     // If we uploaded the selected image earlier and stored the uploaded URL in imageIdValue,
     // prefer that as the canonical imageUrl (so UI and Instagram posting use it).
-    if (!finalImageUrl && typeof imageIdValue === 'string' && (imageIdValue.startsWith('http') || imageIdValue.startsWith('data:'))) {
+    if (
+      !finalImageUrl &&
+      typeof imageIdValue === 'string' &&
+      (imageIdValue.startsWith('http') || imageIdValue.startsWith('data:'))
+    ) {
       finalImageUrl = imageIdValue;
-      console.log('Using uploaded image URL as finalImageUrl for recipe:', finalImageUrl?.slice?.(0, 100));
+      console.warn(
+        'Using uploaded image URL as finalImageUrl for recipe:',
+        finalImageUrl?.slice?.(0, 100)
+      );
     }
 
     const newRecipe = {
@@ -398,88 +449,107 @@ export async function POST(request: NextRequest) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-  const db = getDb();
-  const docRef = await db.collection('recipes').add(newRecipe);
-  const createdDoc = await docRef.get();
-  console.log('Created recipe document data:', createdDoc.data());
+    const db = getDb();
+    const docRef = await db.collection('recipes').add(newRecipe);
+    const createdDoc = await docRef.get();
+    console.warn('Created recipe document data:', createdDoc.data());
 
-  // If the client requested posting to Instagram and we have a public image URL, attempt to post asynchronously.
-  try {
-    const wantsInstagram = Boolean((recipeData as Record<string, unknown>).postToInstagram);
-    const publicImageUrl = (newRecipe.imageUrl as string) || (newRecipe.imageId as string) || '';
-    if (wantsInstagram) {
-      if (publicImageUrl && !publicImageUrl.startsWith('data:')) {
-        // fire-and-forget; log result when it completes
-        void shareRecipeToInstagram(docRef.id)
-          .then((res) => {
-            if (!res.success) console.warn('Instagram posting failed for recipe', docRef.id, res.error);
-            else console.log('Instagram posted for recipe', docRef.id, res.permalink);
-          })
-          .catch((err) => console.error('Error during Instagram post attempt:', err));
-      } else {
-        console.warn('Skipping Instagram post: no public image URL available for recipe', docRef.id);
-      }
-    }
-  } catch (igErr) {
-    console.error('Error scheduling Instagram post (non-fatal):', igErr);
-  }
-
-  // Ensure the image URL stored in the recipe is accessible from the browser.
-  try {
-    const candidate = (newRecipe.imageUrl as string) || (newRecipe.imageId as string) || '';
-    if (candidate && (candidate.includes('storage.googleapis.com') || candidate.includes('firebasestorage.googleapis.com'))) {
-      try {
-        const admin = getAdmin();
-        // Try to derive bucket/name from common URL formats
-        let bucketName: string | undefined;
-        let filePath: string | undefined;
-
-        try {
-          const u = new URL(candidate);
-          if (u.hostname === 'storage.googleapis.com') {
-            // path: /{bucket}/{path}
-            const parts = u.pathname.split('/').filter(Boolean);
-            bucketName = parts.shift();
-            filePath = parts.join('/');
-          } else if (u.hostname.endsWith('firebasestorage.googleapis.com')) {
-            // path: /v0/b/{bucket}/o/{encodedPath}
-            const parts = u.pathname.split('/').filter(Boolean);
-            const bIndex = parts.indexOf('b');
-            const oIndex = parts.indexOf('o');
-            if (bIndex >= 0 && parts[bIndex + 1]) bucketName = parts[bIndex + 1];
-            if (oIndex >= 0 && parts[oIndex + 1]) filePath = decodeURIComponent(parts[oIndex + 1]);
-          }
-        } catch {
-          // ignore
+    // If the client requested posting to Instagram and we have a public image URL, attempt to post asynchronously.
+    try {
+      const wantsInstagram = Boolean((recipeData as Record<string, unknown>).postToInstagram);
+      const publicImageUrl = (newRecipe.imageUrl as string) || (newRecipe.imageId as string) || '';
+      if (wantsInstagram) {
+        if (publicImageUrl && !publicImageUrl.startsWith('data:')) {
+          // fire-and-forget; log result when it completes
+          void shareRecipeToInstagram(docRef.id)
+            .then(res => {
+              if (!res.success)
+                console.warn('Instagram posting failed for recipe', docRef.id, res.error);
+              else console.warn('Instagram posted for recipe', docRef.id, res.permalink);
+            })
+            .catch(err => console.error('Error during Instagram post attempt:', err));
+        } else {
+          console.warn(
+            'Skipping Instagram post: no public image URL available for recipe',
+            docRef.id
+          );
         }
+      }
+    } catch (igErr) {
+      console.error('Error scheduling Instagram post (non-fatal):', igErr);
+    }
 
-        if (bucketName && filePath) {
-          const bucket = admin.storage().bucket(bucketName);
-          const file = bucket.file(filePath);
-          // Try to create a signed URL so browsers can fetch it even when ACLs are restricted
-          if (typeof (file as unknown as { getSignedUrl?: unknown }).getSignedUrl === 'function') {
-            try {
-              const expires = Date.now() + 1000 * 60 * 60 * 24 * 365;
-              const getter = (file as unknown) as { getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]> };
-              if (typeof getter.getSignedUrl === 'function') {
-                const [signedUrl] = await getter.getSignedUrl({ action: 'read', expires });
-                if (signedUrl) {
-                  await docRef.update({ imageUrl: signedUrl, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                  console.log('Updated recipe imageUrl to signed URL for public access');
+    // Ensure the image URL stored in the recipe is accessible from the browser.
+    try {
+      const candidate = (newRecipe.imageUrl as string) || (newRecipe.imageId as string) || '';
+      if (
+        candidate &&
+        (candidate.includes('storage.googleapis.com') ||
+          candidate.includes('firebasestorage.googleapis.com'))
+      ) {
+        try {
+          const admin = getAdmin();
+          // Try to derive bucket/name from common URL formats
+          let bucketName: string | undefined;
+          let filePath: string | undefined;
+
+          try {
+            const u = new URL(candidate);
+            if (u.hostname === 'storage.googleapis.com') {
+              // path: /{bucket}/{path}
+              const parts = u.pathname.split('/').filter(Boolean);
+              bucketName = parts.shift();
+              filePath = parts.join('/');
+            } else if (u.hostname.endsWith('firebasestorage.googleapis.com')) {
+              // path: /v0/b/{bucket}/o/{encodedPath}
+              const parts = u.pathname.split('/').filter(Boolean);
+              const bIndex = parts.indexOf('b');
+              const oIndex = parts.indexOf('o');
+              if (bIndex >= 0 && parts[bIndex + 1]) bucketName = parts[bIndex + 1];
+              if (oIndex >= 0 && parts[oIndex + 1])
+                filePath = decodeURIComponent(parts[oIndex + 1]);
+            }
+          } catch {
+            // ignore
+          }
+
+          if (bucketName && filePath) {
+            const bucket = admin.storage().bucket(bucketName);
+            const file = bucket.file(filePath);
+            // Try to create a signed URL so browsers can fetch it even when ACLs are restricted
+            if (
+              typeof (file as unknown as { getSignedUrl?: unknown }).getSignedUrl === 'function'
+            ) {
+              try {
+                const expires = Date.now() + 1000 * 60 * 60 * 24 * 365;
+                const getter = file as unknown as {
+                  getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]>;
+                };
+                if (typeof getter.getSignedUrl === 'function') {
+                  const [signedUrl] = await getter.getSignedUrl({ action: 'read', expires });
+                  if (signedUrl) {
+                    await docRef.update({
+                      imageUrl: signedUrl,
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    console.warn('Updated recipe imageUrl to signed URL for public access');
+                  }
                 }
+              } catch (signErr) {
+                console.warn(
+                  'Failed to generate signed URL for recipe image (non-fatal):',
+                  signErr instanceof Error ? signErr.message : signErr
+                );
               }
-            } catch (signErr) {
-              console.warn('Failed to generate signed URL for recipe image (non-fatal):', signErr instanceof Error ? signErr.message : signErr);
             }
           }
+        } catch {
+          console.warn('Error while attempting to ensure recipe image accessibility (non-fatal)');
         }
-      } catch {
-        console.warn('Error while attempting to ensure recipe image accessibility (non-fatal)');
       }
+    } catch {
+      console.warn('Accessibility check for recipe image failed (non-fatal)');
     }
-  } catch {
-    console.warn('Accessibility check for recipe image failed (non-fatal)');
-  }
 
     return NextResponse.json({
       id: docRef.id,
@@ -487,9 +557,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating recipe:', error);
-    return NextResponse.json(
-      { error: 'Failed to create recipe' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create recipe' }, { status: 500 });
   }
 }

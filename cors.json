@@ -1,7 +1,7 @@
 [
   {
-    "origin": ["https://www.banoscookbook.com"],
-    "method": ["GET", "HEAD"],
+    "origin": ["https://www.banoscookbook.com", "http://localhost:9002", "http://localhost:3000"],
+    "method": ["GET", "HEAD", "PUT", "POST"],
     "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"],
     "maxAgeSeconds": 3600
   }

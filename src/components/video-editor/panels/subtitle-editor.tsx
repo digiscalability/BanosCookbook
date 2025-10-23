@@ -1,29 +1,31 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import {
+    Clock,
+    Download,
+    Edit3,
+    Eye,
+    EyeOff,
+    FileText,
+    Plus,
+    Save,
+    Trash2,
+    Type,
+    Upload,
+    X,
+} from 'lucide-react';
+import React, { useCallback, useRef, useState } from 'react';
+import { stringifySync } from 'subtitle';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { VideoClip, SubtitleTrack, SubtitleCue } from '@/lib/types/video-editor';
-import {
-  Upload,
-  Download,
-  Plus,
-  Trash2,
-  Edit3,
-  Save,
-  X,
-  Type,
-  Clock,
-  FileText,
-  Eye,
-  EyeOff
-} from 'lucide-react';
-import { parseSync, stringifySync, parseTimestamp, formatTimestamp } from 'subtitle';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { showNotification } from '@/lib/notify';
+import { SubtitleCue, SubtitleTrack, VideoClip } from '@/lib/types/video-editor';
 
 interface SubtitleEditorProps {
   activeClip: VideoClip | null;
@@ -40,20 +42,20 @@ interface SubtitleEditorProps {
 }
 
 export default function SubtitleEditor({
-  activeClip,
+  activeClip: _activeClip,
   subtitleTracks,
   onSubtitleUpload,
-  onSubtitleTrackAdd,
+  onSubtitleTrackAdd: _onSubtitleTrackAdd,
   onSubtitleTrackUpdate,
   onSubtitleTrackDelete,
   onSubtitleCueAdd,
   onSubtitleCueUpdate,
   onSubtitleCueDelete,
   currentTime,
-  onSeekTo
+  onSeekTo,
 }: SubtitleEditorProps) {
   const [dragOver, setDragOver] = useState(false);
-  const [editingCue, setEditingCue] = useState<{trackId: string, cueId: string} | null>(null);
+  const [editingCue, setEditingCue] = useState<{ trackId: string; cueId: string } | null>(null);
   const [editingText, setEditingText] = useState('');
   const [editingStart, setEditingStart] = useState('');
   const [editingEnd, setEditingEnd] = useState('');
@@ -62,22 +64,28 @@ export default function SubtitleEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // File upload handling
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt'))) {
-      onSubtitleUpload(file);
-    }
-  }, [onSubtitleUpload]);
+  const handleFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt'))) {
+        onSubtitleUpload(file);
+      }
+    },
+    [onSubtitleUpload]
+  );
 
-  const handleDrop = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    setDragOver(false);
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      setDragOver(false);
 
-    const file = event.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt'))) {
-      onSubtitleUpload(file);
-    }
-  }, [onSubtitleUpload]);
+      const file = event.dataTransfer.files[0];
+      if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt'))) {
+        onSubtitleUpload(file);
+      }
+    },
+    [onSubtitleUpload]
+  );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -129,14 +137,14 @@ export default function SubtitleEditor({
     const endTime = parseTime(editingEnd);
 
     if (startTime >= endTime) {
-      alert('End time must be after start time');
+      showNotification('End time must be after start time', 'error');
       return;
     }
 
     onSubtitleCueUpdate(editingCue.trackId, editingCue.cueId, {
       text: editingText,
       startTime,
-      endTime
+      endTime,
     });
 
     setEditingCue(null);
@@ -165,8 +173,8 @@ export default function SubtitleEditor({
         fontSize: '16px',
         color: '#ffffff',
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        fontFamily: 'Arial, sans-serif'
-      }
+        fontFamily: 'Arial, sans-serif',
+      },
     };
 
     onSubtitleCueAdd(trackId, newCue);
@@ -181,8 +189,8 @@ export default function SubtitleEditor({
         data: {
           start: Math.round(cue.startTime * 1000),
           end: Math.round(cue.endTime * 1000),
-          text: cue.text
-        }
+          text: cue.text,
+        },
       }));
 
       const srtContent = stringifySync(nodes, { format: 'SRT' });
@@ -198,23 +206,23 @@ export default function SubtitleEditor({
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export SRT:', error);
-      alert('Failed to export subtitle file');
+      showNotification('Failed to export subtitle file', 'error');
     }
   };
 
   // Get current cue for each track
   const getCurrentCue = (track: SubtitleTrack): SubtitleCue | null => {
-    return track.cues.find(cue =>
-      currentTime >= cue.startTime && currentTime <= cue.endTime
-    ) || null;
+    return (
+      track.cues.find(cue => currentTime >= cue.startTime && currentTime <= cue.endTime) || null
+    );
   };
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-4">
+    <div className="flex h-full flex-col space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Type className="w-5 h-5" />
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
+          <Type className="h-5 w-5" />
           Subtitles & Captions
         </h3>
         <Badge variant="secondary" className="text-xs">
@@ -224,7 +232,7 @@ export default function SubtitleEditor({
 
       {/* Subtitle Upload Area */}
       <Card
-        className={`border-2 border-dashed transition-colors cursor-pointer ${
+        className={`cursor-pointer border-2 border-dashed transition-colors ${
           dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
         }`}
         onDrop={handleDrop}
@@ -240,30 +248,21 @@ export default function SubtitleEditor({
             onChange={handleFileUpload}
             className="hidden"
           />
-          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-          <p className="text-sm text-gray-600 mb-1">
-            Drop subtitle files here or click to browse
-          </p>
-          <p className="text-xs text-gray-400">
-            Supports SRT and WebVTT formats
-          </p>
+          <Upload className="mx-auto mb-2 h-8 w-8 text-gray-400" />
+          <p className="mb-1 text-sm text-gray-600">Drop subtitle files here or click to browse</p>
+          <p className="text-xs text-gray-400">Supports SRT and WebVTT formats</p>
         </CardContent>
       </Card>
 
       {/* Current Time Display */}
-      <Card className="bg-blue-50 border-blue-200">
+      <Card className="border-blue-200 bg-blue-50">
         <CardContent className="p-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-blue-700 font-medium flex items-center gap-2">
-              <Clock className="w-4 h-4" />
+            <span className="flex items-center gap-2 font-medium text-blue-700">
+              <Clock className="h-4 w-4" />
               Current Time: {formatTime(currentTime)}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSeekTo(0)}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => onSeekTo(0)} className="text-xs">
               Reset
             </Button>
           </div>
@@ -271,35 +270,39 @@ export default function SubtitleEditor({
       </Card>
 
       {/* Subtitle Tracks */}
-      <div className="flex-1 overflow-y-auto space-y-3">
+      <div className="flex-1 space-y-3 overflow-y-auto">
         {subtitleTracks.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <div className="py-8 text-center text-gray-500">
+            <FileText className="mx-auto mb-3 h-12 w-12 text-gray-300" />
             <p className="text-sm">No subtitle tracks added yet</p>
             <p className="text-xs text-gray-400">Upload SRT/VTT files or create new tracks</p>
           </div>
         ) : (
-          subtitleTracks.map((track) => {
+          subtitleTracks.map(track => {
             const currentCue = getCurrentCue(track);
             const isExpanded = expandedTrack === track.id;
 
             return (
-              <Card key={track.id} className="bg-white border">
+              <Card key={track.id} className="border bg-white">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium truncate flex-1">
+                    <CardTitle className="flex-1 truncate text-sm font-medium">
                       {track.name}
                     </CardTitle>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="ml-2 flex items-center gap-1">
                       {/* Visibility Toggle */}
                       <Button
-                        variant={track.visible ? "default" : "ghost"}
+                        variant={track.visible ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => onSubtitleTrackUpdate(track.id, { visible: !track.visible })}
                         className="h-7 w-7 p-0"
-                        title={track.visible ? "Hide" : "Show"}
+                        title={track.visible ? 'Hide' : 'Show'}
                       >
-                        {track.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                        {track.visible ? (
+                          <Eye className="h-3 w-3" />
+                        ) : (
+                          <EyeOff className="h-3 w-3" />
+                        )}
                       </Button>
 
                       {/* Expand Toggle */}
@@ -308,9 +311,9 @@ export default function SubtitleEditor({
                         size="sm"
                         onClick={() => setExpandedTrack(isExpanded ? null : track.id)}
                         className="h-7 w-7 p-0"
-                        title={isExpanded ? "Collapse" : "Expand"}
+                        title={isExpanded ? 'Collapse' : 'Expand'}
                       >
-                        {isExpanded ? "−" : "+"}
+                        {isExpanded ? '−' : '+'}
                       </Button>
 
                       {/* Export Button */}
@@ -321,7 +324,7 @@ export default function SubtitleEditor({
                         className="h-7 w-7 p-0"
                         title="Export as SRT"
                       >
-                        <Download className="w-3 h-3" />
+                        <Download className="h-3 w-3" />
                       </Button>
 
                       {/* Delete Button */}
@@ -332,20 +335,22 @@ export default function SubtitleEditor({
                         className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
                         title="Delete track"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
 
                   {/* Track Info */}
                   <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span>{track.cues.length} cue{track.cues.length !== 1 ? 's' : ''}</span>
+                    <span>
+                      {track.cues.length} cue{track.cues.length !== 1 ? 's' : ''}
+                    </span>
                     <span>•</span>
                     <span>{track.language}</span>
                     {!track.visible && (
                       <>
                         <span>•</span>
-                        <Badge variant="secondary" className="text-xs px-1 py-0">
+                        <Badge variant="secondary" className="px-1 py-0 text-xs">
                           HIDDEN
                         </Badge>
                       </>
@@ -354,10 +359,10 @@ export default function SubtitleEditor({
 
                   {/* Current Cue Display */}
                   {currentCue && track.visible && (
-                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                      <div className="text-blue-700 font-medium mb-1">Currently Showing:</div>
+                    <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-sm">
+                      <div className="mb-1 font-medium text-blue-700">Currently Showing:</div>
                       <div className="text-blue-900">{currentCue.text}</div>
-                      <div className="text-blue-600 text-xs mt-1">
+                      <div className="mt-1 text-xs text-blue-600">
                         {formatTime(currentCue.startTime)} → {formatTime(currentCue.endTime)}
                       </div>
                     </div>
@@ -365,7 +370,7 @@ export default function SubtitleEditor({
                 </CardHeader>
 
                 {isExpanded && (
-                  <CardContent className="pt-0 space-y-4">
+                  <CardContent className="space-y-4 pt-0">
                     {/* Add New Cue */}
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">Add Cue at Current Time</Label>
@@ -373,8 +378,8 @@ export default function SubtitleEditor({
                         <Textarea
                           placeholder="Enter subtitle text..."
                           value={newCueText}
-                          onChange={(e) => setNewCueText(e.target.value)}
-                          className="text-sm min-h-[60px]"
+                          onChange={e => setNewCueText(e.target.value)}
+                          className="min-h-[60px] text-sm"
                         />
                         <Button
                           onClick={() => addCueAtCurrentTime(track.id)}
@@ -382,7 +387,7 @@ export default function SubtitleEditor({
                           size="sm"
                           className="shrink-0"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       <p className="text-xs text-gray-500">
@@ -393,18 +398,20 @@ export default function SubtitleEditor({
                     <Separator />
 
                     {/* Cue List */}
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div className="max-h-64 space-y-2 overflow-y-auto">
                       <Label className="text-xs font-medium">Subtitle Cues</Label>
                       {track.cues.length === 0 ? (
-                        <p className="text-xs text-gray-500 text-center py-4">
+                        <p className="py-4 text-center text-xs text-gray-500">
                           No cues in this track
                         </p>
                       ) : (
                         track.cues
                           .sort((a, b) => a.startTime - b.startTime)
-                          .map((cue) => {
-                            const isEditing = editingCue?.trackId === track.id && editingCue?.cueId === cue.id;
-                            const isActive = currentTime >= cue.startTime && currentTime <= cue.endTime;
+                          .map(cue => {
+                            const isEditing =
+                              editingCue?.trackId === track.id && editingCue?.cueId === cue.id;
+                            const isActive =
+                              currentTime >= cue.startTime && currentTime <= cue.endTime;
 
                             return (
                               <Card
@@ -415,7 +422,7 @@ export default function SubtitleEditor({
                                   <div className="space-y-3">
                                     <Textarea
                                       value={editingText}
-                                      onChange={(e) => setEditingText(e.target.value)}
+                                      onChange={e => setEditingText(e.target.value)}
                                       className="text-sm"
                                       placeholder="Subtitle text..."
                                     />
@@ -424,7 +431,7 @@ export default function SubtitleEditor({
                                         <Label className="text-xs">Start Time</Label>
                                         <Input
                                           value={editingStart}
-                                          onChange={(e) => setEditingStart(e.target.value)}
+                                          onChange={e => setEditingStart(e.target.value)}
                                           placeholder="0:00.000"
                                           className="text-xs"
                                         />
@@ -433,7 +440,7 @@ export default function SubtitleEditor({
                                         <Label className="text-xs">End Time</Label>
                                         <Input
                                           value={editingEnd}
-                                          onChange={(e) => setEditingEnd(e.target.value)}
+                                          onChange={e => setEditingEnd(e.target.value)}
                                           placeholder="0:03.000"
                                           className="text-xs"
                                         />
@@ -441,20 +448,20 @@ export default function SubtitleEditor({
                                     </div>
                                     <div className="flex gap-2">
                                       <Button size="sm" onClick={saveEditingCue}>
-                                        <Save className="w-3 h-3 mr-1" />
+                                        <Save className="mr-1 h-3 w-3" />
                                         Save
                                       </Button>
                                       <Button size="sm" variant="ghost" onClick={cancelEditingCue}>
-                                        <X className="w-3 h-3 mr-1" />
+                                        <X className="mr-1 h-3 w-3" />
                                         Cancel
                                       </Button>
                                     </div>
                                   </div>
                                 ) : (
                                   <div>
-                                    <div className="flex items-start justify-between mb-2">
+                                    <div className="mb-2 flex items-start justify-between">
                                       <div className="flex-1">
-                                        <p className="text-sm font-medium mb-1">{cue.text}</p>
+                                        <p className="mb-1 text-sm font-medium">{cue.text}</p>
                                         <div className="flex items-center gap-2 text-xs text-gray-500">
                                           <span>{formatTime(cue.startTime)}</span>
                                           <span>→</span>
@@ -469,14 +476,14 @@ export default function SubtitleEditor({
                                           </Button>
                                         </div>
                                       </div>
-                                      <div className="flex gap-1 ml-2">
+                                      <div className="ml-2 flex gap-1">
                                         <Button
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => startEditingCue(track.id, cue)}
                                           className="h-6 w-6 p-0"
                                         >
-                                          <Edit3 className="w-3 h-3" />
+                                          <Edit3 className="h-3 w-3" />
                                         </Button>
                                         <Button
                                           variant="ghost"
@@ -484,7 +491,7 @@ export default function SubtitleEditor({
                                           onClick={() => onSubtitleCueDelete(track.id, cue.id)}
                                           className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
                                         >
-                                          <Trash2 className="w-3 h-3" />
+                                          <Trash2 className="h-3 w-3" />
                                         </Button>
                                       </div>
                                     </div>
@@ -510,12 +517,12 @@ export default function SubtitleEditor({
 
       {/* Subtitle Help */}
       {subtitleTracks.length > 0 && (
-        <Card className="bg-green-50 border-green-200">
+        <Card className="border-green-200 bg-green-50">
           <CardContent className="p-3">
-            <p className="text-xs text-green-700 mb-1">
+            <p className="mb-1 text-xs text-green-700">
               <strong>Subtitle Tips:</strong>
             </p>
-            <ul className="text-xs text-green-600 space-y-1">
+            <ul className="space-y-1 text-xs text-green-600">
               <li>• Click "Go to" to jump to a cue&apos;s timestamp</li>
               <li>• Add new cues at the current playback time</li>
               <li>• Export tracks as SRT files for use in other editors</li>

@@ -11,7 +11,7 @@ interface InstagramBadgeProps {
  */
 export function InstagramBadge({ username, permalink }: InstagramBadgeProps) {
   const content = (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-2 py-0.5 text-xs font-medium text-white">
       <Instagram className="h-3 w-3" />
       <span>Instagram</span>
       {username && <span className="opacity-90">@{username}</span>}
@@ -24,7 +24,7 @@ export function InstagramBadge({ username, permalink }: InstagramBadgeProps) {
         href={permalink}
         target="_blank"
         rel="noopener noreferrer"
-        className="hover:opacity-80 transition-opacity"
+        className="transition-opacity hover:opacity-80"
         title="View on Instagram"
       >
         {content}

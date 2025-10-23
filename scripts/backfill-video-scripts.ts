@@ -57,7 +57,7 @@ async function main() {
       recipeId: recipe.id,
       script,
       marketingIdeas: [],
-      createdAt: adminConfig.getAdmin().firestore.FieldValue.serverTimestamp(),
+      createdAt: new Date(),
     });
     console.log(`Backfilled script for recipe ${recipe.id} (${recipe.title ?? ''})`);
   } catch (err) {

@@ -9,177 +9,181 @@ class RecipeStore {
 
   constructor() {
     this.loadFromStorage();
-    
+
     // If no recipes in storage, initialize with default recipes
     if (this.recipes.length === 0) {
       this.recipes = [
-      {
-        id: '1',
-        title: "Grandma's Spaghetti Bolognese",
-        description: 'A classic family recipe passed down through generations. Rich, hearty, and full of flavor.',
-        author: 'Grandma Rosa',
-        imageId: '1',
-        ingredients: [
-          '1 tbsp olive oil',
-          '2 medium onions, finely chopped',
-          '2 carrots, trimmed and finely chopped',
-          '2 celery sticks, finely chopped',
-          '2 garlic cloves, finely chopped',
-          '250g beef mince',
-          '250g pork mince',
-          '1/2 cup red wine',
-          '2 x 400g cans of chopped tomatoes',
-          '1 tsp dried oregano',
-          '500g spaghetti',
-          'Salt and freshly ground black pepper',
-          'Parmesan cheese, to serve',
-        ],
-        instructions: [
-          'Heat the olive oil in a large saucepan. Cook the onions, carrots, celery and garlic over a medium heat for 10 mins, stirring occasionally, until soft.',
-          'Add the beef and pork mince and cook until browned all over.',
-          'Pour in the red wine and allow it to bubble away and reduce for a few mins. Stir in the chopped tomatoes and oregano.',
-          'Bring to a simmer, then lower the heat and cook for 1 hr, stirring occasionally, until the sauce is thick. Season to taste.',
-          'About 15 mins before the bolognese is ready, cook the spaghetti according to packet instructions.',
-          'Drain the spaghetti and either stir into the bolognese sauce, or serve the sauce on top. Top with grated Parmesan cheese.',
-        ],
-        prepTime: '20 mins',
-        cookTime: '1 hr 15 mins',
-        servings: 4,
-        cuisine: 'Italian',
-        rating: 4.8,
-        comments: [
-          {
-            id: 'c1',
-            author: 'John Doe',
-            avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-            text: 'This was amazing! Just like my nonna used to make. The red wine adds such a depth of flavor.',
-            timestamp: '2 days ago',
-          },
-          {
-            id: 'c2',
-            author: 'Jane Smith',
-            avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026705d',
-            text: 'A true classic. I added a pinch of nutmeg and it was delicious. Will be making this again!',
-            timestamp: '1 day ago',
-          },
-        ],
-      },
-      {
-        id: '2',
-        title: "Aunt Carol's Famous Chocolate Cake",
-        description: 'The richest, most decadent chocolate cake you will ever taste. A guaranteed crowd-pleaser for any occasion.',
-        author: 'Aunt Carol',
-        imageId: '2',
-        ingredients: [
-          '2 cups all-purpose flour',
-          '2 cups sugar',
-          '3/4 cup unsweetened cocoa powder',
-          '2 tsp baking soda',
-          '1 tsp baking powder',
-          '1 tsp salt',
-          '1 cup buttermilk',
-          '1/2 cup vegetable oil',
-          '2 large eggs',
-          '1 tsp vanilla extract',
-          '1 cup boiling water',
-        ],
-        instructions: [
-          'Preheat oven to 350°F (175°C). Grease and flour two 9-inch round cake pans.',
-          'In a large bowl, stir together the flour, sugar, cocoa, baking soda, baking powder, and salt.',
-          'Add the buttermilk, oil, eggs, and vanilla; beat on medium speed for 2 minutes.',
-          'Stir in the boiling water (batter will be thin). Pour evenly into the prepared pans.',
-          'Bake for 30 to 35 minutes, or until a wooden skewer inserted into the center comes out clean.',
-          'Cool in pans for 10 minutes before removing to a wire rack to cool completely.',
-          'Frost as desired. A simple chocolate buttercream works wonders.',
-        ],
-        prepTime: '25 mins',
-        cookTime: '35 mins',
-        servings: 12,
-        cuisine: 'American',
-        rating: 5,
-        comments: [
-          {
-            id: 'c3',
-            author: 'Emily White',
-            avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026706d',
-            text: '5 stars! This is my go-to chocolate cake recipe now. So moist and chocolaty!',
-            timestamp: '1 week ago',
-          },
-        ],
-      },
-      {
-        id: '3',
-        title: 'Comforting Chicken Noodle Soup',
-        description: "The ultimate comfort food. Perfect for a chilly day or when you're feeling under the weather.",
-        author: 'Mom',
-        imageId: '3',
-        ingredients: [
-          '1 tbsp butter',
-          '1 onion, chopped',
-          '2 carrots, chopped',
-          '2 celery stalks, chopped',
-          '2 chicken breasts, cooked and shredded',
-          '8 cups chicken broth',
-          '2 cups egg noodles',
-          '1 tsp dried parsley',
-          '1/2 tsp dried thyme',
-          'Salt and pepper to taste',
-        ],
-        instructions: [
-          'In a large pot or Dutch oven, melt butter over medium heat. Add onion, carrots, and celery and cook until softened, about 5-7 minutes.',
-          'Add chicken broth, parsley, and thyme. Bring to a boil.',
-          'Stir in the egg noodles and cook until tender, about 10 minutes.',
-          'Add the shredded chicken and cook until heated through.',
-          'Season with salt and pepper to taste before serving.',
-        ],
-        prepTime: '15 mins',
-        cookTime: '25 mins',
-        servings: 6,
-        cuisine: 'Comfort',
-        rating: 4.7,
-        comments: [],
-      },
-      {
-        id: '4',
-        title: 'Chewy Chocolate Chip Cookies',
-        description: "The perfect chocolate chip cookie: crispy edges, a chewy center, and loaded with chocolate chips.",
-        author: 'David Chen',
-        imageId: '4',
-        ingredients: [
-          '1 cup (2 sticks) unsalted butter, melted',
-          '1 cup packed brown sugar',
-          '1/2 cup granulated sugar',
-          '2 large eggs',
-          '2 tsp vanilla extract',
-          '2 1/2 cups all-purpose flour',
-          '1 tsp baking soda',
-          '1/2 tsp salt',
-          '2 cups semi-sweet chocolate chips',
-        ],
-        instructions: [
-          'Preheat oven to 375°F (190°C). Line baking sheets with parchment paper.',
-          'In a large bowl, mix melted butter, brown sugar, and granulated sugar until well combined.',
-          'Beat in eggs one at a time, then stir in vanilla.',
-          'In a separate bowl, combine flour, baking soda, and salt. Gradually add to the wet ingredients and mix until just combined.',
-          'Stir in chocolate chips.',
-          'Drop by rounded tablespoons onto the prepared baking sheets.',
-          'Bake for 10-12 minutes, or until golden brown around the edges. Let cool on the baking sheet for a few minutes before transferring to a wire rack to cool completely.',
-        ],
-        prepTime: '15 mins',
-        cookTime: '12 mins',
-        servings: 24,
-        cuisine: 'Dessert',
-        rating: 4.9,
-        comments: [
-          {
-            id: 'c4',
-            author: 'Michael B.',
-            avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026707d',
-            text: 'Best cookie recipe I have ever tried. The melted butter is a game changer!',
-            timestamp: '3 days ago',
-          },
-        ],
-      },
+        {
+          id: '1',
+          title: "Grandma's Spaghetti Bolognese",
+          description:
+            'A classic family recipe passed down through generations. Rich, hearty, and full of flavor.',
+          author: 'Grandma Rosa',
+          imageId: '1',
+          ingredients: [
+            '1 tbsp olive oil',
+            '2 medium onions, finely chopped',
+            '2 carrots, trimmed and finely chopped',
+            '2 celery sticks, finely chopped',
+            '2 garlic cloves, finely chopped',
+            '250g beef mince',
+            '250g pork mince',
+            '1/2 cup red wine',
+            '2 x 400g cans of chopped tomatoes',
+            '1 tsp dried oregano',
+            '500g spaghetti',
+            'Salt and freshly ground black pepper',
+            'Parmesan cheese, to serve',
+          ],
+          instructions: [
+            'Heat the olive oil in a large saucepan. Cook the onions, carrots, celery and garlic over a medium heat for 10 mins, stirring occasionally, until soft.',
+            'Add the beef and pork mince and cook until browned all over.',
+            'Pour in the red wine and allow it to bubble away and reduce for a few mins. Stir in the chopped tomatoes and oregano.',
+            'Bring to a simmer, then lower the heat and cook for 1 hr, stirring occasionally, until the sauce is thick. Season to taste.',
+            'About 15 mins before the bolognese is ready, cook the spaghetti according to packet instructions.',
+            'Drain the spaghetti and either stir into the bolognese sauce, or serve the sauce on top. Top with grated Parmesan cheese.',
+          ],
+          prepTime: '20 mins',
+          cookTime: '1 hr 15 mins',
+          servings: 4,
+          cuisine: 'Italian',
+          rating: 4.8,
+          comments: [
+            {
+              id: 'c1',
+              author: 'John Doe',
+              avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
+              text: 'This was amazing! Just like my nonna used to make. The red wine adds such a depth of flavor.',
+              timestamp: '2 days ago',
+            },
+            {
+              id: 'c2',
+              author: 'Jane Smith',
+              avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026705d',
+              text: 'A true classic. I added a pinch of nutmeg and it was delicious. Will be making this again!',
+              timestamp: '1 day ago',
+            },
+          ],
+        },
+        {
+          id: '2',
+          title: "Aunt Carol's Famous Chocolate Cake",
+          description:
+            'The richest, most decadent chocolate cake you will ever taste. A guaranteed crowd-pleaser for any occasion.',
+          author: 'Aunt Carol',
+          imageId: '2',
+          ingredients: [
+            '2 cups all-purpose flour',
+            '2 cups sugar',
+            '3/4 cup unsweetened cocoa powder',
+            '2 tsp baking soda',
+            '1 tsp baking powder',
+            '1 tsp salt',
+            '1 cup buttermilk',
+            '1/2 cup vegetable oil',
+            '2 large eggs',
+            '1 tsp vanilla extract',
+            '1 cup boiling water',
+          ],
+          instructions: [
+            'Preheat oven to 350°F (175°C). Grease and flour two 9-inch round cake pans.',
+            'In a large bowl, stir together the flour, sugar, cocoa, baking soda, baking powder, and salt.',
+            'Add the buttermilk, oil, eggs, and vanilla; beat on medium speed for 2 minutes.',
+            'Stir in the boiling water (batter will be thin). Pour evenly into the prepared pans.',
+            'Bake for 30 to 35 minutes, or until a wooden skewer inserted into the center comes out clean.',
+            'Cool in pans for 10 minutes before removing to a wire rack to cool completely.',
+            'Frost as desired. A simple chocolate buttercream works wonders.',
+          ],
+          prepTime: '25 mins',
+          cookTime: '35 mins',
+          servings: 12,
+          cuisine: 'American',
+          rating: 5,
+          comments: [
+            {
+              id: 'c3',
+              author: 'Emily White',
+              avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026706d',
+              text: '5 stars! This is my go-to chocolate cake recipe now. So moist and chocolaty!',
+              timestamp: '1 week ago',
+            },
+          ],
+        },
+        {
+          id: '3',
+          title: 'Comforting Chicken Noodle Soup',
+          description:
+            "The ultimate comfort food. Perfect for a chilly day or when you're feeling under the weather.",
+          author: 'Mom',
+          imageId: '3',
+          ingredients: [
+            '1 tbsp butter',
+            '1 onion, chopped',
+            '2 carrots, chopped',
+            '2 celery stalks, chopped',
+            '2 chicken breasts, cooked and shredded',
+            '8 cups chicken broth',
+            '2 cups egg noodles',
+            '1 tsp dried parsley',
+            '1/2 tsp dried thyme',
+            'Salt and pepper to taste',
+          ],
+          instructions: [
+            'In a large pot or Dutch oven, melt butter over medium heat. Add onion, carrots, and celery and cook until softened, about 5-7 minutes.',
+            'Add chicken broth, parsley, and thyme. Bring to a boil.',
+            'Stir in the egg noodles and cook until tender, about 10 minutes.',
+            'Add the shredded chicken and cook until heated through.',
+            'Season with salt and pepper to taste before serving.',
+          ],
+          prepTime: '15 mins',
+          cookTime: '25 mins',
+          servings: 6,
+          cuisine: 'Comfort',
+          rating: 4.7,
+          comments: [],
+        },
+        {
+          id: '4',
+          title: 'Chewy Chocolate Chip Cookies',
+          description:
+            'The perfect chocolate chip cookie: crispy edges, a chewy center, and loaded with chocolate chips.',
+          author: 'David Chen',
+          imageId: '4',
+          ingredients: [
+            '1 cup (2 sticks) unsalted butter, melted',
+            '1 cup packed brown sugar',
+            '1/2 cup granulated sugar',
+            '2 large eggs',
+            '2 tsp vanilla extract',
+            '2 1/2 cups all-purpose flour',
+            '1 tsp baking soda',
+            '1/2 tsp salt',
+            '2 cups semi-sweet chocolate chips',
+          ],
+          instructions: [
+            'Preheat oven to 375°F (190°C). Line baking sheets with parchment paper.',
+            'In a large bowl, mix melted butter, brown sugar, and granulated sugar until well combined.',
+            'Beat in eggs one at a time, then stir in vanilla.',
+            'In a separate bowl, combine flour, baking soda, and salt. Gradually add to the wet ingredients and mix until just combined.',
+            'Stir in chocolate chips.',
+            'Drop by rounded tablespoons onto the prepared baking sheets.',
+            'Bake for 10-12 minutes, or until golden brown around the edges. Let cool on the baking sheet for a few minutes before transferring to a wire rack to cool completely.',
+          ],
+          prepTime: '15 mins',
+          cookTime: '12 mins',
+          servings: 24,
+          cuisine: 'Dessert',
+          rating: 4.9,
+          comments: [
+            {
+              id: 'c4',
+              author: 'Michael B.',
+              avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026707d',
+              text: 'Best cookie recipe I have ever tried. The melted butter is a game changer!',
+              timestamp: '3 days ago',
+            },
+          ],
+        },
       ];
       this.saveToStorage();
     }
@@ -187,7 +191,7 @@ class RecipeStore {
 
   private loadFromStorage(): void {
     if (typeof window === 'undefined') return; // Server-side rendering check
-    
+
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
@@ -201,7 +205,7 @@ class RecipeStore {
 
   private saveToStorage(): void {
     if (typeof window === 'undefined') return; // Server-side rendering check
-    
+
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.recipes));
     } catch (error) {
@@ -252,7 +256,7 @@ class RecipeStore {
     this.recipes.unshift(newRecipe); // Add to beginning of array
     this.saveToStorage(); // Save to localStorage
     this.notifyListeners();
-    
+
     return newRecipe;
   }
 

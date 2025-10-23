@@ -33,24 +33,19 @@ export function TimelineRuler({ duration, zoom, fps: _fps }: TimelineRulerProps)
   }
 
   return (
-    <div className="h-12 border-b border-gray-700 bg-gray-800 relative">
+    <div className="relative h-12 border-b border-gray-700 bg-gray-800">
       {markers.map((marker, idx) => {
         const left = marker.time * zoom;
 
         return (
           <div
             key={idx}
-            className="absolute top-0 bottom-0"
+            className="absolute bottom-0 top-0"
             // eslint-disable-next-line react/forbid-dom-props
             style={{ left: `${left}px` }}
           >
             {/* Tick Mark */}
-            <div
-              className={`
-                absolute top-0 w-px bg-gray-600
-                ${marker.isMajor ? 'h-6' : 'h-3'}
-              `}
-            />
+            <div className={`absolute top-0 w-px bg-gray-600 ${marker.isMajor ? 'h-6' : 'h-3'} `} />
 
             {/* Time Label */}
             {marker.isMajor && (

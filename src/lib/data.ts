@@ -134,7 +134,7 @@ export const recipes: Recipe[] = [
     id: '4',
     title: 'Chewy Chocolate Chip Cookies',
     description:
-      "The perfect chocolate chip cookie: crispy edges, a chewy center, and loaded with chocolate chips.",
+      'The perfect chocolate chip cookie: crispy edges, a chewy center, and loaded with chocolate chips.',
     author: 'David Chen',
     imageId: '4',
     ingredients: [

@@ -1,17 +1,23 @@
-"use client";
-import { generateAndSaveVideoScriptForRecipe } from "@/app/actions";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getAllRecipes } from "@/lib/firestore-recipes";
-import { fetchAllVideoScripts } from "@/lib/firestore-video-scripts";
-import { Recipe } from "@/lib/types";
-import { useEffect, useState } from "react";
+'use client';
+import { useEffect, useState } from 'react';
+
+import { generateAndSaveVideoScriptForRecipe } from '@/app/actions';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { getAllRecipes } from '@/lib/firestore-recipes';
+import { fetchAllVideoScripts } from '@/lib/firestore-video-scripts';
+import { Recipe } from '@/lib/types';
 
 interface VideoScriptDoc {
   recipeId: string;
   script: string;
   marketingIdeas?: string[];
 }
-
 
 export default function RecipeListModal() {
   const [open, setOpen] = useState(false);
@@ -24,10 +30,7 @@ export default function RecipeListModal() {
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    Promise.all([
-      getAllRecipes(),
-      fetchAllVideoScripts()
-    ]).then(([recipes, scripts]) => {
+    Promise.all([getAllRecipes(), fetchAllVideoScripts()]).then(([recipes, scripts]) => {
       setRecipes(recipes);
       setVideoScripts(scripts);
       setLoading(false);
@@ -45,7 +48,7 @@ export default function RecipeListModal() {
       <DialogTrigger asChild>
         <button className="btn btn-primary mb-4">Browse All Recipes</button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl w-full">
+      <DialogContent className="w-full max-w-3xl">
         <DialogHeader>
           <DialogTitle>All Recipes</DialogTitle>
         </DialogHeader>
@@ -54,21 +57,21 @@ export default function RecipeListModal() {
         ) : (
           <>
             {/* If you see 'script: ""', your Gemini model or API key is misconfigured. */}
-            <pre className="text-xs bg-muted/30 p-2 mb-2 rounded max-h-32 overflow-auto">
+            <pre className="mb-2 max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs">
               {JSON.stringify(videoScripts, null, 2)}
             </pre>
-            <div className="overflow-x-auto max-h-[60vh]">
+            <div className="max-h-[60vh] overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-left p-2">Title</th>
-                    <th className="text-left p-2">Author</th>
-                    <th className="text-left p-2">Status</th>
-                    <th className="text-left p-2">Action</th>
+                    <th className="p-2 text-left">Title</th>
+                    <th className="p-2 text-left">Author</th>
+                    <th className="p-2 text-left">Status</th>
+                    <th className="p-2 text-left">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRecipes.map((recipe) => (
+                  {paginatedRecipes.map(recipe => (
                     <RecipeRow
                       key={recipe.id}
                       recipe={recipe}
@@ -82,10 +85,10 @@ export default function RecipeListModal() {
               </table>
             </div>
             {/* Pagination controls */}
-            <div className="flex justify-between items-center mt-4">
+            <div className="mt-4 flex items-center justify-between">
               <button
                 className="btn btn-secondary"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
               >
                 Previous
@@ -95,7 +98,7 @@ export default function RecipeListModal() {
               </span>
               <button
                 className="btn btn-secondary"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
               >
                 Next
@@ -139,24 +142,26 @@ function RecipeRow({ recipe, script, onScriptCreated }: RecipeRowProps) {
   };
 
   return (
-    <tr className="border-b last:border-b-0 align-top">
+    <tr className="border-b align-top last:border-b-0">
       <td className="p-2 font-medium">{recipe.title}</td>
       <td className="p-2">{recipe.author}</td>
       <td className="p-2">
         {script ? (
-          <span className="text-green-600 font-semibold">Script Ready</span>
+          <span className="font-semibold text-green-600">Script Ready</span>
         ) : (
-          <span className="text-yellow-600 font-semibold">Ready for Script</span>
+          <span className="font-semibold text-yellow-600">Ready for Script</span>
         )}
       </td>
       <td className="p-2">
         {script && script.script && script.script.trim() !== '' ? (
           <div className="flex flex-col gap-2">
-            <pre className="whitespace-pre-wrap text-xs bg-muted/50 rounded p-2 overflow-x-auto max-w-xs max-h-32">{script.script}</pre>
+            <pre className="max-h-32 max-w-xs overflow-x-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
+              {script.script}
+            </pre>
             {script.marketingIdeas && script.marketingIdeas.length > 0 && (
               <div className="text-xs">
-                <div className="font-semibold text-primary mb-1">Marketing Ideas:</div>
-                <ul className="list-disc list-inside">
+                <div className="mb-1 font-semibold text-primary">Marketing Ideas:</div>
+                <ul className="list-inside list-disc">
                   {script.marketingIdeas.map((idea: string, idx: number) => (
                     <li key={idx}>{idea}</li>
                   ))}
@@ -169,16 +174,14 @@ function RecipeRow({ recipe, script, onScriptCreated }: RecipeRowProps) {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <span className="text-yellow-700 text-xs mb-1">No script generated yet or model misconfigured.</span>
-            <button
-              className="btn btn-accent"
-              onClick={handleGenerate}
-              disabled={loading}
-            >
+            <span className="mb-1 text-xs text-yellow-700">
+              No script generated yet or model misconfigured.
+            </span>
+            <button className="btn btn-accent" onClick={handleGenerate} disabled={loading}>
               {loading ? 'Generating...' : 'Generate Video Script'}
             </button>
             {success && <span className="text-green-600">✓</span>}
-            {error && <span className="text-red-600 text-xs">{error}</span>}
+            {error && <span className="text-xs text-red-600">{error}</span>}
           </div>
         )}
       </td>

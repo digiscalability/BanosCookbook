@@ -1,25 +1,29 @@
 'use client';
 
-import Link from 'next/link';
 import { CookingPot, PlusCircle, Menu, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="bg-card shadow-sm sticky top-0 z-40">
+    <header className="sticky top-0 z-40 bg-card shadow-sm">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center py-3 md:py-4">
-          <Link href="/" className="flex items-center gap-2 text-lg md:text-xl font-bold font-headline text-foreground">
-            <CookingPot className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+        <div className="flex items-center justify-between py-3 md:py-4">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-headline text-lg font-bold text-foreground md:text-xl"
+          >
+            <CookingPot className="h-6 w-6 text-primary md:h-7 md:w-7" />
             <span className="hidden sm:inline">Banos Cookbook</span>
             <span className="sm:hidden">Banos</span>
           </Link>
-          
+
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden items-center gap-2 md:flex">
             <Button variant="ghost" asChild>
               <Link href="/">Home</Link>
             </Button>
@@ -44,9 +48,11 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {isMenuOpen && (
-          <nav className="md:hidden border-t border-border py-4 space-y-2">
+          <nav className="space-y-2 border-t border-border py-4 md:hidden">
             <Button variant="ghost" asChild className="w-full justify-start">
-              <Link href="/" onClick={() => setIsMenuOpen(false)}>Home</Link>
+              <Link href="/" onClick={() => setIsMenuOpen(false)}>
+                Home
+              </Link>
             </Button>
             <Button asChild className="w-full justify-start">
               <Link href="/add-recipe" onClick={() => setIsMenuOpen(false)}>

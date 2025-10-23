@@ -1,0 +1,33 @@
+# Ignore vscode workspace files and logs
+.vscode/
+vercel_logs.json
+vercel_deploy_logs.json
+*.log
+
+# Ignore build and third-party output
+node_modules/
+.next/
+dist/
+
+# Ignore generated artifacts and caches
+.idea/
+coverage/
+tmp/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.zipnode_modules
+.next
+out
+build
+dist
+*.log
+.firebase
+.vercel
+public
+coverage
+*.md
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

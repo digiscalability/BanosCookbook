@@ -1,5 +1,6 @@
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+
+import { ai } from '@/ai/genkit';
 
 const GenerateVideoScriptInputSchema = z.object({
   title: z.string(),
@@ -14,9 +15,13 @@ const GenerateVideoScriptInputSchema = z.object({
 // Enhanced structured output for video script with visual storytelling
 const VisualBeatSchema = z.object({
   timestamp: z.string().describe('Timing marker (e.g., "0:00-0:05")'),
-  visual: z.string().describe("Specific visual action/moment (camera angle, what's shown, movement)"),
+  visual: z
+    .string()
+    .describe("Specific visual action/moment (camera angle, what's shown, movement)"),
   narration: z.string().describe('Voice-over or text overlay for this moment'),
-  cameraWork: z.string().describe('Camera technique: close-up, overhead, dolly in, pan, static, handheld'),
+  cameraWork: z
+    .string()
+    .describe('Camera technique: close-up, overhead, dolly in, pan, static, handheld'),
   lighting: z.string().describe('Lighting mood: bright/natural, warm/golden hour, dramatic/moody'),
   props: z.array(z.string()).describe('Key props/ingredients visible in frame'),
   intensity: z.enum(['calm', 'medium', 'energetic']).describe('Pacing/energy level'),
@@ -94,18 +99,21 @@ Your specialty is creating VISUALLY-DRIVEN scripts where every second has a clea
 
 Generate a complete visual script broken into scenes, where each scene has timestamped visual beats ready for video generation.`;
 
-export const generateVideoScriptOptimizedFlow = ai.defineFlow({
-  name: 'generateVideoScriptOptimizedFlow',
-  inputSchema: GenerateVideoScriptInputSchema,
-  outputSchema: GenerateVideoScriptOutputSchema,
-}, async (input) => {
-  const { title, description, ingredients, instructions, cuisine, targetDuration, style } = input;
+export const generateVideoScriptOptimizedFlow = ai.defineFlow(
+  {
+    name: 'generateVideoScriptOptimizedFlow',
+    inputSchema: GenerateVideoScriptInputSchema,
+    outputSchema: GenerateVideoScriptOutputSchema,
+  },
+  async input => {
+    const { title, description, ingredients, instructions, cuisine, targetDuration, style } = input;
 
-  // Build context-rich user prompt
-  const ingredientsList = ingredients.slice(0, 5).join(', ') + (ingredients.length > 5 ? '...' : '');
-  const keySteps = instructions.slice(0, 3).join(' → ');
+    // Build context-rich user prompt
+    const ingredientsList =
+      ingredients.slice(0, 5).join(', ') + (ingredients.length > 5 ? '...' : '');
+    const keySteps = instructions.slice(0, 3).join(' → ');
 
-  const userPrompt = `Create a ${targetDuration}-second ${style} video script for this recipe:
+    const userPrompt = `Create a ${targetDuration}-second ${style} video script for this recipe:
 
 **Recipe:** "${title}"
 **Description:** ${description}
@@ -125,17 +133,18 @@ export const generateVideoScriptOptimizedFlow = ai.defineFlow({
 
 Focus on the most VISUALLY APPEALING stages of cooking: sizzling, pouring, melting, plating, steam, texture reveals.`;
 
-  const result = await ai.generate({
-    model: 'googleai/gemini-2.5-pro',
-    prompt: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
-    output: {
-      schema: GenerateVideoScriptOutputSchema,
-    },
-    config: {
-      temperature: 0.85, // Higher for creative visual concepts
-      maxOutputTokens: 2000,
-    },
-  });
+    const result = await ai.generate({
+      model: 'googleai/gemini-2.5-pro',
+      prompt: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
+      output: {
+        schema: GenerateVideoScriptOutputSchema,
+      },
+      config: {
+        temperature: 0.85, // Higher for creative visual concepts
+        maxOutputTokens: 2000,
+      },
+    });
 
-  return result.output as GenerateVideoScriptOutput;
-});
+    return result.output as GenerateVideoScriptOutput;
+  }
+);

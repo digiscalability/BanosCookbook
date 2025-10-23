@@ -5,19 +5,16 @@
  * This version focuses on text extraction and manual processing guidance.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import * as pdfjs from 'pdf-parse';
+
+import { ai } from '@/ai/genkit';
 
 const RecipeSchema = z.object({
   title: z.string().describe('The title of the recipe.'),
   description: z.string().describe('A brief description of the recipe.'),
-  ingredients: z
-    .string()
-    .describe('The list of ingredients, with each ingredient on a new line.'),
-  instructions: z
-    .string()
-    .describe('The cooking instructions, with each step on a new line.'),
+  ingredients: z.string().describe('The list of ingredients, with each ingredient on a new line.'),
+  instructions: z.string().describe('The cooking instructions, with each step on a new line.'),
   prepTime: z.string().describe("The preparation time, e.g., '20 mins'."),
   cookTime: z.string().describe("The cooking time, e.g., '45 mins'."),
   servings: z.coerce.number().describe('The number of servings.'),
@@ -61,11 +58,9 @@ const fallbackRecipesFromPdfFlow = ai.defineFlow(
   },
   async input => {
     const startTime = Date.now();
-    const {pdfDataUri} = input;
+    const { pdfDataUri } = input;
 
-    const base64Data = pdfDataUri.substring(
-      'data:application/pdf;base64,'.length
-    );
+    const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
     const pdfBuffer = Buffer.from(base64Data, 'base64');
 
     let allText = '';
@@ -82,7 +77,7 @@ const fallbackRecipesFromPdfFlow = ai.defineFlow(
         // Method 1: Standard parsing
         textData = await pdfjs.default(pdfBuffer, {
           max: 0,
-          version: 'v1.10.100'
+          version: 'v1.10.100',
         });
         allText = textData.text || '';
         totalPages = textData.numpages || 0;
@@ -111,8 +106,12 @@ const fallbackRecipesFromPdfFlow = ai.defineFlow(
       if (isImagePDF) {
         recommendations.push('This appears to be an image-based PDF (scanned cookbook)');
         recommendations.push('OCR processing is required but GraphicsMagick is not installed');
-        recommendations.push('Consider pre-processing the PDF with OCR tools like Adobe Acrobat or online OCR services');
-        recommendations.push('Alternative: Upload the PDF to Google Drive and open with Google Docs for automatic OCR');
+        recommendations.push(
+          'Consider pre-processing the PDF with OCR tools like Adobe Acrobat or online OCR services'
+        );
+        recommendations.push(
+          'Alternative: Upload the PDF to Google Drive and open with Google Docs for automatic OCR'
+        );
       } else if (textLength > 1000) {
         recommendations.push('Good text content detected - text extraction should work');
         recommendations.push('Try using text-only or hybrid processing mode');
@@ -137,8 +136,8 @@ const fallbackRecipesFromPdfFlow = ai.defineFlow(
         try {
           const recipePrompt = ai.definePrompt({
             name: 'fallbackRecipePrompt',
-            input: {schema: z.object({text: z.string()})},
-            output: {schema: z.object({recipes: z.array(RecipeSchema)})},
+            input: { schema: z.object({ text: z.string() }) },
+            output: { schema: z.object({ recipes: z.array(RecipeSchema) }) },
             prompt: `Extract recipes from this text. Look for cooking instructions, ingredients, and recipe information. If no clear recipes are found, return an empty array.
 
 Text to analyze:
@@ -157,7 +156,7 @@ Extract any recipes you can find with the following information:
 - Cuisine type`,
           });
 
-          const {output: recipeResult} = await recipePrompt({text: allText});
+          const { output: recipeResult } = await recipePrompt({ text: allText });
           recipes = recipeResult?.recipes || [];
         } catch (recipeError) {
           console.warn('Recipe extraction failed:', recipeError);
@@ -193,7 +192,7 @@ Extract any recipes you can find with the following information:
           recommendations: [
             'PDF processing failed completely',
             'This may be a corrupted or unsupported PDF format',
-            'Try converting the PDF to a different format or use OCR tools'
+            'Try converting the PDF to a different format or use OCR tools',
           ],
         },
         rawText: '',

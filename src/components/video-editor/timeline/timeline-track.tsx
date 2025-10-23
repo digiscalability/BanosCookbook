@@ -6,6 +6,7 @@
 'use client';
 
 import type { Clip, Track } from '../types';
+
 import { TimelineClip } from './timeline-clip';
 
 interface TimelineTrackProps {
@@ -30,12 +31,10 @@ export function TimelineTrack({
   onClipUpdate,
 }: TimelineTrackProps) {
   return (
-    <div className="h-16 border-b border-gray-700 relative bg-gray-850">
+    <div className="bg-gray-850 relative h-16 border-b border-gray-700">
       {/* Track Background */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none">
-        {!track.visible && (
-          <div className="absolute inset-0 bg-gray-900 opacity-50" />
-        )}
+      <div className="pointer-events-none absolute inset-0 opacity-10">
+        {!track.visible && <div className="absolute inset-0 bg-gray-900 opacity-50" />}
       </div>
 
       {/* Clips */}
@@ -47,11 +46,11 @@ export function TimelineTrack({
           zoom={zoom}
           isSelected={selectedClipIds.includes(clip.id)}
           isLocked={track.locked}
-          onSelect={(multiSelect) => onClipSelect(clip.id, multiSelect)}
+          onSelect={multiSelect => onClipSelect(clip.id, multiSelect)}
           onDragStart={() => onClipDragStart(clip.id, track.id)}
           onDrag={onClipDrag}
           onDragEnd={onClipDragEnd}
-          onUpdate={(updates) => onClipUpdate(clip.id, updates)}
+          onUpdate={updates => onClipUpdate(clip.id, updates)}
         />
       ))}
     </div>

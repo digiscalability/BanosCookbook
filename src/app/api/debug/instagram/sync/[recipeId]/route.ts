@@ -1,5 +1,6 @@
-import { syncInstagramComments, syncInstagramLikes } from '@/app/actions';
 import { NextRequest, NextResponse } from 'next/server';
+
+import { syncInstagramComments, syncInstagramLikes } from '@/app/actions';
 
 /**
  * Admin-only debug endpoint to force-sync Instagram comments & likes for a recipe
@@ -11,7 +12,10 @@ export async function GET(request: NextRequest) {
   const expected = process.env.DEBUG_ADMIN_SECRET;
 
   if (!expected) {
-    return NextResponse.json({ error: 'DEBUG_ADMIN_SECRET not configured on server' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'DEBUG_ADMIN_SECRET not configured on server' },
+      { status: 500 }
+    );
   }
 
   if (!secret || secret !== expected) {
@@ -33,6 +37,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, commentsResult, likesResult }, { status: 200 });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }

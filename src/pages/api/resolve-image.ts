@@ -4,7 +4,12 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 // hosts (like source.unsplash.com) and returns the final URL or the image bytes
 // as base64 when appropriate. Keep this small and guarded to avoid open proxy abuse.
 
-const TRUSTED_RESOLVE_HOSTS = ['source.unsplash.com', 'images.unsplash.com', 'picsum.photos', 'placehold.co'];
+const TRUSTED_RESOLVE_HOSTS = [
+  'source.unsplash.com',
+  'images.unsplash.com',
+  'picsum.photos',
+  'placehold.co',
+];
 const MAX_EMBED_BYTES = 3 * 1024 * 1024; // 3MB
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -20,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid URL' });
     }
 
-    if (!TRUSTED_RESOLVE_HOSTS.some((h) => parsed.hostname.endsWith(h))) {
+    if (!TRUSTED_RESOLVE_HOSTS.some(h => parsed.hostname.endsWith(h))) {
       return res.status(400).json({ error: 'Host not allowed' });
     }
 
@@ -33,7 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         signal: controller?.signal,
         // use browser-like headers to improve success
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
           Accept: 'image/*,*/*;q=0.8',
         },
       });
@@ -49,7 +55,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const buf = await resp.arrayBuffer();
         if (buf.byteLength <= MAX_EMBED_BYTES) {
           const base64 = Buffer.from(buf).toString('base64');
-          return res.status(200).json({ resolvedUrl: finalUrl, dataUri: `data:${contentType};base64,${base64}` });
+          return res
+            .status(200)
+            .json({ resolvedUrl: finalUrl, dataUri: `data:${contentType};base64,${base64}` });
         }
         return res.status(200).json({ resolvedUrl: finalUrl });
       }

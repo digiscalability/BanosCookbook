@@ -5,18 +5,13 @@
 
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import {
-    Pause,
-    Play,
-    SkipBack,
-    SkipForward,
-    Volume2,
-    VolumeX,
-} from 'lucide-react';
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+
 import type { Clip, Timeline } from '../types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,8 +57,8 @@ export function VideoPreview({
 
       // Sort by track order (lower order = bottom layer)
       return activeClips.sort((a, b) => {
-        const trackA = timeline.tracks.find((t) => t.clips.includes(a));
-        const trackB = timeline.tracks.find((t) => t.clips.includes(b));
+        const trackA = timeline.tracks.find(t => t.clips.includes(a));
+        const trackB = timeline.tracks.find(t => t.clips.includes(b));
         return (trackA?.order || 0) - (trackB?.order || 0);
       });
     },
@@ -74,7 +69,7 @@ export function VideoPreview({
   useEffect(() => {
     const clips = getActiveClips(currentTime);
     // For simplicity, show the topmost video clip
-    const videoClip = clips.find((c) => c.assetType === 'video');
+    const videoClip = clips.find(c => c.assetType === 'video');
     setActiveClip(videoClip || null);
   }, [currentTime, getActiveClips]);
 
@@ -165,11 +160,11 @@ export function VideoPreview({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
+    <div className="flex h-full flex-col bg-gray-900">
       {/* Video Canvas */}
-      <div className="flex-1 flex items-center justify-center bg-black relative">
+      <div className="relative flex flex-1 items-center justify-center bg-black">
         {activeClip ? (
-          <div className="relative w-full h-full flex items-center justify-center">
+          <div className="relative flex h-full w-full items-center justify-center">
             <ReactPlayer
               ref={playerRef}
               url={activeClip.assetUrl}
@@ -185,34 +180,30 @@ export function VideoPreview({
             />
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 pointer-events-none"
+              className="pointer-events-none absolute inset-0"
               width={timeline.resolution.width}
               height={timeline.resolution.height}
             />
           </div>
         ) : (
           <div className="text-center text-gray-500">
-            <Play className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <Play className="mx-auto mb-4 h-16 w-16 opacity-50" />
             <p className="text-sm">No clip at current time</p>
-            <p className="text-xs opacity-75">
-              Add clips to the timeline to preview
-            </p>
+            <p className="text-xs opacity-75">Add clips to the timeline to preview</p>
           </div>
         )}
 
         {/* Resolution Display */}
-        <div className="absolute top-4 right-4 bg-black/75 px-3 py-1.5 rounded text-xs">
+        <div className="absolute right-4 top-4 rounded bg-black/75 px-3 py-1.5 text-xs">
           {timeline.resolution.width}x{timeline.resolution.height} @ {timeline.fps}fps
         </div>
       </div>
 
       {/* Playback Controls */}
-      <div className="border-t border-gray-800 p-4 space-y-3">
+      <div className="space-y-3 border-t border-gray-800 p-4">
         {/* Timeline Scrubber */}
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-gray-400 w-20">
-            {formatTime(currentTime)}
-          </span>
+          <span className="w-20 font-mono text-xs text-gray-400">{formatTime(currentTime)}</span>
           <Slider
             value={[currentTime]}
             min={0}
@@ -221,7 +212,7 @@ export function VideoPreview({
             onValueChange={([value]) => handleSeek(value)}
             className="flex-1"
           />
-          <span className="text-xs font-mono text-gray-400 w-20 text-right">
+          <span className="w-20 text-right font-mono text-xs text-gray-400">
             {formatTime(timeline.duration)}
           </span>
         </div>
@@ -250,17 +241,8 @@ export function VideoPreview({
             </Button>
 
             {/* Play/Pause */}
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onPlayPause}
-              title="Play/Pause (Space)"
-            >
-              {isPlaying ? (
-                <Pause className="h-5 w-5" />
-              ) : (
-                <Play className="h-5 w-5" />
-              )}
+            <Button variant="default" size="sm" onClick={onPlayPause} title="Play/Pause (Space)">
+              {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </Button>
 
             {/* Frame Forward */}
@@ -288,8 +270,8 @@ export function VideoPreview({
           <div className="flex items-center gap-2">
             <select
               value={playbackRate}
-              onChange={(e) => setPlaybackRate(Number(e.target.value))}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
+              onChange={e => setPlaybackRate(Number(e.target.value))}
+              className="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs"
               title="Playback speed"
               aria-label="Playback speed"
             >
@@ -303,11 +285,7 @@ export function VideoPreview({
 
           {/* Volume */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMuted(!isMuted)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setIsMuted(!isMuted)}>
               {isMuted || volume === 0 ? (
                 <VolumeX className="h-4 w-4" />
               ) : (

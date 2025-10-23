@@ -1,5 +1,6 @@
-import { generateRecipeImagesAction } from '@/app/actions';
 import { NextApiRequest, NextApiResponse } from 'next';
+
+import { generateRecipeImagesAction } from '@/app/actions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();

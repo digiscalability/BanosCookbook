@@ -20,15 +20,15 @@ export function TimelinePlayhead({
 
   return (
     <div
-      className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-50"
+      className="pointer-events-none absolute bottom-0 top-0 z-50 w-0.5 bg-red-500"
       // eslint-disable-next-line react/forbid-dom-props
       style={{ left: `${left}px` }}
     >
       {/* Playhead Handle */}
-      <div className="absolute -top-2 -left-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white" />
+      <div className="absolute -left-2 -top-2 h-4 w-4 rounded-full border-2 border-white bg-red-500" />
 
       {/* Vertical Line */}
-      <div className="absolute top-0 left-0 w-0.5 h-full bg-red-500" />
+      <div className="absolute left-0 top-0 h-full w-0.5 bg-red-500" />
     </div>
   );
 }

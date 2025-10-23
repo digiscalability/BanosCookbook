@@ -1,22 +1,21 @@
 'use client';
 
+import { MessageCircle, Send, Star, ThumbsUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import { InstagramBadge } from '@/components/instagram-badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { addRecipeComment, submitRecipeRating, type NewCommentPayload } from '@/lib/firestore-recipes';
+import {
+  addRecipeComment,
+  submitRecipeRating,
+  type NewCommentPayload,
+} from '@/lib/firestore-recipes';
 import type { Comment } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { MessageCircle, Send, Star, ThumbsUp } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 type CommentSectionProps = {
   recipeId: string;
@@ -63,12 +62,12 @@ export default function CommentSection({
 
   const renderStars = (value: number, size: 'sm' | 'md' = 'md') => (
     <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
+      {[1, 2, 3, 4, 5].map(star => (
         <Star
           key={star}
           className={cn(
-            size === 'sm' ? 'w-3 h-3' : 'w-4 h-4',
-            star <= value ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'
+            size === 'sm' ? 'h-3 w-3' : 'h-4 w-4',
+            star <= value ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground'
           )}
         />
       ))}
@@ -89,40 +88,42 @@ export default function CommentSection({
       await response.json();
 
       // Update local state optimistically
-      setComments((prev) => prev.map((comment) => {
-        if (comment.id === commentId) {
-          const likedBy = comment.likedBy || [];
-          const isLiked = likedBy.includes(userId);
+      setComments(prev =>
+        prev.map(comment => {
+          if (comment.id === commentId) {
+            const likedBy = comment.likedBy || [];
+            const isLiked = likedBy.includes(userId);
 
-          return {
-            ...comment,
-            likes: isLiked ? Math.max(0, (comment.likes || 0) - 1) : (comment.likes || 0) + 1,
-            likedBy: isLiked ? likedBy.filter(id => id !== userId) : [...likedBy, userId],
-          };
-        }
+            return {
+              ...comment,
+              likes: isLiked ? Math.max(0, (comment.likes || 0) - 1) : (comment.likes || 0) + 1,
+              likedBy: isLiked ? likedBy.filter(id => id !== userId) : [...likedBy, userId],
+            };
+          }
 
-        // Also check nested replies
-        if (comment.replies && comment.replies.length > 0) {
-          return {
-            ...comment,
-            replies: comment.replies.map((reply) => {
-              if (reply.id === commentId) {
-                const likedBy = reply.likedBy || [];
-                const isLiked = likedBy.includes(userId);
+          // Also check nested replies
+          if (comment.replies && comment.replies.length > 0) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => {
+                if (reply.id === commentId) {
+                  const likedBy = reply.likedBy || [];
+                  const isLiked = likedBy.includes(userId);
 
-                return {
-                  ...reply,
-                  likes: isLiked ? Math.max(0, (reply.likes || 0) - 1) : (reply.likes || 0) + 1,
-                  likedBy: isLiked ? likedBy.filter(id => id !== userId) : [...likedBy, userId],
-                };
-              }
-              return reply;
-            }),
-          };
-        }
+                  return {
+                    ...reply,
+                    likes: isLiked ? Math.max(0, (reply.likes || 0) - 1) : (reply.likes || 0) + 1,
+                    likedBy: isLiked ? likedBy.filter(id => id !== userId) : [...likedBy, userId],
+                  };
+                }
+                return reply;
+              }),
+            };
+          }
 
-        return comment;
-      }));
+          return comment;
+        })
+      );
     } catch (error) {
       console.error('Error liking comment:', error);
       toast({
@@ -146,9 +147,10 @@ export default function CommentSection({
     setIsSubmittingReply(true);
 
     try {
-      const replyId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `r-${Date.now()}`;
+      const replyId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `r-${Date.now()}`;
 
       const replyPayload: Comment = {
         id: replyId,
@@ -172,15 +174,17 @@ export default function CommentSection({
       const result = await response.json();
 
       // Update local state
-      setComments((prev) => prev.map((comment) => {
-        if (comment.id === parentId) {
-          return {
-            ...comment,
-            replies: [...(comment.replies || []), result.reply],
-          };
-        }
-        return comment;
-      }));
+      setComments(prev =>
+        prev.map(comment => {
+          if (comment.id === parentId) {
+            return {
+              ...comment,
+              replies: [...(comment.replies || []), result.reply],
+            };
+          }
+          return comment;
+        })
+      );
 
       setReplyText('');
       setReplyingTo(null);
@@ -214,9 +218,10 @@ export default function CommentSection({
     setIsSubmitting(true);
     setFormError(null);
 
-    const commentId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `c-${Date.now()}`;
+    const commentId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `c-${Date.now()}`;
     const timestamp = new Date().toISOString();
     const commentPayload: NewCommentPayload = {
       id: commentId,
@@ -228,12 +233,12 @@ export default function CommentSection({
     };
 
     try {
-  const ratingResult = await submitRecipeRating(recipeId, selectedRating);
-  const savedComment = await addRecipeComment(recipeId, commentPayload);
+      const ratingResult = await submitRecipeRating(recipeId, selectedRating);
+      const savedComment = await addRecipeComment(recipeId, commentPayload);
 
       setAverageRating(ratingResult.rating);
       setRatingCount(ratingResult.ratingCount);
-  setComments((prev) => [savedComment, ...prev]);
+      setComments(prev => [savedComment, ...prev]);
       setNewComment('');
       setSelectedRating(0);
       toast({
@@ -257,10 +262,10 @@ export default function CommentSection({
     <section data-recipe-id={recipeId}>
       <Card>
         <CardHeader className="flex items-center gap-3">
-          <div className="relative w-10 h-10">
+          <div className="relative h-10 w-10">
             {/* favicon is a local asset; render a native img to avoid Next/Image fill+sizes warning in dev */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/favicon.ico" alt="Comments" className="w-full h-full object-contain" />
+            <img src="/favicon.ico" alt="Comments" className="h-full w-full object-contain" />
           </div>
           <CardTitle className="font-headline text-3xl">Comments & Reviews</CardTitle>
         </CardHeader>
@@ -275,28 +280,34 @@ export default function CommentSection({
                 </span>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No ratings yet. Be the first to review this recipe.</p>
+              <p className="text-sm text-muted-foreground">
+                No ratings yet. Be the first to review this recipe.
+              </p>
             )}
           </div>
           <form onSubmit={handleSubmit} className="mb-8 space-y-4">
             <div>
-              <p className="text-sm font-medium mb-2">Your Rating</p>
+              <p className="mb-2 text-sm font-medium">Your Rating</p>
               <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((value) => (
+                {[1, 2, 3, 4, 5].map(value => (
                   <button
                     type="button"
                     key={value}
                     className={cn(
-                      'p-2 rounded-md transition-colors',
-                      value <= selectedRating ? 'text-amber-500' : 'text-muted-foreground hover:text-primary'
+                      'rounded-md p-2 transition-colors',
+                      value <= selectedRating
+                        ? 'text-amber-500'
+                        : 'text-muted-foreground hover:text-primary'
                     )}
                     aria-label={`Rate ${value} ${value === 1 ? 'star' : 'stars'}`}
                     onClick={() => handleSelectRating(value)}
                   >
                     <Star
                       className={cn(
-                        'w-6 h-6',
-                        value <= selectedRating ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground'
+                        'h-6 w-6',
+                        value <= selectedRating
+                          ? 'fill-amber-500 text-amber-500'
+                          : 'text-muted-foreground'
                       )}
                     />
                   </button>
@@ -306,12 +317,10 @@ export default function CommentSection({
             <Textarea
               placeholder="Share your thoughts, questions, or variations..."
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
+              onChange={e => setNewComment(e.target.value)}
               rows={4}
             />
-            {formError && (
-              <p className="text-sm text-destructive">{formError}</p>
-            )}
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Submitting...' : 'Submit Review'}
             </Button>
@@ -319,24 +328,22 @@ export default function CommentSection({
 
           <div className="space-y-6">
             {comments.length > 0 ? (
-              comments.map((comment) => (
+              comments.map(comment => (
                 <div key={comment.id} className="space-y-4">
                   <div className="flex gap-4">
                     <Avatar>
                       <AvatarImage src={comment.avatarUrl} alt={comment.author} />
-                      <AvatarFallback>
-                        {comment.author.charAt(0)}
-                      </AvatarFallback>
+                      <AvatarFallback>{comment.author.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <p className="font-semibold">{comment.author}</p>
                         <p className="text-xs text-muted-foreground">
                           &middot; {new Date(comment.timestamp).toLocaleDateString()}
                         </p>
                         {typeof comment.rating === 'number' && comment.rating > 0 && (
                           <span className="flex items-center gap-1 text-xs text-amber-500">
-                            <Star className="w-3 h-3 fill-amber-500" />
+                            <Star className="h-3 w-3 fill-amber-500" />
                             {comment.rating.toFixed(1)}
                           </span>
                         )}
@@ -344,33 +351,38 @@ export default function CommentSection({
                           <InstagramBadge username={comment.instagramUsername} />
                         )}
                       </div>
-                      <p className="text-sm text-foreground mb-2">{comment.text}</p>
+                      <p className="mb-2 text-sm text-foreground">{comment.text}</p>
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <button
                           onClick={() => handleLikeComment(comment.id)}
                           className={cn(
-                            "flex items-center gap-1 hover:text-primary transition-colors",
-                            comment.likedBy?.includes(userId) && "text-blue-600 font-semibold"
+                            'flex items-center gap-1 transition-colors hover:text-primary',
+                            comment.likedBy?.includes(userId) && 'font-semibold text-blue-600'
                           )}
                         >
-                          <ThumbsUp className={cn(
-                            "w-3.5 h-3.5",
-                            comment.likedBy?.includes(userId) && "fill-blue-600"
-                          )} />
-                          <span>{comment.likes || 0} {(comment.likes || 0) === 1 ? 'Like' : 'Likes'}</span>
+                          <ThumbsUp
+                            className={cn(
+                              'h-3.5 w-3.5',
+                              comment.likedBy?.includes(userId) && 'fill-blue-600'
+                            )}
+                          />
+                          <span>
+                            {comment.likes || 0} {(comment.likes || 0) === 1 ? 'Like' : 'Likes'}
+                          </span>
                         </button>
                         <button
                           onClick={() => setReplyingTo(comment.id)}
-                          className="flex items-center gap-1 hover:text-primary transition-colors"
+                          className="flex items-center gap-1 transition-colors hover:text-primary"
                         >
-                          <MessageCircle className="w-3.5 h-3.5" />
+                          <MessageCircle className="h-3.5 w-3.5" />
                           <span>Reply</span>
                         </button>
                         {comment.replies && comment.replies.length > 0 && (
                           <span className="text-muted-foreground">
-                            {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                            {comment.replies.length}{' '}
+                            {comment.replies.length === 1 ? 'reply' : 'replies'}
                           </span>
                         )}
                       </div>
@@ -381,7 +393,7 @@ export default function CommentSection({
                           <Textarea
                             placeholder="Write a reply..."
                             value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
+                            onChange={e => setReplyText(e.target.value)}
                             rows={2}
                             className="text-sm"
                           />
@@ -395,7 +407,7 @@ export default function CommentSection({
                                 'Posting...'
                               ) : (
                                 <>
-                                  <Send className="w-3 h-3 mr-1" />
+                                  <Send className="mr-1 h-3 w-3" />
                                   Post Reply
                                 </>
                               )}
@@ -416,34 +428,36 @@ export default function CommentSection({
 
                       {/* Display replies */}
                       {comment.replies && comment.replies.length > 0 && (
-                        <div className="mt-4 space-y-4 pl-4 border-l-2 border-muted">
-                          {comment.replies.map((reply) => (
+                        <div className="mt-4 space-y-4 border-l-2 border-muted pl-4">
+                          {comment.replies.map(reply => (
                             <div key={reply.id} className="flex gap-3">
-                              <Avatar className="w-7 h-7">
+                              <Avatar className="h-7 w-7">
                                 <AvatarImage src={reply.avatarUrl} alt={reply.author} />
                                 <AvatarFallback className="text-xs">
                                   {reply.author.charAt(0)}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="font-semibold text-sm">{reply.author}</p>
+                                <div className="mb-1 flex items-center gap-2">
+                                  <p className="text-sm font-semibold">{reply.author}</p>
                                   <p className="text-xs text-muted-foreground">
                                     &middot; {new Date(reply.timestamp).toLocaleDateString()}
                                   </p>
                                 </div>
-                                <p className="text-sm text-foreground mb-2">{reply.text}</p>
+                                <p className="mb-2 text-sm text-foreground">{reply.text}</p>
                                 <button
                                   onClick={() => handleLikeComment(reply.id)}
                                   className={cn(
-                                    "flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors",
-                                    reply.likedBy?.includes(userId) && "text-blue-600 font-semibold"
+                                    'flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary',
+                                    reply.likedBy?.includes(userId) && 'font-semibold text-blue-600'
                                   )}
                                 >
-                                  <ThumbsUp className={cn(
-                                    "w-3 h-3",
-                                    reply.likedBy?.includes(userId) && "fill-blue-600"
-                                  )} />
+                                  <ThumbsUp
+                                    className={cn(
+                                      'h-3 w-3',
+                                      reply.likedBy?.includes(userId) && 'fill-blue-600'
+                                    )}
+                                  />
                                   <span>{reply.likes || 0}</span>
                                 </button>
                               </div>
@@ -456,13 +470,13 @@ export default function CommentSection({
                 </div>
               ))
             ) : (
-              <p className="text-muted-foreground text-center py-4">
+              <p className="py-4 text-center text-muted-foreground">
                 Be the first to leave a comment!
               </p>
             )}
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+        <CardFooter className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>Reviews are moderated for kindness and helpfulness.</span>
           <span>Average rating updates immediately after you submit.</span>
         </CardFooter>

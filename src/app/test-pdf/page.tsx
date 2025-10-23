@@ -1,28 +1,29 @@
 'use client';
 
+import {
+  AlertCircle,
+  Brain,
+  CheckCircle,
+  Clock,
+  FileText,
+  Image,
+  TestTube,
+  Zap,
+} from 'lucide-react';
+import React, { useState } from 'react';
+
 import { extractRecipeDataFromPdfAdvanced } from '@/app/actions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import {
-    AlertCircle,
-    Brain,
-    CheckCircle,
-    Clock,
-    FileText,
-    Image,
-    TestTube,
-    Zap
-} from 'lucide-react';
-import React, { useState } from 'react';
 
 export default function TestPDFPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   type TestResult = {
-    mode: 'auto'|'text-only'|'ocr-only'|'hybrid';
+    mode: 'auto' | 'text-only' | 'ocr-only' | 'hybrid';
     description: string;
     result?: {
       processingInfo: {
@@ -33,7 +34,13 @@ export default function TestPDFPage() {
         ocrAccuracy?: number;
         aiEnhanced?: boolean;
       };
-      recipes: Array<{ title: string; cuisine?: string; servings?: number; prepTime?: string; cookTime?: string; }>;
+      recipes: Array<{
+        title: string;
+        cuisine?: string;
+        servings?: number;
+        prepTime?: string;
+        cookTime?: string;
+      }>;
       rawText?: string;
     };
     error?: string;
@@ -43,14 +50,21 @@ export default function TestPDFPage() {
   const [results, setResults] = useState<TestResult[]>([]);
   const [currentTest, setCurrentTest] = useState<string>('');
 
-  const testModes: Array<{mode: 'auto'|'text-only'|'ocr-only'|'hybrid'; description: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>}> = [
+  const testModes: Array<{
+    mode: 'auto' | 'text-only' | 'ocr-only' | 'hybrid';
+    description: string;
+    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  }> = [
     { mode: 'auto', description: 'AI Auto-Detection', icon: Brain },
     { mode: 'text-only', description: 'Text Extraction Only', icon: FileText },
     { mode: 'ocr-only', description: 'OCR Processing Only', icon: Image },
     { mode: 'hybrid', description: 'Hybrid Text + OCR', icon: Zap },
   ];
 
-  const processPDF = async (mode: 'auto'|'text-only'|'ocr-only'|'hybrid', description: string) => {
+  const processPDF = async (
+    mode: 'auto' | 'text-only' | 'ocr-only' | 'hybrid',
+    description: string
+  ) => {
     setIsProcessing(true);
     setCurrentTest(description);
     setProcessingProgress(0);
@@ -66,7 +80,8 @@ export default function TestPDFPage() {
 
       // For testing, we'll use a sample PDF data URI
       // In a real scenario, you would upload the MonAsal (Bana).pdf file
-      const samplePDFDataUri = 'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+Pgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvSGVsdmV0aWNhCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCi9GMSAxMiBUZgoyNTAgNzAwIFRkCihUZXN0IFBERiBGaWxlKSBUagoKRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDI2MiAwMDAwMCBuCjAwMDAwMDAzNDEgMDAwMDAgbgp0cmFpbGVyCjw8Ci9TaXplIDYKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQzNQolJUVPRgo=';
+      const samplePDFDataUri =
+        'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+Pgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvSGVsdmV0aWNhCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCi9GMSAxMiBUZgoyNTAgNzAwIFRkCihUZXN0IFBERiBGaWxlKSBUagoKRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDI2MiAwMDAwMCBuCjAwMDAwMDAzNDEgMDAwMDAgbgp0cmFpbGVyCjw8Ci9TaXplIDYKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQzNQolJUVPRgo=';
 
       const result = await extractRecipeDataFromPdfAdvanced(samplePDFDataUri, {
         processingMode: mode,
@@ -79,27 +94,36 @@ export default function TestPDFPage() {
       setProcessingProgress(100);
 
       if (result.success && result.data) {
-        setResults(prev => [...prev, {
-          mode,
-          description,
-          result: result.data,
-          timestamp: new Date().toISOString()
-        }]);
+        setResults(prev => [
+          ...prev,
+          {
+            mode,
+            description,
+            result: result.data,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       } else {
-        setResults(prev => [...prev, {
-          mode,
-          description,
-          error: result.error,
-          timestamp: new Date().toISOString()
-        }]);
+        setResults(prev => [
+          ...prev,
+          {
+            mode,
+            description,
+            error: result.error,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       }
     } catch (error) {
-      setResults(prev => [...prev, {
-        mode,
-        description,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          mode,
+          description,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setIsProcessing(false);
       setProcessingProgress(0);
@@ -115,7 +139,7 @@ export default function TestPDFPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -132,17 +156,13 @@ export default function TestPDFPage() {
             <Button onClick={runAllTests} disabled={isProcessing}>
               Run All Tests
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setResults([])}
-              disabled={isProcessing}
-            >
+            <Button variant="outline" onClick={() => setResults([])} disabled={isProcessing}>
               Clear Results
             </Button>
           </div>
 
           {/* Individual Test Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {testModes.map(({ mode, description, icon: Icon }) => (
               <Button
                 key={mode}
@@ -194,37 +214,39 @@ export default function TestPDFPage() {
                     {result.error ? (
                       <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Error: {result.error}
-                        </AlertDescription>
+                        <AlertDescription>Error: {result.error}</AlertDescription>
                       </Alert>
                     ) : (
                       <div className="space-y-4">
                         {result.result && (
                           <>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                               <div>
                                 <strong>Pages:</strong> {result.result.processingInfo.totalPages}
                               </div>
                               <div>
-                                <strong>Text Extracted:</strong> {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}
+                                <strong>Text Extracted:</strong>{' '}
+                                {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}
                               </div>
                               <div>
-                                <strong>Images Processed:</strong> {result.result.processingInfo.imagesProcessed}
+                                <strong>Images Processed:</strong>{' '}
+                                {result.result.processingInfo.imagesProcessed}
                               </div>
                               <div>
-                                <strong>Processing Time:</strong> {result.result.processingInfo.processingTime}ms
+                                <strong>Processing Time:</strong>{' '}
+                                {result.result.processingInfo.processingTime}ms
                               </div>
                             </div>
 
                             {typeof result.result.processingInfo.ocrAccuracy === 'number' && (
                               <div className="text-sm">
-                                <strong>OCR Accuracy:</strong> {Math.round(result.result.processingInfo.ocrAccuracy * 100)}%
+                                <strong>OCR Accuracy:</strong>{' '}
+                                {Math.round(result.result.processingInfo.ocrAccuracy * 100)}%
                               </div>
                             )}
 
                             {result.result.processingInfo.aiEnhanced && (
-                              <div className="text-sm text-green-600 flex items-center gap-1">
+                              <div className="flex items-center gap-1 text-sm text-green-600">
                                 <Brain className="h-3 w-3" />
                                 AI Enhancement Applied
                               </div>
@@ -237,12 +259,22 @@ export default function TestPDFPage() {
                             {result.result.recipes.length > 0 && (
                               <div className="space-y-2">
                                 <strong>Sample Recipe:</strong>
-                                <div className="p-3 bg-gray-50 rounded-md">
-                                  <div><strong>Title:</strong> {result.result.recipes[0].title}</div>
-                                  <div><strong>Cuisine:</strong> {result.result.recipes[0].cuisine}</div>
-                                  <div><strong>Servings:</strong> {result.result.recipes[0].servings}</div>
-                                  <div><strong>Prep Time:</strong> {result.result.recipes[0].prepTime}</div>
-                                  <div><strong>Cook Time:</strong> {result.result.recipes[0].cookTime}</div>
+                                <div className="rounded-md bg-gray-50 p-3">
+                                  <div>
+                                    <strong>Title:</strong> {result.result.recipes[0].title}
+                                  </div>
+                                  <div>
+                                    <strong>Cuisine:</strong> {result.result.recipes[0].cuisine}
+                                  </div>
+                                  <div>
+                                    <strong>Servings:</strong> {result.result.recipes[0].servings}
+                                  </div>
+                                  <div>
+                                    <strong>Prep Time:</strong> {result.result.recipes[0].prepTime}
+                                  </div>
+                                  <div>
+                                    <strong>Cook Time:</strong> {result.result.recipes[0].cookTime}
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -250,7 +282,7 @@ export default function TestPDFPage() {
                             {result.result.rawText && (
                               <div>
                                 <strong>Raw Text Preview:</strong>
-                                <div className="p-3 bg-gray-50 rounded-md text-xs max-h-32 overflow-y-auto">
+                                <div className="max-h-32 overflow-y-auto rounded-md bg-gray-50 p-3 text-xs">
                                   {result.result.rawText.substring(0, 500)}...
                                 </div>
                               </div>

@@ -1,0 +1,236 @@
+{
+  "Video Editor Component": {
+    "prefix": "ved-component",
+    "body": [
+      "/**",
+      " * ${1:Component Name}",
+      " * ${2:Component Description}",
+      " */",
+      "",
+      "'use client';",
+      "",
+      "import { ${3:Component} } from '@/components/ui/${4:component}';",
+      "import type { ${5:Props} } from '../types';",
+      "",
+      "interface ${1:Component Name}Props {",
+      "  ${6:prop}: ${7:string};",
+      "}",
+      "",
+      "export function ${1:Component Name}({ ${6:prop} }: ${1:Component Name}Props) {",
+      "  // State",
+      "  ",
+      "  // Handlers",
+      "  ",
+      "  // Render",
+      "  return (",
+      "    <div className=\"${8:p-4}\">",
+      "      $0",
+      "    </div>",
+      "  );",
+      "}"
+    ],
+    "description": "Create a video editor component with TypeScript"
+  },
+
+  "Server Action": {
+    "prefix": "server-action",
+    "body": [
+      "'use server';",
+      "",
+      "import { getDb } from '@/config/firebase-admin';",
+      "import type { ${1:InputType} } from '@/lib/types';",
+      "",
+      "export async function ${2:actionName}(${3:input}: ${1:InputType}) {",
+      "  try {",
+      "    const db = getDb();",
+      "    ",
+      "    // ${4:Operation description}",
+      "    $0",
+      "    ",
+      "    return { success: true, data: ${5:result} };",
+      "  } catch (error) {",
+      "    console.error('Error in ${2:actionName}:', error);",
+      "    return { ",
+      "      success: false, ",
+      "      error: error instanceof Error ? error.message : 'Unknown error'",
+      "    };",
+      "  }",
+      "}"
+    ],
+    "description": "Create a Server Action with error handling"
+  },
+
+  "Genkit Flow": {
+    "prefix": "genkit-flow",
+    "body": [
+      "import { ai } from '@/ai/genkit';",
+      "import { z } from 'zod';",
+      "",
+      "// Input schema",
+      "const ${1:FlowName}InputSchema = z.object({",
+      "  ${2:input}: z.string(),",
+      "});",
+      "",
+      "// Output schema",
+      "const ${1:FlowName}OutputSchema = z.object({",
+      "  ${3:output}: z.string(),",
+      "});",
+      "",
+      "// Define prompt",
+      "const ${4:promptName} = ai.definePrompt({",
+      "  name: '${4:promptName}',",
+      "  input: { schema: ${1:FlowName}InputSchema },",
+      "  output: { schema: ${1:FlowName}OutputSchema },",
+      "  prompt: `",
+      "    ${5:System instructions...}",
+      "    ",
+      "    Input: {{${2:input}}}",
+      "  `,",
+      "});",
+      "",
+      "// Define flow",
+      "export const ${6:flowName} = ai.defineFlow(",
+      "  {",
+      "    name: '${6:flowName}',",
+      "    inputSchema: ${1:FlowName}InputSchema,",
+      "    outputSchema: ${1:FlowName}OutputSchema,",
+      "  },",
+      "  async (input) => {",
+      "    const response = await ${4:promptName}(input);",
+      "    return response.output;",
+      "  }",
+      ");",
+      "$0"
+    ],
+    "description": "Create a Genkit AI flow with prompt and schemas"
+  },
+
+  "Timeline Clip Handler": {
+    "prefix": "ved-clip-handler",
+    "body": [
+      "const handle${1:Action} = useCallback((clipId: string, ${2:data}: ${3:Type}) => {",
+      "  setTimeline(prev => ({",
+      "    ...prev,",
+      "    tracks: prev.tracks.map(track => ({",
+      "      ...track,",
+      "      clips: track.clips.map(clip =>",
+      "        clip.id === clipId",
+      "          ? { ...clip, ${4:property}: ${2:data} }",
+      "          : clip",
+      "      ),",
+      "    })),",
+      "  }));",
+      "  ",
+      "  // Auto-save",
+      "  debouncedSave(timeline);",
+      "}, [timeline]);",
+      "$0"
+    ],
+    "description": "Create a timeline clip update handler"
+  },
+
+  "Firebase Firestore Query": {
+    "prefix": "firebase-query",
+    "body": [
+      "const db = getDb();",
+      "const ${1:collectionName}Ref = db.collection('${2:collection}');",
+      "",
+      "// Query",
+      "const snapshot = await ${1:collectionName}Ref",
+      "  .where('${3:field}', '${4:==}', ${5:value})",
+      "  .orderBy('${6:createdAt}', '${7:desc}')",
+      "  .limit(${8:10})",
+      "  .get();",
+      "",
+      "// Process results",
+      "const ${9:results} = snapshot.docs.map(doc => ({",
+      "  id: doc.id,",
+      "  ...doc.data(),",
+      "}));",
+      "$0"
+    ],
+    "description": "Create a Firestore query with filtering and ordering"
+  },
+
+  "React Hook with Cleanup": {
+    "prefix": "hook-cleanup",
+    "body": [
+      "useEffect(() => {",
+      "  // ${1:Setup code}",
+      "  $0",
+      "  ",
+      "  // Cleanup",
+      "  return () => {",
+      "    ${2:// Cleanup code}",
+      "  };",
+      "}, [${3:dependencies}]);"
+    ],
+    "description": "useEffect hook with cleanup function"
+  },
+
+  "Tailwind Container": {
+    "prefix": "tw-container",
+    "body": [
+      "<div className=\"${1|container,max-w-7xl,max-w-6xl,max-w-5xl,max-w-4xl,max-w-3xl,max-w-2xl,max-w-xl|} mx-auto ${2|px-4,px-6,px-8|} ${3|py-4,py-6,py-8,py-12|}\">",
+      "  $0",
+      "</div>"
+    ],
+    "description": "Create a responsive container with Tailwind classes"
+  },
+
+  "Error Boundary Component": {
+    "prefix": "error-boundary",
+    "body": [
+      "'use client';",
+      "",
+      "import { useEffect } from 'react';",
+      "import { Button } from '@/components/ui/button';",
+      "",
+      "export default function Error({",
+      "  error,",
+      "  reset,",
+      "}: {",
+      "  error: Error & { digest?: string };",
+      "  reset: () => void;",
+      "}) {",
+      "  useEffect(() => {",
+      "    console.error('${1:Component} error:', error);",
+      "  }, [error]);",
+      "",
+      "  return (",
+      "    <div className=\"flex min-h-screen items-center justify-center p-4\">",
+      "      <div className=\"text-center\">",
+      "        <h2 className=\"text-2xl font-bold mb-4\">Something went wrong!</h2>",
+      "        <p className=\"text-gray-600 mb-6\">{error.message}</p>",
+      "        <Button onClick={reset}>Try again</Button>",
+      "      </div>",
+      "    </div>",
+      "  );",
+      "}",
+      "$0"
+    ],
+    "description": "Create an error boundary component"
+  },
+
+  "Debounced Function": {
+    "prefix": "debounce",
+    "body": [
+      "const debounced${1:FunctionName} = useMemo(",
+      "  () =>",
+      "    debounce((${2:arg}: ${3:Type}) => {",
+      "      ${4:// Function body}",
+      "      $0",
+      "    }, ${5:1000}),",
+      "  [${6:dependencies}]",
+      ");",
+      "",
+      "// Cleanup",
+      "useEffect(() => {",
+      "  return () => {",
+      "    debounced${1:FunctionName}.cancel();",
+      "  };",
+      "}, [debounced${1:FunctionName}]);"
+    ],
+    "description": "Create a debounced function with cleanup"
+  }
+}

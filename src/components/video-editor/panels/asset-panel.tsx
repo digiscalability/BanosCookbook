@@ -6,30 +6,32 @@
 'use client';
 
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  Film,
+  Image as ImageIcon,
+  Music,
+  Plus,
+  RefreshCw,
+  Search,
+  Subtitles,
+  Trash2,
+} from 'lucide-react';
+import NextImage from 'next/image';
+import React, { useMemo, useState } from 'react';
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-    Film,
-    Image as ImageIcon,
-    Music,
-    Plus,
-    RefreshCw,
-    Search,
-    Subtitles,
-    Trash2
-} from 'lucide-react';
-import NextImage from 'next/image';
-import React, { useMemo, useState } from 'react';
+
 import type { AssetType, EditorAsset } from '../types';
 
 interface AssetPanelProps {
@@ -76,15 +78,13 @@ export function AssetPanel({
 
     // Filter by type
     if (selectedTab !== 'all') {
-      filtered = filtered.filter((asset) => asset.type === selectedTab);
+      filtered = filtered.filter(asset => asset.type === selectedTab);
     }
 
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((asset) =>
-        asset.filename.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(asset => asset.filename.toLowerCase().includes(query));
     }
 
     // Sort by creation date (newest first)
@@ -101,7 +101,7 @@ export function AssetPanel({
       subtitle: 0,
     };
 
-    assets.forEach((asset) => {
+    assets.forEach(asset => {
       counts[asset.type]++;
     });
 
@@ -163,27 +163,17 @@ export function AssetPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="flex h-full flex-col bg-gray-900">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center justify-between mb-4">
+      <div className="border-b border-gray-800 p-4">
+        <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-medium">Asset Library</h3>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="ghost" size="sm" onClick={onRefresh} className="h-8 w-8 p-0">
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onUploadClick}
-              className="h-8"
-            >
-              <Plus className="h-4 w-4 mr-1" />
+            <Button variant="default" size="sm" onClick={onUploadClick} className="h-8">
+              <Plus className="mr-1 h-4 w-4" />
               Upload
             </Button>
           </div>
@@ -191,18 +181,18 @@ export function AssetPanel({
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             placeholder="Search assets..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 bg-gray-800 border-gray-700"
+            onChange={e => setSearchQuery(e.target.value)}
+            className="h-9 border-gray-700 bg-gray-800 pl-9"
           />
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-2 border-b border-gray-800 overflow-x-auto">
+      <div className="flex gap-1 overflow-x-auto border-b border-gray-800 p-2">
         <Button
           variant={selectedTab === 'all' ? 'secondary' : 'ghost'}
           size="sm"
@@ -211,7 +201,7 @@ export function AssetPanel({
         >
           All ({assetCounts.all})
         </Button>
-        {(['video', 'audio', 'image', 'subtitle'] as const).map((type) => {
+        {(['video', 'audio', 'image', 'subtitle'] as const).map(type => {
           const Icon = ASSET_ICONS[type];
           return (
             <Button
@@ -221,7 +211,7 @@ export function AssetPanel({
               onClick={() => setSelectedTab(type)}
               className="flex-shrink-0"
             >
-              <Icon className={`h-3.5 w-3.5 mr-1.5 ${ASSET_COLORS[type]}`} />
+              <Icon className={`mr-1.5 h-3.5 w-3.5 ${ASSET_COLORS[type]}`} />
               {type.charAt(0).toUpperCase() + type.slice(1)} ({assetCounts[type]})
             </Button>
           );
@@ -231,23 +221,25 @@ export function AssetPanel({
       {/* Asset Grid */}
       <ScrollArea className="flex-1">
         {filteredAssets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex h-64 flex-col items-center justify-center text-gray-500">
             <div className="text-center">
               {searchQuery ? (
                 <>
-                  <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <Search className="mx-auto mb-2 h-12 w-12 opacity-50" />
                   <p className="text-sm">No assets found</p>
                 </>
               ) : (
                 <>
                   {selectedTab === 'all' ? (
-                    <Film className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <Film className="mx-auto mb-2 h-12 w-12 opacity-50" />
                   ) : (
                     React.createElement(ASSET_ICONS[selectedTab], {
                       className: 'h-12 w-12 mx-auto mb-2 opacity-50',
                     })
                   )}
-                  <p className="text-sm mb-1">No {selectedTab === 'all' ? '' : selectedTab} assets yet</p>
+                  <p className="mb-1 text-sm">
+                    No {selectedTab === 'all' ? '' : selectedTab} assets yet
+                  </p>
                   <p className="text-xs opacity-75">Upload files to get started</p>
                 </>
               )}
@@ -255,18 +247,18 @@ export function AssetPanel({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 p-2">
-            {filteredAssets.map((asset) => {
+            {filteredAssets.map(asset => {
               const Icon = ASSET_ICONS[asset.type];
               return (
                 <div
                   key={asset.id}
                   draggable
-                  onDragStart={(e) => handleDragStart(asset, e)}
+                  onDragStart={e => handleDragStart(asset, e)}
                   onClick={() => onAssetSelect?.(asset.id)}
-                  className="group relative bg-gray-800 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing hover:bg-gray-750 transition-colors"
+                  className="hover:bg-gray-750 group relative cursor-grab overflow-hidden rounded-lg bg-gray-800 transition-colors active:cursor-grabbing"
                 >
                   {/* Thumbnail/Preview */}
-                  <div className="aspect-video bg-gray-900 flex items-center justify-center relative">
+                  <div className="relative flex aspect-video items-center justify-center bg-gray-900">
                     {asset.metadata.thumbnail ? (
                       <NextImage
                         src={asset.metadata.thumbnail}
@@ -281,7 +273,7 @@ export function AssetPanel({
 
                     {/* Duration Badge (for video/audio) */}
                     {asset.duration && (
-                      <div className="absolute bottom-1 right-1 bg-black/75 px-1.5 py-0.5 rounded text-xs">
+                      <div className="absolute bottom-1 right-1 rounded bg-black/75 px-1.5 py-0.5 text-xs">
                         {formatDuration(asset.duration)}
                       </div>
                     )}
@@ -291,11 +283,11 @@ export function AssetPanel({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           setDeleteAssetId(asset.id);
                         }}
-                        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 bg-black/75 hover:bg-red-500"
+                        className="absolute right-1 top-1 h-6 w-6 bg-black/75 p-0 opacity-0 hover:bg-red-500 group-hover:opacity-100"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -304,12 +296,10 @@ export function AssetPanel({
 
                   {/* Info */}
                   <div className="p-2">
-                    <p className="text-xs font-medium truncate" title={asset.filename}>
+                    <p className="truncate text-xs font-medium" title={asset.filename}>
                       {asset.filename}
                     </p>
-                    <p className="text-[10px] text-gray-400">
-                      {formatFileSize(asset.fileSize)}
-                    </p>
+                    <p className="text-[10px] text-gray-400">{formatFileSize(asset.fileSize)}</p>
                   </div>
                 </div>
               );
@@ -319,15 +309,16 @@ export function AssetPanel({
       </ScrollArea>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteAssetId} onOpenChange={(open) => !open && setDeleteAssetId(null)}>
+      <AlertDialog open={!!deleteAssetId} onOpenChange={open => !open && setDeleteAssetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Asset</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this asset? This action cannot be undone.
-              {assets.find((a) => a.id === deleteAssetId)?.usedInTimelines?.length ? (
-                <span className="block mt-2 text-yellow-500">
-                  Warning: This asset is used in {assets.find((a) => a.id === deleteAssetId)?.usedInTimelines?.length} timeline(s).
+              {assets.find(a => a.id === deleteAssetId)?.usedInTimelines?.length ? (
+                <span className="mt-2 block text-yellow-500">
+                  Warning: This asset is used in{' '}
+                  {assets.find(a => a.id === deleteAssetId)?.usedInTimelines?.length} timeline(s).
                 </span>
               ) : null}
             </AlertDialogDescription>

@@ -1,6 +1,8 @@
-import type { Comment, Recipe } from '@/lib/types';
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
+import type { Comment, Recipe } from '@/lib/types';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -18,14 +20,15 @@ const coerceNumber = (value: unknown, fallback = 0): number => {
 
 const coerceComments = (raw: unknown): Comment[] => {
   if (!Array.isArray(raw)) return [];
-  return (raw as unknown[]).map((item) => {
+  return (raw as unknown[]).map(item => {
     const comment = item as Record<string, unknown>;
     return {
       id: typeof comment.id === 'string' ? comment.id : '',
       author: typeof comment.author === 'string' ? comment.author : 'Anonymous',
       avatarUrl: typeof comment.avatarUrl === 'string' ? comment.avatarUrl : '',
       text: typeof comment.text === 'string' ? comment.text : '',
-      timestamp: typeof comment.timestamp === 'string' ? comment.timestamp : new Date().toISOString(),
+      timestamp:
+        typeof comment.timestamp === 'string' ? comment.timestamp : new Date().toISOString(),
       rating: typeof comment.rating === 'number' ? comment.rating : undefined,
     } satisfies Comment;
   });
@@ -45,9 +48,7 @@ const toDateField = (field: unknown): Date | undefined => {
   return undefined;
 };
 
-const serializeRecipe = (
-  snapshot: firestore.DocumentSnapshot<firestore.DocumentData>,
-): Recipe => {
+const serializeRecipe = (snapshot: firestore.DocumentSnapshot<firestore.DocumentData>): Recipe => {
   const data = snapshot.data() as Record<string, unknown> | undefined;
   return {
     id: snapshot.id,
@@ -66,7 +67,7 @@ const serializeRecipe = (
     servings: coerceNumber(data?.servings, 0),
     cuisine: (data?.cuisine as string) ?? '',
     imageId: (data?.imageId as string) ?? '',
-  imageUrl: (data?.imageUrl as string) ?? undefined,
+    imageUrl: (data?.imageUrl as string) ?? undefined,
     rating: coerceNumber(data?.rating, 0),
     ratingCount: coerceNumber(data?.ratingCount, 0),
     comments: coerceComments(data?.comments),
@@ -76,14 +77,11 @@ const serializeRecipe = (
 };
 
 // GET /api/recipes/[id] - Get a single recipe
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-  const db = getDb();
-  const doc = await db.collection('recipes').doc(id).get();
+    const db = getDb();
+    const doc = await db.collection('recipes').doc(id).get();
 
     if (!doc.exists) {
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 });
@@ -95,7 +93,10 @@ export async function GET(
     // the browser can fetch it even if the object ACL is restricted.
     try {
       const img = (doc.data() || {})['imageUrl'] as string | undefined;
-      if (img && (img.includes('storage.googleapis.com') || img.includes('firebasestorage.googleapis.com'))) {
+      if (
+        img &&
+        (img.includes('storage.googleapis.com') || img.includes('firebasestorage.googleapis.com'))
+      ) {
         const admin = getAdmin();
 
         // Try to parse common URL formats
@@ -120,14 +121,19 @@ export async function GET(
           try {
             const bucket = admin.storage().bucket(bucketName);
             const file = bucket.file(filePath);
-            const getter = file as unknown as { getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]> };
+            const getter = file as unknown as {
+              getSignedUrl?: (opts: { action: string; expires: number }) => Promise<string[]>;
+            };
             if (typeof getter.getSignedUrl === 'function') {
               const expires = Date.now() + 1000 * 60 * 60; // 1 hour
               const [signedUrl] = await getter.getSignedUrl({ action: 'read', expires });
               if (signedUrl) recipe.imageUrl = signedUrl;
             }
           } catch (signErr) {
-            console.warn('Failed to generate signed URL for recipe image (non-fatal):', signErr instanceof Error ? signErr.message : signErr);
+            console.warn(
+              'Failed to generate signed URL for recipe image (non-fatal):',
+              signErr instanceof Error ? signErr.message : signErr
+            );
           }
         }
       }
@@ -143,10 +149,7 @@ export async function GET(
 }
 
 // PUT /api/recipes/[id] - Update a recipe
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const updateData = await request.json();
@@ -177,8 +180,8 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-  const db = getDb();
-  await db.collection('recipes').doc(id).delete();
+    const db = getDb();
+    await db.collection('recipes').doc(id).delete();
 
     return NextResponse.json({ success: true });
   } catch (error) {

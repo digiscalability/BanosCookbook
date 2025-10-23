@@ -1,0 +1,159 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // ===== Next.js Debugging =====
+    {
+      "name": "🌐 Next.js: Full Stack",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "serverReadyAction": {
+        "pattern": "started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      },
+      "env": {
+        "NODE_OPTIONS": "--inspect"
+      }
+    },
+    {
+      "name": "🖥️ Next.js: Server Side",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "name": "🌍 Next.js: Client Side",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:9002",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${webRoot}/*"
+      },
+      "skipFiles": ["<node_internals>/**", "node_modules/**"]
+    },
+
+    // ===== Genkit Debugging =====
+    {
+      "name": "⚡ Genkit: Dev Server",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "genkit:dev"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "⚡ Genkit: Single Flow",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/ai/flows/${input:flowName}.ts",
+      "preLaunchTask": "tsc: build - tsconfig.json",
+      "outFiles": ["${workspaceFolder}/**/*.js"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "runtimeArgs": ["-r", "ts-node/register"]
+    },
+
+    // ===== TypeScript Debugging =====
+    {
+      "name": "🔷 TypeScript: Current File",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "name": "🔷 TypeScript: Run Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/${input:scriptName}.ts",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"]
+    },
+
+    // ===== Server Actions Debugging =====
+    {
+      "name": "🎬 Server Action: Debug",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "args": ["dev", "-p", "9002"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_OPTIONS": "--inspect=9229"
+      }
+    },
+
+    // ===== Firebase Scripts =====
+    {
+      "name": "🔥 Firebase: Run Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/${input:firebaseScript}.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 Debug: Full Application",
+      "configurations": [
+        "🖥️ Next.js: Server Side",
+        "🌍 Next.js: Client Side"
+      ],
+      "presentation": {
+        "group": "full-stack",
+        "order": 1
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "flowName",
+      "type": "promptString",
+      "description": "Enter the Genkit flow filename (without extension)",
+      "default": "recipes-from-pdf"
+    },
+    {
+      "id": "scriptName",
+      "type": "promptString",
+      "description": "Enter the script filename (without extension)",
+      "default": "test-instagram"
+    },
+    {
+      "id": "firebaseScript",
+      "type": "promptString",
+      "description": "Enter the Firebase script filename (without extension)",
+      "default": "cleanup-generated-images"
+    }
+  ]
+}

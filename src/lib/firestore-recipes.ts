@@ -36,11 +36,13 @@ export interface NewCommentPayload {
 
 type WritableComment = NewCommentPayload | Comment;
 
-type ApiRecipeResponse = {
-  recipe?: unknown;
-  recipes?: unknown;
-  count?: number;
-} | unknown;
+type ApiRecipeResponse =
+  | {
+      recipe?: unknown;
+      recipes?: unknown;
+      count?: number;
+    }
+  | unknown;
 
 type RatingResponse = {
   rating: number;
@@ -84,7 +86,8 @@ const normalizeComment = (raw: unknown): Comment => {
     author: typeof comment?.author === 'string' ? comment.author : 'Anonymous',
     avatarUrl: typeof comment?.avatarUrl === 'string' ? comment.avatarUrl : '',
     text: typeof comment?.text === 'string' ? comment.text : '',
-    timestamp: typeof comment?.timestamp === 'string' ? comment.timestamp : new Date().toISOString(),
+    timestamp:
+      typeof comment?.timestamp === 'string' ? comment.timestamp : new Date().toISOString(),
     rating:
       typeof comment?.rating === 'number' && Number.isFinite(comment.rating)
         ? comment.rating
@@ -101,22 +104,22 @@ const normalizeRecipe = (raw: unknown): Recipe => {
     author: typeof data?.author === 'string' ? data.author : 'Unknown',
     authorEmail: typeof data?.authorEmail === 'string' ? data.authorEmail : undefined,
     imageId: typeof data?.imageId === 'string' ? data.imageId : '',
-  imageUrl: typeof data?.imageUrl === 'string' ? data.imageUrl : undefined,
+    imageUrl: typeof data?.imageUrl === 'string' ? data.imageUrl : undefined,
     ingredients: Array.isArray(data?.ingredients)
       ? (data?.ingredients as unknown[]).filter((item): item is string => typeof item === 'string')
       : [],
     instructions: Array.isArray(data?.instructions)
       ? (data?.instructions as unknown[]).filter((item): item is string => typeof item === 'string')
       : [],
-  prepTime: typeof data?.prepTime === 'string' ? (data?.prepTime as string) : '',
-  cookTime: typeof data?.cookTime === 'string' ? (data?.cookTime as string) : '',
+    prepTime: typeof data?.prepTime === 'string' ? (data?.prepTime as string) : '',
+    cookTime: typeof data?.cookTime === 'string' ? (data?.cookTime as string) : '',
     servings:
       typeof data?.servings === 'number' && Number.isFinite(data.servings)
         ? data.servings
         : Number(data?.servings ?? 0) || 0,
     cuisine: typeof data?.cuisine === 'string' ? data.cuisine : '',
     comments: Array.isArray(data?.comments)
-      ? (data?.comments as unknown[]).map((comment) => normalizeComment(comment))
+      ? (data?.comments as unknown[]).map(comment => normalizeComment(comment))
       : [],
     rating:
       typeof data?.rating === 'number' && Number.isFinite(data.rating)
@@ -154,10 +157,7 @@ const ensureSuccess = async (response: Response) => {
   throw new Error(`Request failed with status ${response.status}`);
 };
 
-const apiRequest = async <T = unknown>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> => {
+const apiRequest = async <T = unknown>(path: string, init?: RequestInit): Promise<T> => {
   const url = typeof window === 'undefined' ? buildApiUrl(path) : normalizePath(path);
   const response = await fetch(url, {
     headers: {
@@ -175,12 +175,13 @@ const apiRequest = async <T = unknown>(
 
 const extractRecipes = (payload: ApiRecipeResponse): Recipe[] => {
   if (Array.isArray(payload)) {
-    return payload.map((item) => normalizeRecipe(item));
+    return payload.map(item => normalizeRecipe(item));
   }
 
   if (payload && typeof payload === 'object') {
-    if (Array.isArray((payload as { recipes?: unknown }).recipes)) {
-      return (payload as { recipes?: unknown[] }).recipes!.map((item) => normalizeRecipe(item));
+    const maybe = payload as { recipes?: unknown };
+    if (Array.isArray(maybe.recipes)) {
+      return maybe.recipes.map(item => normalizeRecipe(item));
     }
   }
 
@@ -245,24 +246,33 @@ export async function deleteRecipe(id: string): Promise<void> {
   });
 }
 
-export async function addRecipeComment(recipeId: string, comment: WritableComment): Promise<Comment> {
+export async function addRecipeComment(
+  recipeId: string,
+  comment: WritableComment
+): Promise<Comment> {
   if (!recipeId) throw new Error('Recipe id is required');
-  const payload = await apiRequest<{ comment?: unknown }>(`/api/recipes/${encodeURIComponent(recipeId)}/comments`, {
-    method: 'POST',
-    body: JSON.stringify({ comment }),
-  });
+  const payload = await apiRequest<{ comment?: unknown }>(
+    `/api/recipes/${encodeURIComponent(recipeId)}/comments`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    }
+  );
   const normalized = normalizeComment(payload?.comment ?? comment);
   return normalized;
 }
 
 export async function submitRecipeRating(
   recipeId: string,
-  ratingValue: number,
+  ratingValue: number
 ): Promise<RatingResponse> {
   if (!recipeId) throw new Error('Recipe id is required');
-  const payload = await apiRequest<RatingResponse>(`/api/recipes/${encodeURIComponent(recipeId)}/rating`, {
-    method: 'POST',
-    body: JSON.stringify({ rating: ratingValue }),
-  });
+  const payload = await apiRequest<RatingResponse>(
+    `/api/recipes/${encodeURIComponent(recipeId)}/rating`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rating: ratingValue }),
+    }
+  );
   return payload;
 }

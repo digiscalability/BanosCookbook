@@ -4,37 +4,44 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="border-t bg-background mt-auto">
+    <footer className="mt-auto border-t bg-background">
       <div className="container mx-auto px-4 py-8">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-8 md:grid-cols-3">
           {/* About Section */}
           <div>
-            <h3 className="font-headline text-lg font-semibold mb-3">Banos Cookbook</h3>
-            <p className="text-sm text-muted-foreground mb-2">
+            <h3 className="mb-3 font-headline text-lg font-semibold">Banos Cookbook</h3>
+            <p className="mb-2 text-sm text-muted-foreground">
               Share family recipes and discover delicious dishes from around the world.
             </p>
-            <p className="text-sm text-muted-foreground">
-              ABN: 51 256 011 991
-            </p>
+            <p className="text-sm text-muted-foreground">ABN: 51 256 011 991</p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-headline text-lg font-semibold mb-3">Quick Links</h3>
+            <h3 className="mb-3 font-headline text-lg font-semibold">Quick Links</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  href="/"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
                   Home
                 </Link>
               </li>
               <li>
-                <Link href="/add-recipe" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  href="/add-recipe"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
                   Add Recipe
                 </Link>
               </li>
               <li>
-                <Link href="/admin/generated-images" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  href="/admin"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
                   Admin
                 </Link>
               </li>
@@ -43,15 +50,18 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="font-headline text-lg font-semibold mb-3">Contact</h3>
+            <h3 className="mb-3 font-headline text-lg font-semibold">Contact</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <a href="tel:+61483210312" className="hover:text-foreground transition-colors">
+                <a href="tel:+61483210312" className="transition-colors hover:text-foreground">
                   +61 4 8321 0312
                 </a>
               </li>
               <li>
-                <a href="mailto:info@banoscookbook.com" className="hover:text-foreground transition-colors">
+                <a
+                  href="mailto:info@banoscookbook.com"
+                  className="transition-colors hover:text-foreground"
+                >
                   info@banoscookbook.com
                 </a>
               </li>
@@ -62,40 +72,38 @@ export default function Footer() {
         {/* Divider */}
         <div className="border-t pt-6">
           {/* Bottom Bar */}
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
             {/* Copyright */}
-            <div>
-              © {currentYear} Banos Cookbook. All rights reserved.
-            </div>
+            <div>© {currentYear} Banos Cookbook. All rights reserved.</div>
 
             {/* Legal Links */}
             <div className="flex items-center gap-4">
-              <Link href="/legal/terms" className="hover:text-foreground transition-colors">
+              <Link href="/legal/terms" className="transition-colors hover:text-foreground">
                 Terms
               </Link>
               <span>|</span>
-              <Link href="/legal/privacy" className="hover:text-foreground transition-colors">
+              <Link href="/legal/privacy" className="transition-colors hover:text-foreground">
                 Privacy
               </Link>
               <span>|</span>
-              <Link href="/legal/cookies" className="hover:text-foreground transition-colors">
+              <Link href="/legal/cookies" className="transition-colors hover:text-foreground">
                 Cookies
               </Link>
               <span>|</span>
-              <Link href="/legal/data-deletion" className="hover:text-foreground transition-colors">
+              <Link href="/legal/data-deletion" className="transition-colors hover:text-foreground">
                 Data Deletion
               </Link>
             </div>
           </div>
 
           {/* reCAPTCHA Notice */}
-          <div className="mt-4 text-xs text-center text-muted-foreground">
+          <div className="mt-4 text-center text-xs text-muted-foreground">
             This site is protected by reCAPTCHA and the Google{' '}
             <a
               href="https://policies.google.com/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-foreground transition-colors"
+              className="underline transition-colors hover:text-foreground"
             >
               Privacy Policy
             </a>{' '}
@@ -104,7 +112,7 @@ export default function Footer() {
               href="https://policies.google.com/terms"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-foreground transition-colors"
+              className="underline transition-colors hover:text-foreground"
             >
               Terms of Service
             </a>{' '}

@@ -1,5 +1,6 @@
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
 import adminConfig from '../../../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -15,24 +16,24 @@ const coerceNumber = (value: unknown, fallback = 0) => {
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const rating = (body as { rating?: unknown }).rating;
 
     if (!Number.isFinite(rating) || typeof rating !== 'number' || rating < 0 || rating > 5) {
-      return NextResponse.json({ error: 'Rating must be a number between 0 and 5.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Rating must be a number between 0 and 5.' },
+        { status: 400 }
+      );
     }
 
-  const db = getDb();
-  const admin = getAdmin();
-  const recipeRef = db.collection('recipes').doc(id);
+    const db = getDb();
+    const admin = getAdmin();
+    const recipeRef = db.collection('recipes').doc(id);
 
-  const result = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(recipeRef);
       if (!snapshot.exists) {
         throw new Error('Recipe not found');
@@ -42,7 +43,8 @@ export async function POST(
       const currentRating = coerceNumber(data?.rating, 0);
       const currentCount = Math.max(coerceNumber(data?.ratingCount, 0), 0);
       const newCount = currentCount + 1;
-      const newAverage = newCount === 0 ? rating : (currentRating * currentCount + rating) / newCount;
+      const newAverage =
+        newCount === 0 ? rating : (currentRating * currentCount + rating) / newCount;
 
       transaction.update(recipeRef, {
         rating: newAverage,

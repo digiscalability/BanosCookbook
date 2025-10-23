@@ -5,21 +5,23 @@
 
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/hooks/use-toast';
 import {
-    CheckCircle2,
-    Film,
-    Image as ImageIcon,
-    Music,
-    Subtitles,
-    Upload,
-    X,
-    XCircle
+  CheckCircle2,
+  Film,
+  Image as ImageIcon,
+  Music,
+  Subtitles,
+  Upload,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
+
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+
 import type { AssetType, EditorAsset, UploadTask } from '../types';
 
 interface UploadManagerProps {
@@ -78,11 +80,7 @@ const FILE_CONFIGS = {
   },
 } as const;
 
-export function UploadManager({
-  recipeId,
-  onUploadComplete,
-  maxFileSize,
-}: UploadManagerProps) {
+export function UploadManager({ recipeId, onUploadComplete, maxFileSize }: UploadManagerProps) {
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [activeType, setActiveType] = useState<AssetType | 'all'>('all');
   const { toast } = useToast();
@@ -98,99 +96,108 @@ export function UploadManager({
   }, []);
 
   // Upload file to Firebase Storage
-  const uploadFile = useCallback(async (task: UploadTask) => {
-    try {
-      // Update status to uploading
-      setUploadTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? { ...t, status: 'uploading' } : t))
-      );
+  const uploadFile = useCallback(
+    async (task: UploadTask) => {
+      try {
+        // Update status to uploading
+        setUploadTasks(prev =>
+          prev.map(t => (t.id === task.id ? { ...t, status: 'uploading' } : t))
+        );
 
-      // Create FormData
-      const formData = new FormData();
-      formData.append('file', task.file);
-      formData.append('recipeId', recipeId);
-      formData.append('assetType', task.type);
+        // Create FormData
+        const formData = new FormData();
+        formData.append('file', task.file);
+        formData.append('recipeId', recipeId);
+        formData.append('assetType', task.type);
 
-      // Upload with progress tracking
-      const xhr = new XMLHttpRequest();
+        // Upload with progress tracking
+        const xhr = new XMLHttpRequest();
 
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const progress = Math.round((e.loaded / e.total) * 100);
-          setUploadTasks((prev) =>
-            prev.map((t) => (t.id === task.id ? { ...t, progress } : t))
-          );
-        }
-      });
+        xhr.upload.addEventListener('progress', e => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            setUploadTasks(prev => prev.map(t => (t.id === task.id ? { ...t, progress } : t)));
+          }
+        });
 
-      xhr.addEventListener('load', async () => {
-        if (xhr.status === 200) {
-          const result = JSON.parse(xhr.responseText);
+        xhr.addEventListener('load', async () => {
+          if (xhr.status === 200) {
+            const result = JSON.parse(xhr.responseText);
 
-          // Update to completed
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === task.id
-                ? { ...t, status: 'completed', progress: 100, url: result.url, assetId: result.assetId }
-                : t
+            // Update to completed
+            setUploadTasks(prev =>
+              prev.map(t =>
+                t.id === task.id
+                  ? {
+                      ...t,
+                      status: 'completed',
+                      progress: 100,
+                      url: result.url,
+                      assetId: result.assetId,
+                    }
+                  : t
+              )
+            );
+
+            // Notify parent
+            onUploadComplete([result.asset]);
+
+            toast({
+              title: 'Upload Complete',
+              description: `${task.file.name} uploaded successfully!`,
+            });
+          } else {
+            throw new Error(`Upload failed with status ${xhr.status}`);
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          setUploadTasks(prev =>
+            prev.map(t =>
+              t.id === task.id ? { ...t, status: 'error', error: 'Network error occurred' } : t
             )
           );
 
-          // Notify parent
-          onUploadComplete([result.asset]);
-
           toast({
-            title: 'Upload Complete',
-            description: `${task.file.name} uploaded successfully!`,
+            title: 'Upload Failed',
+            description: `Failed to upload ${task.file.name}`,
+            variant: 'destructive',
           });
-        } else {
-          throw new Error(`Upload failed with status ${xhr.status}`);
-        }
-      });
+        });
 
-      xhr.addEventListener('error', () => {
-        setUploadTasks((prev) =>
-          prev.map((t) =>
+        xhr.open('POST', '/api/upload-asset');
+        xhr.send(formData);
+      } catch (error) {
+        console.error('🎬 Upload error:', error);
+        setUploadTasks(prev =>
+          prev.map(t =>
             t.id === task.id
-              ? { ...t, status: 'error', error: 'Network error occurred' }
+              ? {
+                  ...t,
+                  status: 'error',
+                  error: error instanceof Error ? error.message : 'Unknown error',
+                }
               : t
           )
         );
 
         toast({
           title: 'Upload Failed',
-          description: `Failed to upload ${task.file.name}`,
+          description: error instanceof Error ? error.message : 'Unknown error occurred',
           variant: 'destructive',
         });
-      });
-
-      xhr.open('POST', '/api/upload-asset');
-      xhr.send(formData);
-    } catch (error) {
-      console.error('🎬 Upload error:', error);
-      setUploadTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id
-            ? { ...t, status: 'error', error: error instanceof Error ? error.message : 'Unknown error' }
-            : t
-        )
-      );
-
-      toast({
-        title: 'Upload Failed',
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: 'destructive',
-      });
-    }
-  }, [recipeId, onUploadComplete, toast]);
+      }
+    },
+    [recipeId, onUploadComplete, toast]
+  );
 
   // Handle file drop
   const onDrop = useCallback(
     async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
       // Show errors for rejected files
       if (fileRejections.length > 0) {
-        fileRejections.forEach((rejection) => {
-          const errors = rejection.errors.map((e) => e.message).join(', ');
+        fileRejections.forEach(rejection => {
+          const errors = rejection.errors.map(e => e.message).join(', ');
           toast({
             title: 'Upload Error',
             description: `${rejection.file.name}: ${errors}`,
@@ -200,7 +207,7 @@ export function UploadManager({
       }
 
       // Process accepted files
-      const newTasks: UploadTask[] = acceptedFiles.map((file) => ({
+      const newTasks: UploadTask[] = acceptedFiles.map(file => ({
         id: `upload-${Date.now()}-${Math.random()}`,
         file,
         type: detectAssetType(file) || 'video',
@@ -208,7 +215,7 @@ export function UploadManager({
         progress: 0,
       }));
 
-      setUploadTasks((prev) => [...prev, ...newTasks]);
+      setUploadTasks(prev => [...prev, ...newTasks]);
 
       // Upload each file
       for (const task of newTasks) {
@@ -220,7 +227,7 @@ export function UploadManager({
 
   // Remove upload task
   const removeTask = useCallback((taskId: string) => {
-    setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setUploadTasks(prev => prev.filter(t => t.id !== taskId));
   }, []);
 
   // Get all accepted file types
@@ -242,13 +249,12 @@ export function UploadManager({
   }, [activeType, maxFileSize]);
 
   // Setup dropzone
-  const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } =
-    useDropzone({
-      onDrop,
-      accept: getAllAcceptedTypes(),
-      maxSize: getMaxSize(),
-      multiple: true,
-    });
+  const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
+    onDrop,
+    accept: getAllAcceptedTypes(),
+    maxSize: getMaxSize(),
+    multiple: true,
+  });
 
   // Format file size
   const formatFileSize = (bytes: number) => {
@@ -278,7 +284,7 @@ export function UploadManager({
               size="sm"
               onClick={() => setActiveType(type as AssetType)}
             >
-              <Icon className={`h-4 w-4 mr-2 ${config.color}`} />
+              <Icon className={`mr-2 h-4 w-4 ${config.color}`} />
               {config.label}
             </Button>
           );
@@ -288,29 +294,25 @@ export function UploadManager({
       {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-          transition-colors duration-200
-          ${isDragAccept ? 'border-green-500 bg-green-500/10' : ''}
-          ${isDragReject ? 'border-red-500 bg-red-500/10' : ''}
-          ${!isDragActive ? 'border-gray-700 hover:border-gray-600 bg-gray-800/50' : ''}
-        `}
+        className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-200 ${isDragAccept ? 'border-green-500 bg-green-500/10' : ''} ${isDragReject ? 'border-red-500 bg-red-500/10' : ''} ${!isDragActive ? 'border-gray-700 bg-gray-800/50 hover:border-gray-600' : ''} `}
       >
         <input {...getInputProps()} />
-        <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+        <Upload className="mx-auto mb-4 h-12 w-12 text-gray-400" />
         {isDragActive ? (
           <p className="text-lg font-medium">
             {isDragAccept ? 'Drop files here...' : 'Some files will be rejected'}
           </p>
         ) : (
           <>
-            <p className="text-lg font-medium mb-2">
-              Drag & drop {activeType === 'all' ? 'media files' : FILE_CONFIGS[activeType as AssetType].label.toLowerCase() + ' files'} here
+            <p className="mb-2 text-lg font-medium">
+              Drag & drop{' '}
+              {activeType === 'all'
+                ? 'media files'
+                : FILE_CONFIGS[activeType as AssetType].label.toLowerCase() + ' files'}{' '}
+              here
             </p>
-            <p className="text-sm text-gray-400 mb-4">or click to browse</p>
-            <p className="text-xs text-gray-500">
-              Max size: {formatFileSize(getMaxSize())}
-            </p>
+            <p className="mb-4 text-sm text-gray-400">or click to browse</p>
+            <p className="text-xs text-gray-500">Max size: {formatFileSize(getMaxSize())}</p>
           </>
         )}
       </div>
@@ -320,41 +322,36 @@ export function UploadManager({
         <div className="space-y-2">
           <h4 className="text-sm font-medium">Uploads</h4>
           <div className="space-y-2">
-            {uploadTasks.map((task) => {
+            {uploadTasks.map(task => {
               const config = FILE_CONFIGS[task.type];
               const Icon = config.icon;
               const StatusIcon =
                 task.status === 'completed'
                   ? CheckCircle2
                   : task.status === 'error'
-                  ? XCircle
-                  : Upload;
+                    ? XCircle
+                    : Upload;
 
               return (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg"
-                >
+                <div key={task.id} className="flex items-center gap-3 rounded-lg bg-gray-800 p-3">
                   <Icon className={`h-5 w-5 flex-shrink-0 ${config.color}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{task.file.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{task.file.name}</p>
+                    <div className="mt-1 flex items-center gap-2">
                       <Progress value={task.progress} className="h-1.5 flex-1" />
-                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                      <span className="whitespace-nowrap text-xs text-gray-400">
                         {task.progress}%
                       </span>
                     </div>
-                    {task.error && (
-                      <p className="text-xs text-red-500 mt-1">{task.error}</p>
-                    )}
+                    {task.error && <p className="mt-1 text-xs text-red-500">{task.error}</p>}
                   </div>
                   <StatusIcon
                     className={`h-5 w-5 flex-shrink-0 ${
                       task.status === 'completed'
                         ? 'text-green-500'
                         : task.status === 'error'
-                        ? 'text-red-500'
-                        : 'text-gray-400 animate-pulse'
+                          ? 'text-red-500'
+                          : 'animate-pulse text-gray-400'
                     }`}
                   />
                   {(task.status === 'completed' || task.status === 'error') && (

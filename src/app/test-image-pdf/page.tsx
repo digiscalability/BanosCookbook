@@ -1,17 +1,11 @@
 'use client';
 
+import { AlertCircle, CheckCircle, Clock, Eye, TestTube, Upload } from 'lucide-react';
+import React, { useState } from 'react';
+
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import {
-    AlertCircle,
-    CheckCircle,
-    Clock,
-    Eye,
-    TestTube,
-    Upload
-} from 'lucide-react';
-import React, { useState } from 'react';
 
 export default function TestImagePDFPage() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -26,8 +20,17 @@ export default function TestImagePDFPage() {
         isLargeFile: boolean;
         isImagePDF: boolean;
       };
-      textExtraction?: { pages?: number; textLength?: number; success?: boolean; textPreview?: string };
-      recommendations?: Array<{ type: 'warning'|'info'|'success'; message: string; solution: string }>;
+      textExtraction?: {
+        pages?: number;
+        textLength?: number;
+        success?: boolean;
+        textPreview?: string;
+      };
+      recommendations?: Array<{
+        type: 'warning' | 'info' | 'success';
+        message: string;
+        solution: string;
+      }>;
     };
     error?: string;
     timestamp: string;
@@ -35,7 +38,13 @@ export default function TestImagePDFPage() {
 
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [currentTest, setCurrentTest] = useState<string>('');
-  type FileInfo = { fileName: string; fileSize: string; dataUriLength: number; isLargeFile: boolean; isImagePDF: boolean };
+  type FileInfo = {
+    fileName: string;
+    fileSize: string;
+    dataUriLength: number;
+    isLargeFile: boolean;
+    isImagePDF: boolean;
+  };
   const [pdfInfo, setPdfInfo] = useState<FileInfo | null>(null);
 
   const analyzePDF = async (file: File) => {
@@ -46,15 +55,18 @@ export default function TestImagePDFPage() {
     try {
       // Convert file to data URI
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = async e => {
         const pdfDataUri = e.target?.result as string;
 
         if (!pdfDataUri) {
-          setResults(prev => [...prev, {
-            test: 'File Analysis',
-            error: 'Failed to read PDF file',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'File Analysis',
+              error: 'Failed to read PDF file',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
           setIsProcessing(false);
           return;
         }
@@ -84,7 +96,7 @@ export default function TestImagePDFPage() {
           const response = await fetch('/api/test-pdf-text', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfDataUri })
+            body: JSON.stringify({ pdfDataUri }),
           });
 
           const textResult = await response.json();
@@ -92,29 +104,34 @@ export default function TestImagePDFPage() {
           clearInterval(progressInterval);
           setProcessingProgress(100);
 
-          setResults(prev => [...prev, {
-            test: 'PDF Analysis',
-            result: {
-              fileInfo: {
-                fileName: file.name,
-                fileSize: (fileSize / 1024 / 1024).toFixed(2) + ' MB',
-                dataUriLength: dataUriLength,
-                isLargeFile: fileSize > 5 * 1024 * 1024,
-                isImagePDF: dataUriLength > 10000000,
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'PDF Analysis',
+              result: {
+                fileInfo: {
+                  fileName: file.name,
+                  fileSize: (fileSize / 1024 / 1024).toFixed(2) + ' MB',
+                  dataUriLength: dataUriLength,
+                  isLargeFile: fileSize > 5 * 1024 * 1024,
+                  isImagePDF: dataUriLength > 10000000,
+                },
+                textExtraction: textResult,
+                recommendations: generateRecommendations(textResult, fileSize),
               },
-              textExtraction: textResult,
-              recommendations: generateRecommendations(textResult, fileSize)
+              timestamp: new Date().toISOString(),
             },
-            timestamp: new Date().toISOString()
-          }]);
-
+          ]);
         } catch (error) {
           clearInterval(progressInterval);
-          setResults(prev => [...prev, {
-            test: 'PDF Analysis',
-            error: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'PDF Analysis',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
         } finally {
           setIsProcessing(false);
           setProcessingProgress(0);
@@ -124,23 +141,30 @@ export default function TestImagePDFPage() {
       reader.readAsDataURL(file);
     } catch (error) {
       setIsProcessing(false);
-      setResults(prev => [...prev, {
-        test: 'PDF Analysis',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          test: 'PDF Analysis',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
   const generateRecommendations = (textResult: unknown, fileSize: number) => {
-    const recommendations: Array<{ type: 'warning'|'info'|'success'; message: string; solution: string }> = [];
+    const recommendations: Array<{
+      type: 'warning' | 'info' | 'success';
+      message: string;
+      solution: string;
+    }> = [];
     const tr = textResult as { textLength?: number } | undefined;
 
     if ((tr?.textLength ?? 0) < 100) {
       recommendations.push({
         type: 'warning',
         message: 'This appears to be an image-based PDF (scanned cookbook)',
-        solution: 'OCR processing is required but GraphicsMagick is not installed'
+        solution: 'OCR processing is required but GraphicsMagick is not installed',
       });
     }
 
@@ -148,7 +172,7 @@ export default function TestImagePDFPage() {
       recommendations.push({
         type: 'info',
         message: 'Large file detected - processing may be slow',
-        solution: 'Consider compressing the PDF or processing in smaller chunks'
+        solution: 'Consider compressing the PDF or processing in smaller chunks',
       });
     }
 
@@ -156,7 +180,7 @@ export default function TestImagePDFPage() {
       recommendations.push({
         type: 'success',
         message: 'Text extraction is possible',
-        solution: 'Use text-only or hybrid processing mode'
+        solution: 'Use text-only or hybrid processing mode',
       });
     }
 
@@ -169,23 +193,26 @@ export default function TestImagePDFPage() {
       setResults([]);
       analyzePDF(file);
     } else {
-      setResults(prev => [...prev, {
-        test: 'File Validation',
-        error: 'Please select a valid PDF file',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          test: 'File Validation',
+          error: 'Please select a valid PDF file',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TestTube className="h-5 w-5" />
             Image-Based PDF Analysis
           </CardTitle>
-            <CardDescription>
+          <CardDescription>
             Analyze your MonAsal (Bana).pdf to determine the best processing approach
           </CardDescription>
         </CardHeader>
@@ -201,7 +228,7 @@ export default function TestImagePDFPage() {
               accept=".pdf"
               onChange={handleFileChange}
               disabled={isProcessing}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
             />
           </div>
 
@@ -232,10 +259,18 @@ export default function TestImagePDFPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><strong>File Name:</strong> {pdfInfo.fileName}</div>
-                  <div><strong>File Size:</strong> {pdfInfo.fileSize}</div>
-                  <div><strong>Data URI Length:</strong> {pdfInfo.dataUriLength.toLocaleString()}</div>
-                  <div><strong>Type:</strong> {pdfInfo.isImagePDF ? 'Image PDF' : 'Text PDF'}</div>
+                  <div>
+                    <strong>File Name:</strong> {pdfInfo.fileName}
+                  </div>
+                  <div>
+                    <strong>File Size:</strong> {pdfInfo.fileSize}
+                  </div>
+                  <div>
+                    <strong>Data URI Length:</strong> {pdfInfo.dataUriLength.toLocaleString()}
+                  </div>
+                  <div>
+                    <strong>Type:</strong> {pdfInfo.isImagePDF ? 'Image PDF' : 'Text PDF'}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -261,20 +296,26 @@ export default function TestImagePDFPage() {
                     {result.error ? (
                       <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Error: {result.error}
-                        </AlertDescription>
+                        <AlertDescription>Error: {result.error}</AlertDescription>
                       </Alert>
                     ) : (
                       <div className="space-y-4">
                         {result.result?.fileInfo && (
                           <div>
                             <strong>File Information:</strong>
-                            <div className="p-3 bg-gray-50 rounded-md text-sm">
+                            <div className="rounded-md bg-gray-50 p-3 text-sm">
                               <div>File: {result.result.fileInfo.fileName}</div>
                               <div>Size: {result.result.fileInfo.fileSize}</div>
-                              <div>Data URI: {result.result.fileInfo.dataUriLength.toLocaleString()} chars</div>
-                              <div>Type: {result.result.fileInfo.isImagePDF ? 'Image PDF (scanned)' : 'Text PDF'}</div>
+                              <div>
+                                Data URI: {result.result.fileInfo.dataUriLength.toLocaleString()}{' '}
+                                chars
+                              </div>
+                              <div>
+                                Type:{' '}
+                                {result.result.fileInfo.isImagePDF
+                                  ? 'Image PDF (scanned)'
+                                  : 'Text PDF'}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -282,10 +323,15 @@ export default function TestImagePDFPage() {
                         {result.result?.textExtraction && (
                           <div>
                             <strong>Text Extraction Results:</strong>
-                            <div className="p-3 bg-gray-50 rounded-md text-sm">
+                            <div className="rounded-md bg-gray-50 p-3 text-sm">
                               <div>Pages: {result.result.textExtraction.pages || 'Unknown'}</div>
-                              <div>Text Length: {result.result.textExtraction.textLength || 0} characters</div>
-                              <div>Success: {result.result.textExtraction.success ? 'Yes' : 'No'}</div>
+                              <div>
+                                Text Length: {result.result.textExtraction.textLength || 0}{' '}
+                                characters
+                              </div>
+                              <div>
+                                Success: {result.result.textExtraction.success ? 'Yes' : 'No'}
+                              </div>
                               {result.result.textExtraction.textPreview && (
                                 <div>Preview: {result.result.textExtraction.textPreview}</div>
                               )}
@@ -293,19 +339,30 @@ export default function TestImagePDFPage() {
                           </div>
                         )}
 
-                                        {result.result?.recommendations && (
+                        {result.result?.recommendations && (
                           <div>
                             <strong>Recommendations:</strong>
                             <div className="space-y-2">
-                                                {result.result.recommendations.map((rec, idx) => (
-                                                  <Alert key={idx} variant={rec.type === 'warning' ? 'destructive' : rec.type === 'success' ? 'default' : 'default'}>
-                                                    <AlertCircle className="h-4 w-4" />
-                                                    <AlertDescription>
-                                                      <div><strong>{rec.message}</strong></div>
-                                                      <div className="text-sm text-gray-600">{rec.solution}</div>
-                                                    </AlertDescription>
-                                                  </Alert>
-                                                ))}
+                              {result.result.recommendations.map((rec, idx) => (
+                                <Alert
+                                  key={idx}
+                                  variant={
+                                    rec.type === 'warning'
+                                      ? 'destructive'
+                                      : rec.type === 'success'
+                                        ? 'default'
+                                        : 'default'
+                                  }
+                                >
+                                  <AlertCircle className="h-4 w-4" />
+                                  <AlertDescription>
+                                    <div>
+                                      <strong>{rec.message}</strong>
+                                    </div>
+                                    <div className="text-sm text-gray-600">{rec.solution}</div>
+                                  </AlertDescription>
+                                </Alert>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -322,12 +379,20 @@ export default function TestImagePDFPage() {
             <Upload className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-2">
-                <p><strong>Instructions:</strong></p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
+                <p>
+                  <strong>Instructions:</strong>
+                </p>
+                <ol className="list-inside list-decimal space-y-1 text-sm">
                   <li>Upload your MonAsal (Bana).pdf file</li>
                   <li>The system will analyze the PDF structure and content</li>
-                  <li>Based on the analysis, you will get recommendations for the best processing method</li>
-                  <li>For image-based PDFs, OCR processing is required but GraphicsMagick needs to be installed</li>
+                  <li>
+                    Based on the analysis, you will get recommendations for the best processing
+                    method
+                  </li>
+                  <li>
+                    For image-based PDFs, OCR processing is required but GraphicsMagick needs to be
+                    installed
+                  </li>
                 </ol>
               </div>
             </AlertDescription>

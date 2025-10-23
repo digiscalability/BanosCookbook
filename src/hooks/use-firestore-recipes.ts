@@ -1,16 +1,17 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import {
-    createRecipe as apiCreateRecipe,
-    deleteRecipe as apiDeleteRecipe,
-    getRecipeById as apiGetRecipeById,
-    updateRecipe as apiUpdateRecipe,
-    getAllRecipes,
-    type CreateRecipeData,
-    type UpdateRecipeData,
+  createRecipe as apiCreateRecipe,
+  deleteRecipe as apiDeleteRecipe,
+  getRecipeById as apiGetRecipeById,
+  updateRecipe as apiUpdateRecipe,
+  getAllRecipes,
+  type CreateRecipeData,
+  type UpdateRecipeData,
 } from '@/lib/firestore-recipes';
 import type { Recipe } from '@/lib/types';
-import { useEffect, useState } from 'react';
 
 export function useFirestoreRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -22,11 +23,11 @@ export function useFirestoreRecipes() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading recipes from Firestore...');
-  const apiRecipes = await getAllRecipes();
-  console.log('Loaded recipes:', apiRecipes.length);
-  setRecipes(apiRecipes);
-  return apiRecipes;
+      console.warn('Loading recipes from Firestore...');
+      const apiRecipes = await getAllRecipes();
+      console.warn('Loaded recipes:', apiRecipes.length);
+      setRecipes(apiRecipes);
+      return apiRecipes;
     } catch (err) {
       console.error('Error loading recipes:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recipes');
@@ -81,7 +82,7 @@ export function useFirestoreRecipes() {
       };
 
       const createdRecipe = await apiCreateRecipe(createData);
-      setRecipes((prev) => [createdRecipe, ...prev]);
+      setRecipes(prev => [createdRecipe, ...prev]);
       return createdRecipe;
     } catch (err) {
       console.error('Error adding recipe:', err);
@@ -109,7 +110,7 @@ export function useFirestoreRecipes() {
       const payload: UpdateRecipeData = { ...updates };
       const updatedRecipe = await apiUpdateRecipe(id, payload);
       if (updatedRecipe) {
-        setRecipes((prev) => prev.map((recipe) => (recipe.id === id ? updatedRecipe : recipe)));
+        setRecipes(prev => prev.map(recipe => (recipe.id === id ? updatedRecipe : recipe)));
       } else {
         await loadRecipes();
       }
@@ -125,7 +126,7 @@ export function useFirestoreRecipes() {
     try {
       setError(null);
       await apiDeleteRecipe(id);
-      setRecipes((prev) => prev.filter((recipe) => recipe.id !== id));
+      setRecipes(prev => prev.filter(recipe => recipe.id !== id));
     } catch (err) {
       console.error('Error deleting recipe:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete recipe');

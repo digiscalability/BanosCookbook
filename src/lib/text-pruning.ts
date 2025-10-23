@@ -24,10 +24,16 @@ export function removeProductionCues(text: string): string {
   cleaned = cleaned.replace(/\([bB]ackground\s+music\)/gi, '');
 
   // Remove "On-Screen Text:", "Narrator:", "Voiceover:", prefixes
-  cleaned = cleaned.replace(/^(On[-\s]Screen\s+Text|Narrator|Voiceover|Voice\s+Over)\s*:\s*/gim, '');
+  cleaned = cleaned.replace(
+    /^(On[-\s]Screen\s+Text|Narrator|Voiceover|Voice\s+Over)\s*:\s*/gim,
+    ''
+  );
 
   // Remove generic scene cues
-  cleaned = cleaned.replace(/^(Start\s+of\s+recipe|Final\s+step|End\s+of\s+recipe)\s*\(no\s+generic\s+(intro|outro)\)[.:]?\s*/gim, '');
+  cleaned = cleaned.replace(
+    /^(Start\s+of\s+recipe|Final\s+step|End\s+of\s+recipe)\s*\(no\s+generic\s+(intro|outro)\)[.:]?\s*/gim,
+    ''
+  );
   cleaned = cleaned.replace(/^(no\s+generic\s+(intro|outro))[.:]?\s*/gim, '');
 
   // Remove step numbering at start: "1.", "Step 2.", "2)", etc.
@@ -88,16 +94,28 @@ export function prepareForVoiceover(text: string): string {
   let voiceText = removeProductionCues(text);
 
   // Remove camera directions (not meant to be spoken)
-  voiceText = voiceText.replace(/\b(camera|shot|frame|zoom|pan|tilt|overhead|close-up|wide\s+shot)[^.!?]*[.!?]?/gi, '');
+  voiceText = voiceText.replace(
+    /\b(camera|shot|frame|zoom|pan|tilt|overhead|close-up|wide\s+shot)[^.!?]*[.!?]?/gi,
+    ''
+  );
 
   // Remove lighting directions
-  voiceText = voiceText.replace(/\b(lighting|light|natural\s+light|window\s+light|dramatic\s+lighting)[^.!?]*[.!?]?/gi, '');
+  voiceText = voiceText.replace(
+    /\b(lighting|light|natural\s+light|window\s+light|dramatic\s+lighting)[^.!?]*[.!?]?/gi,
+    ''
+  );
 
   // Remove composition directions
-  voiceText = voiceText.replace(/\b(composition|centered|in\s+frame|at\s+\d+\s+o'clock)[^.!?]*[.!?]?/gi, '');
+  voiceText = voiceText.replace(
+    /\b(composition|centered|in\s+frame|at\s+\d+\s+o'clock)[^.!?]*[.!?]?/gi,
+    ''
+  );
 
   // Remove visual style directions
-  voiceText = voiceText.replace(/\b(cinematic|appetizing|warm\s+atmosphere|inviting)[^.!?]*[.!?]?/gi, '');
+  voiceText = voiceText.replace(
+    /\b(cinematic|appetizing|warm\s+atmosphere|inviting)[^.!?]*[.!?]?/gi,
+    ''
+  );
 
   // Clean up
   voiceText = voiceText.replace(/\s{2,}/g, ' ').trim();
@@ -120,7 +138,10 @@ export function prepareForVideoGeneration(text: string): string {
   let videoText = removeProductionCues(text);
 
   // Remove voiceover/narration text (visual only for Runway)
-  videoText = videoText.replace(/\b(narrator\s+says?|voice\s*over|narrat(ion|or))[^.!?]*[.!?]?/gi, '');
+  videoText = videoText.replace(
+    /\b(narrator\s+says?|voice\s*over|narrat(ion|or))[^.!?]*[.!?]?/gi,
+    ''
+  );
 
   // Remove spoken instructions (actions only, not speech)
   videoText = videoText.replace(/["']([^"']+)["']/g, ''); // Remove quoted speech
@@ -172,16 +193,20 @@ export function cleanForDisplay(text: string): string {
 /**
  * Batch clean multiple text fields in a scene object
  */
-export function cleanSceneText<T extends {
-  script?: string;
-  description?: string;
-  promptSummary?: string;
-  subtitleLines?: string[];
-}>(scene: T): T {
+export function cleanSceneText<
+  T extends {
+    script?: string;
+    description?: string;
+    promptSummary?: string;
+    subtitleLines?: string[];
+  },
+>(scene: T): T {
   return {
     ...scene,
     script: scene.script ? cleanForDisplay(scene.script) : scene.script,
-    description: scene.description ? extractVisualDescription(scene.description) : scene.description,
+    description: scene.description
+      ? extractVisualDescription(scene.description)
+      : scene.description,
     promptSummary: scene.promptSummary ? cleanForDisplay(scene.promptSummary) : scene.promptSummary,
     subtitleLines: scene.subtitleLines?.map(line => removeProductionCues(line)),
   };

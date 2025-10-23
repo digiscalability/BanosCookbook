@@ -1,21 +1,22 @@
 'use client';
 
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Download,
+  ExternalLink,
+  Lightbulb,
+  TestTube,
+  Upload,
+} from 'lucide-react';
+import React, { useState } from 'react';
+
 import { extractRecipesFromPdfFallback } from '@/ai/flows/recipes-from-pdf-fallback';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import {
-    AlertCircle,
-    CheckCircle,
-    Clock,
-    Download,
-    ExternalLink,
-    Lightbulb,
-    TestTube,
-    Upload
-} from 'lucide-react';
-import React, { useState } from 'react';
 
 export default function TestFallbackPDFPage() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,15 +60,18 @@ export default function TestFallbackPDFPage() {
     try {
       // Convert file to data URI
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = async e => {
         const pdfDataUri = e.target?.result as string;
 
         if (!pdfDataUri) {
-          setResults(prev => [...prev, {
-            test: 'PDF Processing',
-            error: 'Failed to read PDF file',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'PDF Processing',
+              error: 'Failed to read PDF file',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
           setIsProcessing(false);
           return;
         }
@@ -88,19 +92,24 @@ export default function TestFallbackPDFPage() {
           clearInterval(progressInterval);
           setProcessingProgress(100);
 
-          setResults(prev => [...prev, {
-            test: 'Fallback PDF Processing',
-            result: result,
-            timestamp: new Date().toISOString()
-          }]);
-
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'Fallback PDF Processing',
+              result: result,
+              timestamp: new Date().toISOString(),
+            },
+          ]);
         } catch (error) {
           clearInterval(progressInterval);
-          setResults(prev => [...prev, {
-            test: 'PDF Processing',
-            error: error instanceof Error ? error.message : 'Unknown error',
-            timestamp: new Date().toISOString()
-          }]);
+          setResults(prev => [
+            ...prev,
+            {
+              test: 'PDF Processing',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              timestamp: new Date().toISOString(),
+            },
+          ]);
         } finally {
           setIsProcessing(false);
           setProcessingProgress(0);
@@ -110,11 +119,14 @@ export default function TestFallbackPDFPage() {
       reader.readAsDataURL(file);
     } catch (error) {
       setIsProcessing(false);
-      setResults(prev => [...prev, {
-        test: 'PDF Processing',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          test: 'PDF Processing',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
@@ -124,16 +136,19 @@ export default function TestFallbackPDFPage() {
       setResults([]);
       processPDF(file);
     } else {
-      setResults(prev => [...prev, {
-        test: 'File Validation',
-        error: 'Please select a valid PDF file',
-        timestamp: new Date().toISOString()
-      }]);
+      setResults(prev => [
+        ...prev,
+        {
+          test: 'File Validation',
+          error: 'Please select a valid PDF file',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto space-y-6 p-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -156,7 +171,7 @@ export default function TestFallbackPDFPage() {
               accept=".pdf"
               onChange={handleFileChange}
               disabled={isProcessing}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
             />
           </div>
 
@@ -196,9 +211,7 @@ export default function TestFallbackPDFPage() {
                     {result.error ? (
                       <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Error: {result.error}
-                        </AlertDescription>
+                        <AlertDescription>Error: {result.error}</AlertDescription>
                       </Alert>
                     ) : (
                       <div className="space-y-4">
@@ -206,12 +219,22 @@ export default function TestFallbackPDFPage() {
                         {result.result?.processingInfo && (
                           <div>
                             <strong>Processing Information:</strong>
-                            <div className="p-3 bg-gray-50 rounded-md text-sm">
+                            <div className="rounded-md bg-gray-50 p-3 text-sm">
                               <div>Pages: {result.result.processingInfo.totalPages}</div>
-                              <div>Text Extracted: {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}</div>
-                              <div>Text Length: {result.result.processingInfo.textLength} characters</div>
-                              <div>Is Image PDF: {result.result.processingInfo.isImagePDF ? 'Yes' : 'No'}</div>
-                              <div>Processing Time: {result.result.processingInfo.processingTime}ms</div>
+                              <div>
+                                Text Extracted:{' '}
+                                {result.result.processingInfo.textExtracted ? 'Yes' : 'No'}
+                              </div>
+                              <div>
+                                Text Length: {result.result.processingInfo.textLength} characters
+                              </div>
+                              <div>
+                                Is Image PDF:{' '}
+                                {result.result.processingInfo.isImagePDF ? 'Yes' : 'No'}
+                              </div>
+                              <div>
+                                Processing Time: {result.result.processingInfo.processingTime}ms
+                              </div>
                             </div>
                           </div>
                         )}
@@ -235,21 +258,35 @@ export default function TestFallbackPDFPage() {
                         <div>
                           <strong>Recipes Found: {result.result?.recipes?.length || 0}</strong>
                           {result.result?.recipes && result.result.recipes.length > 0 && (
-                            <div className="space-y-2 mt-2">
+                            <div className="mt-2 space-y-2">
                               {result.result.recipes.map((recipe: RecipePreview, idx: number) => (
                                 <Card key={idx} className="p-3">
                                   <div className="space-y-1 text-sm">
-                                    <div><strong>Title:</strong> {recipe.title}</div>
-                                    <div><strong>Cuisine:</strong> {recipe.cuisine}</div>
-                                    <div><strong>Servings:</strong> {recipe.servings}</div>
-                                    <div><strong>Prep Time:</strong> {recipe.prepTime}</div>
-                                    <div><strong>Cook Time:</strong> {recipe.cookTime}</div>
-                                    <div><strong>Ingredients:</strong></div>
-                                    <div className="text-xs bg-white p-2 rounded border max-h-32 overflow-y-auto">
+                                    <div>
+                                      <strong>Title:</strong> {recipe.title}
+                                    </div>
+                                    <div>
+                                      <strong>Cuisine:</strong> {recipe.cuisine}
+                                    </div>
+                                    <div>
+                                      <strong>Servings:</strong> {recipe.servings}
+                                    </div>
+                                    <div>
+                                      <strong>Prep Time:</strong> {recipe.prepTime}
+                                    </div>
+                                    <div>
+                                      <strong>Cook Time:</strong> {recipe.cookTime}
+                                    </div>
+                                    <div>
+                                      <strong>Ingredients:</strong>
+                                    </div>
+                                    <div className="max-h-32 overflow-y-auto rounded border bg-white p-2 text-xs">
                                       {recipe.ingredients}
                                     </div>
-                                    <div><strong>Instructions:</strong></div>
-                                    <div className="text-xs bg-white p-2 rounded border max-h-32 overflow-y-auto">
+                                    <div>
+                                      <strong>Instructions:</strong>
+                                    </div>
+                                    <div className="max-h-32 overflow-y-auto rounded border bg-white p-2 text-xs">
                                       {recipe.instructions}
                                     </div>
                                   </div>
@@ -263,7 +300,7 @@ export default function TestFallbackPDFPage() {
                         {result.result?.rawText && (
                           <div>
                             <strong>Raw Text Preview:</strong>
-                            <div className="p-3 bg-gray-50 rounded-md text-xs max-h-32 overflow-y-auto">
+                            <div className="max-h-32 overflow-y-auto rounded-md bg-gray-50 p-3 text-xs">
                               {result.result.rawText.substring(0, 500)}...
                             </div>
                           </div>
@@ -285,26 +322,26 @@ export default function TestFallbackPDFPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Option 1: Online OCR</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="mb-3 text-sm text-gray-600">
                       Use online OCR services to convert your PDF to text
                     </p>
                     <div className="space-y-2">
                       <Button variant="outline" size="sm" className="w-full">
-                        <ExternalLink className="h-4 w-4 mr-2" />
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         Google Drive OCR
                       </Button>
                       <Button variant="outline" size="sm" className="w-full">
-                        <ExternalLink className="h-4 w-4 mr-2" />
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         SmallPDF OCR
                       </Button>
                       <Button variant="outline" size="sm" className="w-full">
-                        <ExternalLink className="h-4 w-4 mr-2" />
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         ILovePDF OCR
                       </Button>
                     </div>
@@ -316,20 +353,20 @@ export default function TestFallbackPDFPage() {
                     <CardTitle className="text-lg">Option 2: Desktop OCR</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="mb-3 text-sm text-gray-600">
                       Use desktop applications for OCR processing
                     </p>
                     <div className="space-y-2">
                       <Button variant="outline" size="sm" className="w-full">
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="mr-2 h-4 w-4" />
                         Adobe Acrobat
                       </Button>
                       <Button variant="outline" size="sm" className="w-full">
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="mr-2 h-4 w-4" />
                         ABBYY FineReader
                       </Button>
                       <Button variant="outline" size="sm" className="w-full">
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="mr-2 h-4 w-4" />
                         Tesseract OCR
                       </Button>
                     </div>
@@ -344,8 +381,10 @@ export default function TestFallbackPDFPage() {
             <Upload className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-2">
-                <p><strong>Instructions:</strong></p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
+                <p>
+                  <strong>Instructions:</strong>
+                </p>
+                <ol className="list-inside list-decimal space-y-1 text-sm">
                   <li>Upload your MonAsal (Bana).pdf file</li>
                   <li>The system will analyze the PDF and provide recommendations</li>
                   <li>If it is an image-based PDF, follow the alternative solutions above</li>

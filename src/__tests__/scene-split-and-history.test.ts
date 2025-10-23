@@ -1,5 +1,6 @@
-import { splitScriptIntoScenesFlow } from '@/ai/flows/split-script-into-scenes';
 import { describe, expect, it } from 'vitest';
+
+import { splitScriptIntoScenesFlow } from '@/ai/flows/split-script-into-scenes';
 
 describe('split-script fallback', () => {
   it('splits a simple script into requested number of scenes using fallback', async () => {

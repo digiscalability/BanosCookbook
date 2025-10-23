@@ -1,6 +1,8 @@
-import type { Comment } from '@/lib/types';
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+
+import type { Comment } from '@/lib/types';
+
 import adminConfig from '../../../../../../../../config/firebase-admin';
 
 const { getDb, getAdmin } = adminConfig as unknown as {
@@ -10,13 +12,17 @@ const { getDb, getAdmin } = adminConfig as unknown as {
 
 const formatComment = (raw: unknown): Comment => {
   const input = raw as Record<string, unknown> | undefined;
-  const timestamp = typeof input?.timestamp === 'string' && input.timestamp.trim().length > 0
-    ? input.timestamp
-    : new Date().toISOString();
+  const timestamp =
+    typeof input?.timestamp === 'string' && input.timestamp.trim().length > 0
+      ? input.timestamp
+      : new Date().toISOString();
 
   const comment: Comment = {
     id: typeof input?.id === 'string' && input.id.trim().length > 0 ? input.id : `c-${Date.now()}`,
-    author: typeof input?.author === 'string' && input.author.trim().length > 0 ? input.author : 'Guest User',
+    author:
+      typeof input?.author === 'string' && input.author.trim().length > 0
+        ? input.author
+        : 'Guest User',
     authorEmail: typeof input?.authorEmail === 'string' ? input.authorEmail : undefined,
     avatarUrl: typeof input?.avatarUrl === 'string' ? input.avatarUrl : '',
     text: typeof input?.text === 'string' ? input.text : '',
@@ -65,7 +71,7 @@ export const revalidate = 0;
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; commentId: string }> },
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     const { id, commentId } = await params;
@@ -87,18 +93,20 @@ export async function POST(
     const admin = getAdmin();
     const recipeRef = db.collection('recipes').doc(id);
 
-    const result = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(recipeRef);
       if (!snapshot.exists) {
         throw new Error('Recipe not found');
       }
 
       const data = snapshot.data() as Record<string, unknown>;
-      const comments = (data?.comments as Array<{ id: string; replies?: unknown[]; [key: string]: unknown }>) || [];
+      const comments =
+        (data?.comments as Array<{ id: string; replies?: unknown[]; [key: string]: unknown }>) ||
+        [];
 
       // Find parent comment and add reply
       let parentFound = false;
-      const updatedComments = comments.map((comment) => {
+      const updatedComments = comments.map(comment => {
         if (comment.id === commentId) {
           parentFound = true;
           const replies = comment.replies || [];
