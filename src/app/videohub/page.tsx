@@ -1,5 +1,8 @@
 'use client';
 
+import { Suspense, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { getRecipeById } from '@/lib/firestore-recipes';
 import { WorkflowStepper } from './components/shared/WorkflowStepper';
 import { CombineStep } from './components/steps/CombineStep';
 import { RecipeSelector } from './components/steps/RecipeSelector';
@@ -10,6 +13,22 @@ import { StudioEditor } from './components/steps/StudioEditor';
 import { VideoGenerationStep } from './components/steps/VideoGenerationStep';
 import { VoiceoverStep } from './components/steps/VoiceoverStep';
 import { useVideoHub, VideoHubProvider } from './context/VideoHubProvider';
+
+function RecipePreloader() {
+  const { state, selectRecipe } = useVideoHub();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const recipeId = searchParams?.get('recipeId');
+    if (recipeId && state.currentStep === 'selectingRecipe' && !state.selectedRecipe) {
+      getRecipeById(recipeId).then(recipe => {
+        if (recipe) selectRecipe(recipe);
+      });
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 function VideoHubContent() {
   const { state } = useVideoHub();
@@ -27,6 +46,9 @@ function VideoHubContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
+      <Suspense>
+        <RecipePreloader />
+      </Suspense>
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">

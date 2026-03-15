@@ -1,10 +1,12 @@
-import { CheckCircle, ChefHat, Clock, Star, Users } from 'lucide-react';
+import { CheckCircle, ChefHat, Clock, Star, Users, Video } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import CommentSection from '@/components/comment-section';
 import NutritionalInfo from '@/components/nutritional-info';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getRecipeById } from '@/lib/firestore-recipes';
@@ -79,9 +81,17 @@ export default async function RecipePage({ params }: RecipePageProps) {
           <Badge variant="secondary" className="mb-2 text-xs capitalize sm:text-sm">
             {recipe.cuisine}
           </Badge>
-          <h1 className="mb-3 font-headline text-2xl font-bold leading-tight text-foreground sm:mb-4 sm:text-3xl md:text-4xl lg:text-5xl">
-            {recipe.title}
-          </h1>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3 sm:mb-4">
+            <h1 className="font-headline text-2xl font-bold leading-tight text-foreground sm:text-3xl md:text-4xl lg:text-5xl">
+              {recipe.title}
+            </h1>
+            <Button asChild size="sm" className="shrink-0">
+              <Link href={`/videohub?recipeId=${id}`}>
+                <Video className="mr-2 h-4 w-4" />
+                Create Video
+              </Link>
+            </Button>
+          </div>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">
             {recipe.description}
           </p>

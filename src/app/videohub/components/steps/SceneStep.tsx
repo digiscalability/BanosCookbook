@@ -27,7 +27,8 @@ export function SceneStep() {
 
     try {
       setIsLoading(true);
-      const scenes = await getSplitScenesForRecipeAction(state.selectedRecipe.id);
+      const result = await getSplitScenesForRecipeAction(state.selectedRecipe.id);
+      const scenes = result.scenes ?? [];
 
       const formattedScenes: Scene[] = scenes.map((scene: any, idx: number) => ({
         sceneNumber: idx + 1,
@@ -58,7 +59,6 @@ export function SceneStep() {
           <Button
             onClick={handleGenerateScenes}
             disabled={isLoading}
-            isLoading={isLoading}
             className="w-full"
             size="lg"
           >

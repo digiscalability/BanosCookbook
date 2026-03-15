@@ -1,6 +1,6 @@
 'use client';
 
-import { CookingPot, PlusCircle, Menu, X } from 'lucide-react';
+import { CookingPot, PlusCircle, Video, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -27,6 +27,12 @@ export default function Header() {
             <Button variant="ghost" asChild>
               <Link href="/">Home</Link>
             </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/videohub">
+                <Video className="mr-2" />
+                Video Hub
+              </Link>
+            </Button>
             <Button asChild>
               <Link href="/add-recipe">
                 <PlusCircle className="mr-2" />
@@ -52,6 +58,12 @@ export default function Header() {
             <Button variant="ghost" asChild className="w-full justify-start">
               <Link href="/" onClick={() => setIsMenuOpen(false)}>
                 Home
+              </Link>
+            </Button>
+            <Button variant="ghost" asChild className="w-full justify-start">
+              <Link href="/videohub" onClick={() => setIsMenuOpen(false)}>
+                <Video className="mr-2" />
+                Video Hub
               </Link>
             </Button>
             <Button asChild className="w-full justify-start">

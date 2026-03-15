@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { createContext, useCallback, useReducer } from 'react';
+import React, { createContext, useCallback, useEffect, useReducer } from 'react';
 
 import type { Recipe } from '@/lib/types';
 
@@ -35,7 +35,7 @@ export interface VideoHubState {
   script: VideoScript | null;
   scenes: Scene[];
   sceneVideos: Record<number, string>; // sceneNumber -> videoUrl
-  voiceovers: Record<number, string>; // sceneNumber -> voiceoverUrl
+  voiceovers: Record<number, string>;  // sceneNumber -> voiceoverUrl
   combinedVideo: { url: string; duration?: number } | null;
   error: string | null;
 }
@@ -72,6 +72,21 @@ const initialState: VideoHubState = {
   error: null,
 };
 
+const STORAGE_KEY = 'videohub_state_v1';
+
+function loadPersistedState(): VideoHubState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return initialState;
+    const parsed = JSON.parse(raw) as VideoHubState;
+    // Guard: if we're back at the start, clear storage rather than restore
+    if (parsed.currentStep === 'selectingRecipe') return initialState;
+    return parsed;
+  } catch {
+    return initialState;
+  }
+}
+
 function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHubState {
   switch (action.type) {
     case 'SELECT_RECIPE':
@@ -82,51 +97,28 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       };
 
     case 'SCRIPT_READY':
-      return {
-        ...state,
-        currentStep: 'sceneGeneration',
-        script: action.script,
-      };
+      return { ...state, currentStep: 'sceneGeneration', script: action.script };
 
     case 'SKIP_SCRIPT':
-      return {
-        ...state,
-        currentStep: 'sceneGeneration',
-      };
+      return { ...state, currentStep: 'sceneGeneration' };
 
     case 'SCENES_READY':
-      return {
-        ...state,
-        currentStep: 'voiceoverGeneration',
-        scenes: action.scenes,
-      };
+      return { ...state, currentStep: 'voiceoverGeneration', scenes: action.scenes };
 
     case 'SKIP_SCENES':
-      return {
-        ...state,
-        currentStep: 'voiceoverGeneration',
-      };
+      return { ...state, currentStep: 'voiceoverGeneration' };
 
     case 'VOICEOVERS_READY':
-      return {
-        ...state,
-        currentStep: 'studioEditing',
-        voiceovers: action.voiceovers,
-      };
+      return { ...state, currentStep: 'studioEditing', voiceovers: action.voiceovers };
 
     case 'SKIP_VOICEOVERS':
-      return {
-        ...state,
-        currentStep: 'studioEditing',
-      };
+      return { ...state, currentStep: 'studioEditing' };
 
     case 'UPDATE_SCENE':
       return {
         ...state,
         scenes: state.scenes.map(s =>
-          s.sceneNumber === action.sceneNumber
-            ? { ...s, ...action.updates }
-            : s
+          s.sceneNumber === action.sceneNumber ? { ...s, ...action.updates } : s
         ),
       };
 
@@ -134,54 +126,33 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       const scenes = [...state.scenes];
       const [moved] = scenes.splice(action.fromIdx, 1);
       scenes.splice(action.toIdx, 0, moved);
-      return {
-        ...state,
-        scenes,
-      };
+      return { ...state, scenes };
     }
 
     case 'READY_TO_GENERATE_VIDEOS':
-      return {
-        ...state,
-        currentStep: 'videoGeneration',
-      };
+      return { ...state, currentStep: 'videoGeneration' };
 
     case 'VIDEO_GENERATED':
       return {
         ...state,
-        sceneVideos: {
-          ...state.sceneVideos,
-          [action.sceneNumber]: action.videoUrl,
-        },
+        sceneVideos: { ...state.sceneVideos, [action.sceneNumber]: action.videoUrl },
       };
 
     case 'ALL_VIDEOS_READY':
-      return {
-        ...state,
-        currentStep: 'combining',
-      };
+      return { ...state, currentStep: 'combining' };
 
     case 'SKIP_VIDEOS':
-      return {
-        ...state,
-        currentStep: 'combining',
-      };
+      return { ...state, currentStep: 'combining' };
 
     case 'VIDEO_COMBINED':
       return {
         ...state,
         currentStep: 'socialSharing',
-        combinedVideo: {
-          url: action.videoUrl,
-          duration: action.duration,
-        },
+        combinedVideo: { url: action.videoUrl, duration: action.duration },
       };
 
     case 'SKIP_COMBINE':
-      return {
-        ...state,
-        currentStep: 'socialSharing',
-      };
+      return { ...state, currentStep: 'socialSharing' };
 
     case 'POSTED':
     case 'RESET':
@@ -200,17 +171,11 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       ];
       const currentIdx = stepOrder.indexOf(state.currentStep);
       const prevStep = currentIdx > 0 ? stepOrder[currentIdx - 1] : 'selectingRecipe';
-      return {
-        ...state,
-        currentStep: prevStep,
-      };
+      return { ...state, currentStep: prevStep };
     }
 
     case 'ERROR':
-      return {
-        ...state,
-        error: action.message,
-      };
+      return { ...state, error: action.message };
 
     default:
       return state;
@@ -237,7 +202,28 @@ export interface VideoHubContextValue {
 const VideoHubContext = createContext<VideoHubContextValue | undefined>(undefined);
 
 export function VideoHubProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(videoHubReducer, initialState);
+  // Lazy-init from localStorage so in-progress work survives tab closes
+  const [state, dispatch] = useReducer(
+    videoHubReducer,
+    undefined,
+    () => {
+      if (typeof window === 'undefined') return initialState;
+      return loadPersistedState();
+    }
+  );
+
+  // Persist every state change to localStorage (skip the reset/initial state)
+  useEffect(() => {
+    if (state.currentStep === 'selectingRecipe') {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // Storage quota exceeded or private-browsing restriction — silently ignore
+      }
+    }
+  }, [state]);
 
   const selectRecipe = useCallback((recipe: Recipe) => {
     dispatch({ type: 'SELECT_RECIPE', recipe });

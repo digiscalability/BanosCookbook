@@ -7,10 +7,10 @@ import { StepWrapper } from '../shared/StepWrapper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useVideoHub } from '../../context/VideoHubProvider';
-
 
 interface VoiceoverOption {
   voice: string;
@@ -21,6 +21,7 @@ interface VoiceoverOption {
 export function VoiceoverStep() {
   const { state, setVoiceovers } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
+  const [progressMap, setProgressMap] = useState<Record<number, 'pending' | 'generating' | 'done' | 'error'>>({});
   const [voiceOptions, setVoiceOptions] = useState<VoiceoverOption>({
     voice: 'alloy',
     language: 'en-US',
@@ -28,35 +29,79 @@ export function VoiceoverStep() {
   });
 
   const availableVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+  const doneCount = Object.values(progressMap).filter(s => s === 'done').length;
+  const totalScenes = state.scenes.length;
 
   const handleGenerateVoiceovers = async () => {
-    if (!state.selectedRecipe || state.scenes.length === 0) return;
+    if (!state.selectedRecipe || totalScenes === 0) return;
 
+    setIsLoading(true);
+    // Reset progress state
+    const initial: Record<number, 'pending' | 'generating' | 'done' | 'error'> = {};
+    for (const scene of state.scenes) initial[scene.sceneNumber] = 'pending';
+    setProgressMap(initial);
+
+    // Fire all scenes in parallel, updating progress per scene as each resolves
+    const voiceoverMap: Record<number, string> = {};
+    await Promise.all(
+      state.scenes.map(async (scene) => {
+        setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'generating' }));
+        try {
+          const result = await generateVoiceOverAction(
+            scene.content,
+            voiceOptions.voice,
+            { recipeId: state.selectedRecipe?.id, sceneNumber: scene.sceneNumber }
+          );
+          if (result.url) {
+            voiceoverMap[scene.sceneNumber] = result.url;
+            setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'done' }));
+          } else {
+            setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'error' }));
+          }
+        } catch {
+          setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'error' }));
+        }
+      })
+    );
+
+    setVoiceovers(voiceoverMap);
+    setIsLoading(false);
+  };
+
+  const handleRegenerateOne = async (sceneNumber: number) => {
+    const scene = state.scenes.find(s => s.sceneNumber === sceneNumber);
+    if (!scene || !state.selectedRecipe) return;
+    setProgressMap(prev => ({ ...prev, [sceneNumber]: 'generating' }));
     try {
-      setIsLoading(true);
-      const voiceovers = await generateVoiceOverAction(
-        state.selectedRecipe.id,
-        state.scenes,
-        voiceOptions
+      const result = await generateVoiceOverAction(
+        scene.content,
+        voiceOptions.voice,
+        { recipeId: state.selectedRecipe.id, sceneNumber }
       );
-
-      setVoiceovers(voiceovers);
-    } catch (error) {
-      console.error('Failed to generate voiceovers:', error);
-    } finally {
-      setIsLoading(false);
+      if (result.url) {
+        const updated = { ...state.voiceovers, [sceneNumber]: result.url };
+        setVoiceovers(updated);
+        setProgressMap(prev => ({ ...prev, [sceneNumber]: 'done' }));
+      } else {
+        setProgressMap(prev => ({ ...prev, [sceneNumber]: 'error' }));
+      }
+    } catch {
+      setProgressMap(prev => ({ ...prev, [sceneNumber]: 'error' }));
     }
   };
+
+  const progressPct = totalScenes > 0 ? (doneCount / totalScenes) * 100 : 0;
+  const hasVoiceovers = Object.keys(state.voiceovers).length > 0;
 
   return (
     <StepWrapper
       stepNumber={4}
       title="Generate Voiceovers"
-      description="AI will create natural-sounding voiceovers for each scene"
+      description="AI creates natural-sounding narration for each scene — all generated in parallel"
       showBack
-      showNext={Object.keys(state.voiceovers).length > 0}
+      showNext={hasVoiceovers}
       nextLabel="Continue to Editor"
-      showSkip={Object.keys(state.voiceovers).length === 0}
+      showSkip={!hasVoiceovers && !isLoading}
       onSkip={() => setVoiceovers({})}
       isLoading={isLoading}
     >
@@ -65,7 +110,11 @@ export function VoiceoverStep() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Voice</label>
-            <Select value={voiceOptions.voice} onValueChange={(v) => setVoiceOptions({ ...voiceOptions, voice: v })}>
+            <Select
+              value={voiceOptions.voice}
+              onValueChange={(v) => setVoiceOptions({ ...voiceOptions, voice: v })}
+              disabled={isLoading}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -79,7 +128,11 @@ export function VoiceoverStep() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
-            <Select value={voiceOptions.language} onValueChange={(l) => setVoiceOptions({ ...voiceOptions, language: l })}>
+            <Select
+              value={voiceOptions.language}
+              onValueChange={(l) => setVoiceOptions({ ...voiceOptions, language: l })}
+              disabled={isLoading}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -94,7 +147,11 @@ export function VoiceoverStep() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Speed</label>
-            <Select value={voiceOptions.speed.toString()} onValueChange={(s) => setVoiceOptions({ ...voiceOptions, speed: parseFloat(s) })}>
+            <Select
+              value={voiceOptions.speed.toString()}
+              onValueChange={(s) => setVoiceOptions({ ...voiceOptions, speed: parseFloat(s) })}
+              disabled={isLoading}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -111,28 +168,72 @@ export function VoiceoverStep() {
         <Button
           onClick={handleGenerateVoiceovers}
           disabled={isLoading}
-          isLoading={isLoading}
           className="w-full"
           size="lg"
         >
-          {isLoading ? `Generating Voiceovers... (${Object.keys(state.voiceovers).length}/${state.scenes.length})` : `Generate Voiceovers for ${state.scenes.length} Scenes`}
+          {isLoading
+            ? `Generating Voiceovers… ${doneCount}/${totalScenes} done`
+            : hasVoiceovers
+              ? `Regenerate All ${totalScenes} Voiceovers`
+              : `Generate Voiceovers for ${totalScenes} Scenes`}
         </Button>
 
-        {/* Generated Voiceovers List */}
-        {Object.keys(state.voiceovers).length > 0 && (
+        {/* Overall progress bar (shown during generation) */}
+        {isLoading && (
+          <div className="space-y-1">
+            <Progress value={progressPct} className="h-2" />
+            <p className="text-xs text-center text-gray-500">
+              All scenes generate in parallel — usually done in under a minute
+            </p>
+          </div>
+        )}
+
+        {/* Per-scene list */}
+        {(isLoading || hasVoiceovers) && (
           <div className="space-y-3">
-            <h3 className="font-semibold text-gray-900">Generated Voiceovers:</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <h3 className="font-semibold text-gray-900">Scenes</h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
               {state.scenes.map((scene) => {
+                const status = progressMap[scene.sceneNumber];
                 const voiceoverUrl = state.voiceovers[scene.sceneNumber];
+                const isSceneGenerating = status === 'generating';
+                const isSceneError = status === 'error';
+
                 return (
-                  <Card key={scene.sceneNumber} className="p-3 flex items-center gap-3">
-                    <Badge>{scene.sceneNumber}</Badge>
-                    <span className="flex-grow text-sm text-gray-600 truncate">{scene.content.substring(0, 50)}</span>
-                    {voiceoverUrl ? (
-                      <div className="text-xs text-green-600 font-medium">✓ Generated</div>
-                    ) : (
-                      <div className="text-xs text-gray-400">Pending...</div>
+                  <Card key={scene.sceneNumber} className="p-3">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Badge variant={isSceneError ? 'destructive' : 'secondary'}>
+                        {scene.sceneNumber}
+                      </Badge>
+                      <span className="flex-grow text-sm text-gray-600 truncate">
+                        {scene.content.substring(0, 60)}…
+                      </span>
+                      <div className="shrink-0 text-xs font-medium">
+                        {isSceneGenerating && <span className="text-blue-500 animate-pulse">Generating…</span>}
+                        {status === 'done' && <span className="text-green-600">✓ Done</span>}
+                        {isSceneError && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs text-red-600 border-red-300"
+                            onClick={() => handleRegenerateOne(scene.sceneNumber)}
+                          >
+                            Retry
+                          </Button>
+                        )}
+                        {(!status || status === 'pending') && voiceoverUrl && (
+                          <span className="text-green-600">✓ Ready</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Audio preview */}
+                    {voiceoverUrl && (
+                      <audio
+                        controls
+                        src={voiceoverUrl}
+                        className="w-full h-8"
+                      />
                     )}
                   </Card>
                 );
@@ -140,10 +241,6 @@ export function VoiceoverStep() {
             </div>
           </div>
         )}
-
-        <p className="text-center text-sm text-gray-600">
-          Voiceovers help bring your recipe video to life with professional narration.
-        </p>
       </div>
     </StepWrapper>
   );

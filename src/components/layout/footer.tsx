@@ -39,6 +39,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  href="/videohub"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Video Hub
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/admin"
                   className="text-muted-foreground transition-colors hover:text-foreground"
                 >
