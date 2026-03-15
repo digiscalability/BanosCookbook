@@ -8,6 +8,15 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    environmentMatchGlobs: [
+      // Backend/AI tests run in node environment (no browser globals needed)
+      ['src/__tests__/**', 'node'],
+    ],
+    env: {
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ?? 'test-key',
+      GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY ?? 'test-key',
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? 'test-key',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

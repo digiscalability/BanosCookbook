@@ -32,13 +32,15 @@ export const splitScriptIntoScenesFlow = ai.defineFlow(
   async input => {
     const { script, sceneCount } = input;
     const userPrompt = `Script to split:\n${script}\n\nDivide into ${sceneCount} scenes.`;
-    const result = await ai.generate({
-      model: 'googleai/gemini-2.5-pro',
-      prompt: `${SPLIT_SCRIPT_PROMPT}\n\n${userPrompt}`,
-      config: { temperature: 0.5, maxOutputTokens: 1200 },
-    });
+    let resultText = '';
     try {
-      const parsed = JSON.parse(result.text);
+      const result = await ai.generate({
+        model: 'googleai/gemini-2.5-pro',
+        prompt: `${SPLIT_SCRIPT_PROMPT}\n\n${userPrompt}`,
+        config: { temperature: 0.5, maxOutputTokens: 1200 },
+      });
+      resultText = result.text;
+      const parsed = JSON.parse(resultText);
       return { scenes: parsed };
     } catch {
       // Fallback: improved split by treating bracketed tokens (e.g. [INTRO], [SCENE 1])
