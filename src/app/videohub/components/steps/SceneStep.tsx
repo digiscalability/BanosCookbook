@@ -31,10 +31,12 @@ export function SceneStep() {
       const scenes = result.scenes ?? [];
 
       const formattedScenes: Scene[] = scenes.map((scene: any, idx: number) => ({
-        sceneNumber: idx + 1,
-        content: scene.content || scene,
+        sceneNumber: scene.sceneNumber ?? idx + 1,
+        content: typeof scene.content === 'string' ? scene.content
+               : typeof scene.script === 'string' ? scene.script
+               : String(scene.content ?? scene.script ?? ''),
         duration: scene.duration || 10,
-        notes: scene.notes || '',
+        notes: scene.notes || scene.description || '',
       }));
 
       setScenes(formattedScenes);
@@ -95,7 +97,7 @@ export function SceneStep() {
                   Scene {scene.sceneNumber}
                 </div>
                 <div className="flex-grow">
-                  <p className="font-medium text-gray-900">{scene.content.substring(0, 80)}</p>
+                  <p className="font-medium text-gray-900">{String(scene.content ?? '').substring(0, 80)}</p>
                   <p className="text-sm text-gray-600 mt-1">Duration: ~{scene.duration}s</p>
                   {scene.notes && (
                     <p className="text-sm text-gray-500 mt-1 italic">{scene.notes}</p>

@@ -48,7 +48,7 @@ export function VoiceoverStep() {
         setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'generating' }));
         try {
           const result = await generateVoiceOverAction(
-            scene.content,
+            String(scene.content ?? ""),
             voiceOptions.voice,
             { recipeId: state.selectedRecipe?.id, sceneNumber: scene.sceneNumber }
           );
@@ -74,7 +74,7 @@ export function VoiceoverStep() {
     setProgressMap(prev => ({ ...prev, [sceneNumber]: 'generating' }));
     try {
       const result = await generateVoiceOverAction(
-        scene.content,
+        String(scene.content ?? ""),
         voiceOptions.voice,
         { recipeId: state.selectedRecipe.id, sceneNumber }
       );
@@ -206,7 +206,7 @@ export function VoiceoverStep() {
                         {scene.sceneNumber}
                       </Badge>
                       <span className="flex-grow text-sm text-gray-600 truncate">
-                        {scene.content.substring(0, 60)}…
+                        {String(scene.content ?? '').substring(0, 60)}…
                       </span>
                       <div className="shrink-0 text-xs font-medium">
                         {isSceneGenerating && <span className="text-blue-500 animate-pulse">Generating…</span>}

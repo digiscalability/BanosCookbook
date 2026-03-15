@@ -142,7 +142,7 @@ export function VideoGenerationStep() {
                     {scene.sceneNumber}
                   </Badge>
                   <div className="flex-grow min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{scene.content.substring(0, 60)}…</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{String(scene.content ?? '').substring(0, 60)}…</p>
                     <p className="text-xs text-gray-500">~{scene.duration}s</p>
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
