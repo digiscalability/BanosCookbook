@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useVideoHub } from '../../context/VideoHubProvider';
 
 export function StudioEditor() {
-  const { state, updateScene, reorderScenes, generateVideos } = useVideoHub();
+  const { state, updateScene, reorderScenes, generateVideos, goToStepVideos } = useVideoHub();
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
@@ -46,7 +46,7 @@ export function StudioEditor() {
   };
 
   const handleContinue = () => {
-    generateVideos();
+    goToStepVideos();
   };
 
   return (
@@ -56,7 +56,7 @@ export function StudioEditor() {
       description="Fine-tune script, timing, and notes for each scene before video generation"
       showBack
       showNext
-      nextLabel="Generate Videos"
+      nextLabel="Generate Step Videos"
       onNext={handleContinue}
     >
       <div className="space-y-4">

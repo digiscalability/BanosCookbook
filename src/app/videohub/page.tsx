@@ -12,6 +12,7 @@ import { SocialSharingStep } from './components/steps/SocialSharingStep';
 import { StudioEditor } from './components/steps/StudioEditor';
 import { VideoGenerationStep } from './components/steps/VideoGenerationStep';
 import { VoiceoverStep } from './components/steps/VoiceoverStep';
+import { RecipeStepVideoStep } from './components/steps/RecipeStepVideoStep';
 import { useVideoHub, VideoHubProvider } from './context/VideoHubProvider';
 
 function RecipePreloader() {
@@ -39,7 +40,8 @@ function VideoHubContent() {
     { label: 'Scenes', id: 'sceneGeneration' },
     { label: 'Voiceover', id: 'voiceoverGeneration' },
     { label: 'Studio', id: 'studioEditing' },
-    { label: 'Generate', id: 'videoGeneration' },
+    { label: 'Step Videos', id: 'stepVideoGeneration' },
+    { label: 'Scene Videos', id: 'videoGeneration' },
     { label: 'Combine', id: 'combining' },
     { label: 'Share', id: 'socialSharing' },
   ];
@@ -70,6 +72,7 @@ function VideoHubContent() {
           {state.currentStep === 'sceneGeneration' && <SceneStep />}
           {state.currentStep === 'voiceoverGeneration' && <VoiceoverStep />}
           {state.currentStep === 'studioEditing' && <StudioEditor />}
+          {state.currentStep === 'stepVideoGeneration' && <RecipeStepVideoStep />}
           {state.currentStep === 'videoGeneration' && <VideoGenerationStep />}
           {state.currentStep === 'combining' && <CombineStep />}
           {state.currentStep === 'socialSharing' && <SocialSharingStep />}

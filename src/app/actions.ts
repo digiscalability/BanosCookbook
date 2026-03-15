@@ -5367,3 +5367,257 @@ export async function getOrCreateTimelineForRecipe(recipeId: string, recipeName:
     };
   }
 }
+
+// ============================================================
+// RECIPE STEP VIDEO ACTIONS
+// Each recipe instruction step → one Runway video clip → merged
+// into a full cooking instructional video.
+// ============================================================
+
+export interface StepVideoRecord {
+  stepIndex: number;
+  stepText: string;
+  runwayPrompt: string;
+  duration: number;
+  cameraAngle: string;
+  videoUrl?: string;
+  videoGeneratedAt?: Date | string;
+}
+
+/**
+ * Generate Runway-optimized visual prompts for every recipe instruction step
+ * and save them to Firestore at recipe_step_videos/{recipeId}.
+ * Safe to call multiple times — re-generates prompts without wiping existing videoUrls.
+ */
+export async function generateStepVideoPromptsAction(recipeId: string): Promise<{
+  success: boolean;
+  steps?: StepVideoRecord[];
+  error?: string;
+}> {
+  try {
+    const db = await ensureFirestore();
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
+    if (!recipeDoc.exists) return { success: false, error: 'Recipe not found' };
+
+    const recipe = recipeDoc.data();
+    if (!recipe) return { success: false, error: 'Recipe data missing' };
+
+    const instructions: string[] = Array.isArray(recipe.instructions)
+      ? (recipe.instructions as string[]).filter(Boolean)
+      : [];
+
+    if (instructions.length === 0) {
+      return { success: false, error: 'Recipe has no instruction steps. Please add steps first.' };
+    }
+
+    const { generateStepVideoPrompts } = await import('@/ai/flows/generate-step-video-prompts');
+    const prompts = await generateStepVideoPrompts(
+      recipe.title ?? 'Recipe',
+      recipe.description ?? '',
+      Array.isArray(recipe.ingredients) ? (recipe.ingredients as string[]) : [],
+      instructions
+    );
+
+    // Merge with any existing records so we don't overwrite generated videoUrls
+    const existingDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    const existingSteps: StepVideoRecord[] = existingDoc.exists
+      ? ((existingDoc.data()?.steps as StepVideoRecord[]) ?? [])
+      : [];
+
+    const merged: StepVideoRecord[] = prompts.map((p) => {
+      const existing = existingSteps.find((e) => e.stepIndex === p.stepIndex);
+      return {
+        ...p,
+        videoUrl: existing?.videoUrl,
+        videoGeneratedAt: existing?.videoGeneratedAt,
+      };
+    });
+
+    await db.collection('recipe_step_videos').doc(recipeId).set({
+      recipeId,
+      steps: merged,
+      updatedAt: new Date(),
+    });
+
+    return { success: true, steps: merged };
+  } catch (error) {
+    console.error('[generateStepVideoPromptsAction]', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Fetch existing step video records for a recipe (prompts + any generated videoUrls).
+ */
+export async function getRecipeStepVideosAction(recipeId: string): Promise<{
+  success: boolean;
+  steps?: StepVideoRecord[];
+  error?: string;
+}> {
+  try {
+    const db = await ensureFirestore();
+    const doc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    if (!doc.exists) return { success: true, steps: [] };
+    const steps = (doc.data()?.steps as StepVideoRecord[]) ?? [];
+    return { success: true, steps };
+  } catch (error) {
+    console.error('[getRecipeStepVideosAction]', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Generate a Runway ML video for a single recipe instruction step.
+ * Uses the recipe's main image as the reference frame for visual consistency.
+ * Updates Firestore recipe_step_videos/{recipeId} with the returned videoUrl.
+ */
+export async function generateSingleStepVideoAction(
+  recipeId: string,
+  stepIndex: number
+): Promise<{
+  success: boolean;
+  videoUrl?: string;
+  stepIndex?: number;
+  error?: string;
+}> {
+  try {
+    const db = await ensureFirestore();
+
+    // Fetch recipe for image + title
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
+    if (!recipeDoc.exists) return { success: false, error: 'Recipe not found' };
+    const recipe = recipeDoc.data();
+    if (!recipe?.imageUrl) {
+      return {
+        success: false,
+        error: 'Recipe has no image. Please add or generate an image first.',
+      };
+    }
+
+    // Fetch step record (must have had prompts generated first)
+    const stepDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    if (!stepDoc.exists) {
+      return {
+        success: false,
+        error: 'Step prompts not found. Generate prompts first.',
+      };
+    }
+    const steps: StepVideoRecord[] = (stepDoc.data()?.steps as StepVideoRecord[]) ?? [];
+    const step = steps.find((s) => s.stepIndex === stepIndex);
+    if (!step) {
+      return { success: false, error: `Step ${stepIndex} not found. Run prompt generation first.` };
+    }
+
+    // Call Runway ML image-to-video
+    const { generateRecipeVideo } = await import('@/lib/openai-video-gen');
+    const genResult = await generateRecipeVideo(
+      recipe.imageUrl as string,
+      `${recipe.title ?? 'Recipe'} — Step ${stepIndex + 1}`,
+      step.runwayPrompt,
+      'gen4_turbo',
+      {
+        duration: step.duration as 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
+        ratio: '1280:720',
+        promptOverride: step.runwayPrompt,
+      }
+    );
+
+    const videoUrl = typeof genResult === 'string' ? genResult : genResult.videoUrl;
+
+    // Persist the videoUrl back to Firestore
+    const updatedSteps = steps.map((s) =>
+      s.stepIndex === stepIndex ? { ...s, videoUrl, videoGeneratedAt: new Date() } : s
+    );
+    await db.collection('recipe_step_videos').doc(recipeId).update({ steps: updatedSteps });
+
+    // Log asset
+    try {
+      await logVideoHubAsset({
+        recipeId,
+        type: 'video',
+        url: videoUrl,
+        sceneNumber: stepIndex + 1,
+        source: 'step-video',
+        duration: step.duration,
+      });
+    } catch {
+      // Non-fatal
+    }
+
+    return { success: true, videoUrl, stepIndex };
+  } catch (error) {
+    console.error('[generateSingleStepVideoAction]', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Combine all generated step videos into a single instructional video using
+ * the same FFmpeg/Cloudinary pipeline as the scene-based combiner.
+ */
+export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
+  success: boolean;
+  combinedVideoUrl?: string;
+  duration?: number;
+  processingMethod?: string;
+  error?: string;
+}> {
+  try {
+    const db = await ensureFirestore();
+
+    const stepDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    if (!stepDoc.exists) {
+      return { success: false, error: 'No step videos found. Generate step videos first.' };
+    }
+    const steps: StepVideoRecord[] = (stepDoc.data()?.steps as StepVideoRecord[]) ?? [];
+    const readySteps = steps
+      .filter((s) => typeof s.videoUrl === 'string' && s.videoUrl.length > 0)
+      .sort((a, b) => a.stepIndex - b.stepIndex);
+
+    if (readySteps.length === 0) {
+      return { success: false, error: 'No step videos have been generated yet.' };
+    }
+
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
+    const recipeTitle =
+      recipeDoc.exists && typeof recipeDoc.data()?.title === 'string'
+        ? (recipeDoc.data()!.title as string)
+        : undefined;
+
+    const { combineVideoScenes } = await import('@/lib/video-combination');
+    const combinationResult = await combineVideoScenes({
+      scenes: readySteps.map((s) => ({
+        sceneNumber: s.stepIndex + 1,
+        videoUrl: s.videoUrl as string,
+        duration: s.duration ?? 6,
+      })),
+      recipeId,
+      recipeTitle,
+      outputFormat: 'mp4',
+      frameRate: 30,
+    });
+
+    if (!combinationResult.success || !combinationResult.combinedVideoUrl) {
+      return {
+        success: false,
+        error: combinationResult.error ?? 'Combination failed — no output URL returned.',
+      };
+    }
+
+    // Persist combined URL back to Firestore
+    await db.collection('recipe_step_videos').doc(recipeId).update({
+      combinedVideoUrl: combinationResult.combinedVideoUrl,
+      combinedAt: new Date(),
+    });
+
+    return {
+      success: true,
+      combinedVideoUrl: combinationResult.combinedVideoUrl,
+      duration: combinationResult.duration,
+      processingMethod: combinationResult.processingMethod,
+    };
+  } catch (error) {
+    console.error('[combineRecipeStepVideosAction]', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}

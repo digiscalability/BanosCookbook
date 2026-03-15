@@ -29,12 +29,14 @@ export interface VideoHubState {
     | 'voiceoverGeneration'
     | 'studioEditing'
     | 'videoGeneration'
+    | 'stepVideoGeneration'
     | 'combining'
     | 'socialSharing';
   selectedRecipe: Recipe | null;
   script: VideoScript | null;
   scenes: Scene[];
-  sceneVideos: Record<number, string>; // sceneNumber -> videoUrl
+  sceneVideos: Record<number, string>; // sceneNumber -> videoUrl (scene-based flow)
+  stepVideos: Record<number, string>;  // stepIndex+1 -> videoUrl (step-based flow)
   voiceovers: Record<number, string>;  // sceneNumber -> voiceoverUrl
   combinedVideo: { url: string; duration?: number } | null;
   error: string | null;
@@ -54,6 +56,9 @@ export type VideoHubAction =
   | { type: 'VIDEO_GENERATED'; sceneNumber: number; videoUrl: string }
   | { type: 'ALL_VIDEOS_READY' }
   | { type: 'SKIP_VIDEOS' }
+  | { type: 'GO_TO_STEP_VIDEOS' }
+  | { type: 'STEP_VIDEOS_READY'; stepVideos: Record<number, string> }
+  | { type: 'SKIP_STEP_VIDEOS' }
   | { type: 'VIDEO_COMBINED'; videoUrl: string; duration?: number }
   | { type: 'SKIP_COMBINE' }
   | { type: 'POSTED' }
@@ -67,6 +72,7 @@ const initialState: VideoHubState = {
   script: null,
   scenes: [],
   sceneVideos: {},
+  stepVideos: {},
   voiceovers: {},
   combinedVideo: null,
   error: null,
@@ -129,6 +135,9 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       return { ...state, scenes };
     }
 
+    case 'GO_TO_STEP_VIDEOS':
+      return { ...state, currentStep: 'stepVideoGeneration' };
+
     case 'READY_TO_GENERATE_VIDEOS':
       return { ...state, currentStep: 'videoGeneration' };
 
@@ -142,6 +151,12 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       return { ...state, currentStep: 'combining' };
 
     case 'SKIP_VIDEOS':
+      return { ...state, currentStep: 'combining' };
+
+    case 'STEP_VIDEOS_READY':
+      return { ...state, currentStep: 'combining', stepVideos: action.stepVideos };
+
+    case 'SKIP_STEP_VIDEOS':
       return { ...state, currentStep: 'combining' };
 
     case 'VIDEO_COMBINED':
@@ -165,6 +180,7 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
         'sceneGeneration',
         'voiceoverGeneration',
         'studioEditing',
+        'stepVideoGeneration',
         'videoGeneration',
         'combining',
         'socialSharing',
@@ -189,9 +205,11 @@ export interface VideoHubContextValue {
   setScript: (script: VideoScript) => void;
   setScenes: (scenes: Scene[]) => void;
   setVoiceovers: (voiceovers: Record<number, string>) => void;
+  setStepVideos: (stepVideos: Record<number, string>) => void;
   updateScene: (sceneNumber: number, updates: Partial<Scene>) => void;
   reorderScenes: (fromIdx: number, toIdx: number) => void;
   generateVideos: () => void;
+  goToStepVideos: () => void;
   addSceneVideo: (sceneNumber: number, videoUrl: string) => void;
   setCombinedVideo: (videoUrl: string, duration?: number) => void;
   completeWorkflow: () => void;
@@ -241,6 +259,10 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'VOICEOVERS_READY', voiceovers });
   }, []);
 
+  const setStepVideos = useCallback((stepVideos: Record<number, string>) => {
+    dispatch({ type: 'STEP_VIDEOS_READY', stepVideos });
+  }, []);
+
   const updateScene = useCallback((sceneNumber: number, updates: Partial<Scene>) => {
     dispatch({ type: 'UPDATE_SCENE', sceneNumber, updates });
   }, []);
@@ -251,6 +273,10 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
 
   const generateVideos = useCallback(() => {
     dispatch({ type: 'READY_TO_GENERATE_VIDEOS' });
+  }, []);
+
+  const goToStepVideos = useCallback(() => {
+    dispatch({ type: 'GO_TO_STEP_VIDEOS' });
   }, []);
 
   const addSceneVideo = useCallback((sceneNumber: number, videoUrl: string) => {
@@ -280,9 +306,11 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     setScript,
     setScenes,
     setVoiceovers,
+    setStepVideos,
     updateScene,
     reorderScenes,
     generateVideos,
+    goToStepVideos,
     addSceneVideo,
     setCombinedVideo,
     completeWorkflow,
