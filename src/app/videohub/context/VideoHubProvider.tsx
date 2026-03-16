@@ -175,20 +175,23 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
       return initialState;
 
     case 'BACK': {
-      const stepOrder: VideoHubState['currentStep'][] = [
-        'selectingRecipe',
-        'scriptGeneration',
-        'sceneGeneration',
-        'voiceoverGeneration',
-        'studioEditing',
-        'stepVideoGeneration',
-        'videoGeneration',
-        'combining',
-        'socialSharing',
-      ];
-      const currentIdx = stepOrder.indexOf(state.currentStep);
-      const prevStep = currentIdx > 0 ? stepOrder[currentIdx - 1] : 'selectingRecipe';
-      return { ...state, currentStep: prevStep };
+      // Bug 16+20: stepVideoGeneration and videoGeneration are parallel paths —
+      // only one is ever used. Use a conditional map instead of a linear array
+      // so BACK skips the unused parallel path.
+      const backMap: Partial<Record<VideoHubState['currentStep'], VideoHubState['currentStep']>> = {
+        scriptGeneration: 'selectingRecipe',
+        sceneGeneration: 'scriptGeneration',
+        voiceoverGeneration: 'sceneGeneration',
+        studioEditing: 'voiceoverGeneration',
+        stepVideoGeneration: 'studioEditing',
+        videoGeneration: 'studioEditing',  // Both parallel paths go back to studio
+        combining: Object.keys(state.stepVideos).length > 0
+          ? 'stepVideoGeneration'
+          : 'videoGeneration',
+        socialSharing: 'combining',
+      };
+      const prev = backMap[state.currentStep];
+      return prev ? { ...state, currentStep: prev } : state;
     }
 
     case 'ERROR':

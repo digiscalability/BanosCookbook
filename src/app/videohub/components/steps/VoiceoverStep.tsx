@@ -22,10 +22,12 @@ export function VoiceoverStep() {
   const { state, setVoiceovers } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
   const [progressMap, setProgressMap] = useState<Record<number, 'pending' | 'generating' | 'done' | 'error'>>({});
+  // Per-scene error messages (Bug 6)
+  const [sceneErrors, setSceneErrors] = useState<Record<number, string>>({});
   const [voiceOptions, setVoiceOptions] = useState<VoiceoverOption>({
     voice: 'alloy',
-    language: 'en-US',
-    speed: 1.0,
+    language: 'en-US', // TODO: language/speed are UI-only until generateVoiceOverAction accepts them (Bug 7)
+    speed: 1.0,        // TODO: speed is UI-only until generateVoiceOverAction accepts it (Bug 7)
   });
 
   const availableVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
@@ -36,6 +38,7 @@ export function VoiceoverStep() {
     if (!state.selectedRecipe || totalScenes === 0) return;
 
     setIsLoading(true);
+    setSceneErrors({});
     // Reset progress state
     const initial: Record<number, 'pending' | 'generating' | 'done' | 'error'> = {};
     for (const scene of state.scenes) initial[scene.sceneNumber] = 'pending';
@@ -56,10 +59,14 @@ export function VoiceoverStep() {
             voiceoverMap[scene.sceneNumber] = result.url;
             setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'done' }));
           } else {
+            const errMsg = result.error ?? 'Failed to generate voiceover';
             setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'error' }));
+            setSceneErrors(prev => ({ ...prev, [scene.sceneNumber]: errMsg }));
           }
-        } catch {
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Failed to generate voiceover';
           setProgressMap(prev => ({ ...prev, [scene.sceneNumber]: 'error' }));
+          setSceneErrors(prev => ({ ...prev, [scene.sceneNumber]: errMsg }));
         }
       })
     );
@@ -72,6 +79,7 @@ export function VoiceoverStep() {
     const scene = state.scenes.find(s => s.sceneNumber === sceneNumber);
     if (!scene || !state.selectedRecipe) return;
     setProgressMap(prev => ({ ...prev, [sceneNumber]: 'generating' }));
+    setSceneErrors(prev => { const next = { ...prev }; delete next[sceneNumber]; return next; });
     try {
       const result = await generateVoiceOverAction(
         String(scene.content ?? ""),
@@ -83,15 +91,21 @@ export function VoiceoverStep() {
         setVoiceovers(updated);
         setProgressMap(prev => ({ ...prev, [sceneNumber]: 'done' }));
       } else {
+        const errMsg = result.error ?? 'Failed to generate voiceover';
         setProgressMap(prev => ({ ...prev, [sceneNumber]: 'error' }));
+        setSceneErrors(prev => ({ ...prev, [sceneNumber]: errMsg }));
       }
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to generate voiceover';
       setProgressMap(prev => ({ ...prev, [sceneNumber]: 'error' }));
+      setSceneErrors(prev => ({ ...prev, [sceneNumber]: errMsg }));
     }
   };
 
   const progressPct = totalScenes > 0 ? (doneCount / totalScenes) * 100 : 0;
   const hasVoiceovers = Object.keys(state.voiceovers).length > 0;
+  // Allow proceeding even if all voiceovers failed — user can continue without voiceovers (Bug 6/8)
+  const generationAttempted = Object.keys(progressMap).length > 0 && !isLoading;
 
   return (
     <StepWrapper
@@ -99,9 +113,9 @@ export function VoiceoverStep() {
       title="Generate Voiceovers"
       description="AI creates natural-sounding narration for each scene — all generated in parallel"
       showBack
-      showNext={hasVoiceovers}
+      showNext={hasVoiceovers || generationAttempted}
       nextLabel="Continue to Editor"
-      showSkip={!hasVoiceovers && !isLoading}
+      showSkip={!hasVoiceovers && !isLoading && !generationAttempted}
       onSkip={() => setVoiceovers({})}
       isLoading={isLoading}
     >
@@ -178,6 +192,17 @@ export function VoiceoverStep() {
               : `Generate Voiceovers for ${totalScenes} Scenes`}
         </Button>
 
+        {/* Skip voiceovers button — available after failed generation so user is never stuck (Bug 8) */}
+        {generationAttempted && !hasVoiceovers && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setVoiceovers({})}
+          >
+            Skip Voiceovers — Continue Without Audio
+          </Button>
+        )}
+
         {/* Overall progress bar (shown during generation) */}
         {isLoading && (
           <div className="space-y-1">
@@ -189,7 +214,7 @@ export function VoiceoverStep() {
         )}
 
         {/* Per-scene list */}
-        {(isLoading || hasVoiceovers) && (
+        {(isLoading || hasVoiceovers || generationAttempted) && (
           <div className="space-y-3">
             <h3 className="font-semibold text-gray-900">Scenes</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -198,6 +223,7 @@ export function VoiceoverStep() {
                 const voiceoverUrl = state.voiceovers[scene.sceneNumber];
                 const isSceneGenerating = status === 'generating';
                 const isSceneError = status === 'error';
+                const sceneErrMsg = sceneErrors[scene.sceneNumber];
 
                 return (
                   <Card key={scene.sceneNumber} className="p-3">
@@ -226,6 +252,11 @@ export function VoiceoverStep() {
                         )}
                       </div>
                     </div>
+
+                    {/* Per-scene error message */}
+                    {isSceneError && sceneErrMsg && (
+                      <p className="text-xs text-red-600 mt-1 ml-1">{sceneErrMsg}</p>
+                    )}
 
                     {/* Audio preview */}
                     {voiceoverUrl && (

@@ -11,12 +11,14 @@ import { StepWrapper } from '../shared/StepWrapper';
 
 
 export function ScriptStep() {
-  const { state, setScript } = useVideoHub();
+  const { state, setScript, setError: setGlobalError } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
+  const [scriptError, setScriptError] = useState<string | null>(null);
 
   const handleGenerateScript = async () => {
     if (!state.selectedRecipe) return;
 
+    setScriptError(null);
     try {
       setIsLoading(true);
       const result = await generateAndSaveVideoScriptForRecipe(state.selectedRecipe.id);
@@ -28,20 +30,24 @@ export function ScriptStep() {
           scenes: [],
           generatedAt: new Date(),
         });
+      } else if (!result.success) {
+        setScriptError(result.error ?? 'Script generation failed');
       }
-    } catch (error) {
-      console.error('Failed to generate script:', error);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate script';
+      setScriptError(msg);
+      setGlobalError(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSkip = () => {
-    // Skip script generation and go to scene generation
+    // Skip script generation and go to scene generation with a structured template
     setScript({
       scriptId: 'default-' + Date.now(),
       recipeId: state.selectedRecipe?.id || '',
-      content: state.selectedRecipe?.description || 'No script provided',
+      content: `Recipe video script for ${state.selectedRecipe?.title ?? 'Recipe'}.\n\nIngredients overview: ${Array.isArray(state.selectedRecipe?.ingredients) ? (state.selectedRecipe!.ingredients as string[]).slice(0, 5).join(', ') : ''}\n\nStep by step cooking process following the recipe instructions.`,
       scenes: [],
       generatedAt: new Date(),
     });
@@ -74,6 +80,13 @@ export function ScriptStep() {
           >
             {isLoading ? 'Generating Script...' : 'Generate Script with AI'}
           </Button>
+
+          {scriptError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <p className="font-semibold mb-1">Script generation failed</p>
+              <p className="text-xs">{scriptError}</p>
+            </div>
+          )}
 
           <p className="text-center text-sm text-gray-600">
             This will analyze your recipe and create an engaging script for video.

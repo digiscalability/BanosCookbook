@@ -1,7 +1,7 @@
 'use client';
 
 import { Bookmark } from 'lucide-react';
-import { useOptimistic, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { saveRecipeAction } from '@/app/actions';
 import { useAuth } from '@/lib/auth-context';
@@ -29,9 +29,8 @@ export function SaveButton({
   const { user } = useAuth();
   const [isPending, startTransition] = useTransition();
 
-  const [optimistic, setOptimistic] = useOptimistic<{ saved: boolean; count: number }>(
-    { saved: initialSaved, count: initialCount },
-    (_state, next: { saved: boolean; count: number }) => next
+  const [optimistic, setOptimistic] = useState<{ saved: boolean; count: number }>(
+    { saved: initialSaved, count: initialCount }
   );
 
   const handleToggle = () => {

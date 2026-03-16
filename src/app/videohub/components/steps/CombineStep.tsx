@@ -63,8 +63,11 @@ export function CombineStep() {
   const handleSkipToShare = () => {
     const firstUrl =
       Object.values(state.stepVideos)[0] ??
-      Object.values(state.sceneVideos)[0] ??
-      '';
+      Object.values(state.sceneVideos)[0];
+    if (!firstUrl) {
+      setError('No videos available to share. Please go back and generate at least one video clip.');
+      return;
+    }
     setCombinedVideo(firstUrl, 0);
   };
 

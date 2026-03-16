@@ -5419,11 +5419,10 @@ export async function generateStepVideoPromptsAction(recipeId: string): Promise<
 
     const merged: StepVideoRecord[] = prompts.map((p) => {
       const existing = existingSteps.find((e) => e.stepIndex === p.stepIndex);
-      return {
-        ...p,
-        videoUrl: existing?.videoUrl,
-        videoGeneratedAt: existing?.videoGeneratedAt,
-      };
+      const record: StepVideoRecord = { ...p };
+      if (existing?.videoUrl) record.videoUrl = existing.videoUrl;
+      if (existing?.videoGeneratedAt !== undefined) record.videoGeneratedAt = existing.videoGeneratedAt;
+      return record;
     });
 
     await db.collection('recipe_step_videos').doc(recipeId).set({
@@ -5687,10 +5686,9 @@ export async function getSavedRecipesAction(
 ): Promise<{ success: boolean; recipes?: import('@/lib/types').Recipe[]; error?: string }> {
   'use server';
   try {
-    const { getAdminDb } = await import('@/lib/firebase-admin');
-    const db = await getAdminDb();
+    const db = await ensureFirestore();
     const snap = await db.collection('recipes').where('savedBy', 'array-contains', userId).limit(50).get();
-    const recipes = snap.docs.map(d => ({ id: d.id, ...d.data() } as import('@/lib/types').Recipe));
+    const recipes = snap.docs.map((d) => ({ id: d.id, ...d.data() } as import('@/lib/types').Recipe));
     return { success: true, recipes };
   } catch (error) {
     console.error('[getSavedRecipesAction]', error);
@@ -5706,8 +5704,7 @@ export async function madeItAction(
 ): Promise<{ success: boolean; made: boolean; madeItCount: number; error?: string }> {
   'use server';
   try {
-    const { getAdminDb } = await import('@/lib/firebase-admin');
-    const db = await getAdminDb();
+    const db = await ensureFirestore();
     const ref = db.collection('recipes').doc(recipeId);
     const snap = await ref.get();
     if (!snap.exists) return { success: false, made: false, madeItCount: 0, error: 'Recipe not found' };

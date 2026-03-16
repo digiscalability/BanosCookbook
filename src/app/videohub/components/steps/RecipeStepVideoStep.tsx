@@ -140,23 +140,19 @@ export function RecipeStepVideoStep() {
       await generateStep(step.stepIndex);
     }
 
-    // Sync all completed videos to VideoHub state so CombineStep can use them
-    setSteps(current => {
-      const videoMap: Record<number, string> = {};
-      for (const s of current) {
-        if (s.videoUrl) videoMap[s.stepIndex + 1] = s.videoUrl; // 1-based for VideoHub
-      }
-      setStepVideos(videoMap);
-      return current;
-    });
-
     setIsGeneratingAll(false);
+    // Note: do NOT call setStepVideos here — that would advance to 'combining' prematurely.
+    // The user must explicitly click "Continue to Combine" (handleContinue) to advance.
   }
 
-  // ── Commit videos to context and advance ───────────────────────────────
+  // ── Commit videos to context and advance to combining ──────────────────
+  // Bug 9 fix: setStepVideos dispatches STEP_VIDEOS_READY which transitions
+  // currentStep to 'combining'. This is the only place we call it.
   function handleContinue() {
     const videoMap: Record<number, string> = {};
     for (const s of steps) {
+      // Bug 10: store as 1-based keys (stepIndex + 1) — CombineStep reads via
+      // Object.values() so key numbering doesn't affect it, but kept consistent.
       if (s.videoUrl) videoMap[s.stepIndex + 1] = s.videoUrl;
     }
     setStepVideos(videoMap);

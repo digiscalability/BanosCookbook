@@ -1,7 +1,7 @@
 'use client';
 
 import { ChefHat } from 'lucide-react';
-import { useOptimistic, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { madeItAction } from '@/app/actions';
 import { useAuth } from '@/lib/auth-context';
@@ -25,9 +25,8 @@ export function MadeItButton({
   const { user } = useAuth();
   const [isPending, startTransition] = useTransition();
 
-  const [optimistic, setOptimistic] = useOptimistic<{ made: boolean; count: number }>(
-    { made: initialMade, count: initialCount },
-    (_state, next: { made: boolean; count: number }) => next
+  const [optimistic, setOptimistic] = useState<{ made: boolean; count: number }>(
+    { made: initialMade, count: initialCount }
   );
 
   const handleToggle = () => {

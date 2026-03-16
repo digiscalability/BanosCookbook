@@ -108,7 +108,7 @@ export function VideoGenerationStep() {
 
   return (
     <StepWrapper
-      stepNumber={6}
+      stepNumber={7}
       title="Generate Scene Videos"
       description="Runway ML generates a video clip for each scene using your recipe image"
       showBack

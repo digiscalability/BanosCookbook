@@ -12,8 +12,9 @@ import type { Scene } from '../../context/VideoHubProvider';
 import { useVideoHub } from '../../context/VideoHubProvider';
 
 export function SceneStep() {
-  const { state, setScenes } = useVideoHub();
+  const { state, setScenes, setError: setGlobalError } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
+  const [sceneError, setSceneError] = useState<string | null>(null);
 
   useEffect(() => {
     // Auto-generate scenes if not already loaded
@@ -25,9 +26,18 @@ export function SceneStep() {
   const handleGenerateScenes = async () => {
     if (!state.selectedRecipe) return;
 
+    setSceneError(null);
     try {
       setIsLoading(true);
       const result = await getSplitScenesForRecipeAction(state.selectedRecipe.id);
+
+      if (!result.success) {
+        const msg = result.error ?? 'Scene generation failed';
+        setSceneError(msg);
+        setGlobalError(msg);
+        return;
+      }
+
       const scenes = result.scenes ?? [];
 
       const formattedScenes: Scene[] = scenes.map((scene: any, idx: number) => ({
@@ -41,7 +51,9 @@ export function SceneStep() {
 
       setScenes(formattedScenes);
     } catch (error) {
-      console.error('Failed to generate scenes:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to generate scenes';
+      setSceneError(msg);
+      setGlobalError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -66,6 +78,21 @@ export function SceneStep() {
           >
             {isLoading ? 'Splitting into Scenes...' : 'Generate Scenes from Script'}
           </Button>
+
+          {sceneError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <p className="font-semibold mb-1">Scene generation failed</p>
+              <p className="text-xs mb-3">{sceneError}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-100"
+                onClick={handleGenerateScenes}
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
 
           <p className="text-center text-sm text-gray-600">
             Your recipe will be split into short, engaging video scenes (typically 15-30 seconds each).
