@@ -13,6 +13,7 @@ import { StudioEditor } from './components/steps/StudioEditor';
 import { VideoGenerationStep } from './components/steps/VideoGenerationStep';
 import { VoiceoverStep } from './components/steps/VoiceoverStep';
 import { RecipeStepVideoStep } from './components/steps/RecipeStepVideoStep';
+import { ProtectedPage } from '@/components/auth/protected-page';
 import { useVideoHub, VideoHubProvider } from './context/VideoHubProvider';
 
 function RecipePreloader() {
@@ -89,8 +90,10 @@ function VideoHubContent() {
 
 export default function VideoHubPage() {
   return (
-    <VideoHubProvider>
-      <VideoHubContent />
-    </VideoHubProvider>
+    <ProtectedPage redirectTo="/videohub">
+      <VideoHubProvider>
+        <VideoHubContent />
+      </VideoHubProvider>
+    </ProtectedPage>
   );
 }

@@ -3,7 +3,7 @@
 import { Check, Copy, ExternalLink, Instagram } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { shareRecipeToInstagram } from '@/app/actions';
+import { shareRecipeToInstagram, shareRecipeToTikTok } from '@/app/actions';
 import { StepWrapper } from '../shared/StepWrapper';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,10 +20,28 @@ const REQUIRED_INSTAGRAM_VARS = [
   { key: 'FACEBOOK_APP_SECRET', label: 'Facebook App Secret' },
 ];
 
+// Inline TikTok SVG icon
+function TikTokIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.8a8.18 8.18 0 0 0 4.78 1.52V6.88a4.85 4.85 0 0 1-1.01-.19z" />
+    </svg>
+  );
+}
+
 export function SocialSharingStep() {
   const { state, completeWorkflow } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
   const [igConfigured, setIgConfigured] = useState<boolean | null>(null); // null = unknown
+  const [tiktokConfigured, setTiktokConfigured] = useState<boolean | null>(null);
+  const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [tiktokPostId, setTiktokPostId] = useState<string | null>(null);
+  const [tiktokError, setTiktokError] = useState<string | null>(null);
   const [caption, setCaption] = useState(
     `Check out this delicious ${state.selectedRecipe?.title ?? 'recipe'} 🍽️\n\n` +
     `Follow along step-by-step to create this amazing dish!\n\n` +
@@ -42,6 +60,11 @@ export function SocialSharingStep() {
       .then(r => r.json())
       .then(data => setIgConfigured(data.configured === true))
       .catch(() => setIgConfigured(false));
+
+    fetch('/api/tiktok/preflight')
+      .then(r => r.json())
+      .then(data => setTiktokConfigured(data.configured === true))
+      .catch(() => setTiktokConfigured(false));
   }, []);
 
   const handleShareToInstagram = async () => {
@@ -62,13 +85,75 @@ export function SocialSharingStep() {
     }
   };
 
+  const handleShareToTikTok = async () => {
+    if (!state.selectedRecipe) return;
+    setTiktokError(null);
+    setTiktokLoading(true);
+    try {
+      const result = await shareRecipeToTikTok(state.selectedRecipe.id);
+      if (result.postId) {
+        setTiktokPostId(result.postId);
+      } else {
+        setTiktokError(result.error ?? 'TikTok returned no post ID. Check your API credentials.');
+      }
+    } catch (err) {
+      setTiktokError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+    } finally {
+      setTiktokLoading(false);
+    }
+  };
+
   const handleCopyCaption = () => {
     navigator.clipboard.writeText(`${caption}\n\n${hashtags}`);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  // ── Success screen ──────────────────────────────────────────────────────────
+  // ── Success screen (both posted) ─────────────────────────────────────────────
+  if (postUrl && tiktokPostId) {
+    return (
+      <StepWrapper
+        stepNumber={8}
+        title="🎉 Video Published!"
+        description="Your recipe video is live on Instagram and TikTok"
+        showBack={false}
+        showNext={false}
+      >
+        <div className="space-y-6 text-center">
+          <div className="rounded-lg border border-green-200 bg-green-50 p-6">
+            <div className="text-4xl mb-2">✓</div>
+            <p className="text-lg font-semibold text-green-900">Posted to Instagram &amp; TikTok!</p>
+            <p className="text-sm text-green-700 mt-1">Your recipe video is live on both platforms</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-gray-500">Instagram post</p>
+            <div className="flex gap-2">
+              <Input value={postUrl} readOnly className="text-sm bg-gray-50" />
+              <Button type="button" variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(postUrl)}>
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href={postUrl} target="_blank" rel="noopener noreferrer" title="Open Instagram post">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs font-medium text-gray-500 mt-2">TikTok publish ID</p>
+            <div className="flex gap-2">
+              <Input value={tiktokPostId} readOnly className="text-sm bg-gray-50" />
+            </div>
+          </div>
+
+          <Button onClick={completeWorkflow} className="w-full" size="lg">
+            Create Another Video
+          </Button>
+        </div>
+      </StepWrapper>
+    );
+  }
+
+  // ── Instagram-only success screen ────────────────────────────────────────────
   if (postUrl) {
     return (
       <StepWrapper
@@ -114,8 +199,8 @@ export function SocialSharingStep() {
   return (
     <StepWrapper
       stepNumber={8}
-      title="Share to Instagram"
-      description="Review your video, customise the caption, and post to Instagram"
+      title="Share to Social Media"
+      description="Review your video, customise the caption, and post to Instagram and/or TikTok"
       showBack
       showNext={false}
     >
@@ -180,11 +265,25 @@ export function SocialSharingStep() {
           </p>
         </Card>
 
-        {/* Share error */}
+        {/* Share errors */}
         {shareError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <p className="font-semibold mb-1">⚠ Failed to post</p>
+            <p className="font-semibold mb-1">⚠ Failed to post to Instagram</p>
             <p className="text-xs">{shareError}</p>
+          </div>
+        )}
+        {tiktokError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-semibold mb-1">⚠ Failed to post to TikTok</p>
+            <p className="text-xs">{tiktokError}</p>
+          </div>
+        )}
+
+        {/* TikTok success */}
+        {tiktokPostId && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            <p className="font-semibold">✓ Posted to TikTok!</p>
+            <p className="text-xs mt-1">Publish ID: {tiktokPostId}</p>
           </div>
         )}
 
@@ -204,6 +303,28 @@ export function SocialSharingStep() {
             {isLoading ? 'Posting…' : 'Post to Instagram'}
           </Button>
         </div>
+
+        {/* TikTok button */}
+        <Button
+          onClick={handleShareToTikTok}
+          disabled={tiktokLoading || tiktokConfigured === false || !videoUrl || Boolean(tiktokPostId)}
+          className="w-full"
+          variant="outline"
+          size="lg"
+        >
+          <TikTokIcon className="h-4 w-4 mr-2" />
+          {tiktokLoading
+            ? 'Posting to TikTok…'
+            : tiktokPostId
+            ? '✓ Posted to TikTok'
+            : 'Post to TikTok'}
+        </Button>
+
+        {tiktokConfigured === false && (
+          <p className="text-center text-xs text-gray-400">
+            TikTok is not configured — set TIKTOK_ACCESS_TOKEN and TIKTOK_CLIENT_KEY environment variables.
+          </p>
+        )}
 
         {igConfigured === false && (
           <p className="text-center text-xs text-gray-400">

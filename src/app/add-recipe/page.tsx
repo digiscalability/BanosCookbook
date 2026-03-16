@@ -1,6 +1,13 @@
+'use client';
+
+import { useState } from 'react';
 import RecipeForm from '@/components/recipe-form';
+import { UrlImportSection } from './url-import-section';
+import type { RecipeFromUrlOutput } from '@/ai/flows/recipe-from-url';
 
 export default function AddRecipePage() {
+  const [importedRecipe, setImportedRecipe] = useState<RecipeFromUrlOutput | null>(null);
+
   return (
     <div className="container mx-auto max-w-3xl px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8 lg:py-12">
       <header className="mb-6 text-center sm:mb-8">
@@ -11,6 +18,10 @@ export default function AddRecipePage() {
           Add a new recipe to the cookbook. Fill in the details below.
         </p>
       </header>
+
+      {/* URL Import section */}
+      <UrlImportSection onImport={setImportedRecipe} importedRecipe={importedRecipe} />
+
       <RecipeForm />
     </div>
   );

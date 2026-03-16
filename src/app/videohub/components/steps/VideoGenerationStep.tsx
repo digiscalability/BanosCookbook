@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
+import { useAuth } from '@/lib/auth-context';
+import { canGenerateVideo, getUserCredits, recordVideoGenerated } from '@/lib/firestore-credits';
+import type { CreditTier } from '@/lib/firestore-credits';
 
 import { useVideoHub } from '../../context/VideoHubProvider';
 
@@ -15,9 +19,12 @@ type SceneStatus = 'idle' | 'generating' | 'done' | 'error';
 
 export function VideoGenerationStep() {
   const { state, addSceneVideo } = useVideoHub();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [sceneStatus, setSceneStatus] = useState<Record<number, SceneStatus>>({});
   const [expandedScene, setExpandedScene] = useState<number | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [creditInfo, setCreditInfo] = useState<{ tier: CreditTier; remaining: number } | null>(null);
 
   const totalScenes = state.scenes.length;
   const generatedCount = Object.keys(state.sceneVideos).length;
@@ -45,11 +52,48 @@ export function VideoGenerationStep() {
 
   const handleGenerateAll = async () => {
     if (!state.selectedRecipe || totalScenes === 0) return;
+
+    // Check credits before starting
+    if (user) {
+      const uid = user.uid;
+      const allowed = await canGenerateVideo(uid);
+      if (!allowed) {
+        const credits = await getUserCredits(uid);
+        const limit = credits.tier === 'free' ? 2 : credits.tier === 'creator' ? 15 : Infinity;
+        const rem = credits.tier === 'pro' ? -1 : Math.max(0, limit - credits.videosThisMonth);
+        setCreditInfo({ tier: credits.tier, remaining: rem });
+        setShowUpgrade(true);
+        return;
+      }
+    }
+
     setIsLoading(true);
     // Sequential — Runway rate limits prevent parallel generation
     for (const scene of state.scenes) {
       if (!state.sceneVideos[scene.sceneNumber]) {
-        await generateScene(scene.sceneNumber);
+        const sceneNumberBefore = scene.sceneNumber;
+        setSceneStatus(prev => ({ ...prev, [sceneNumberBefore]: 'generating' }));
+        try {
+          if (!state.selectedRecipe) continue;
+          const result = await generateSplitSceneVideoAction(
+            state.selectedRecipe.id,
+            sceneNumberBefore
+          );
+          if (result.videoUrl) {
+            addSceneVideo(sceneNumberBefore, result.videoUrl);
+            setSceneStatus(prev => ({ ...prev, [sceneNumberBefore]: 'done' }));
+            // Record video generated after each successful scene
+            if (user) {
+              await recordVideoGenerated(user.uid).catch(err =>
+                console.warn('Failed to record video generated:', err)
+              );
+            }
+          } else {
+            setSceneStatus(prev => ({ ...prev, [sceneNumberBefore]: 'error' }));
+          }
+        } catch {
+          setSceneStatus(prev => ({ ...prev, [sceneNumberBefore]: 'error' }));
+        }
       }
     }
     setIsLoading(false);
@@ -73,6 +117,15 @@ export function VideoGenerationStep() {
       isLoading={isLoading}
     >
       <div className="space-y-5">
+        {/* Upgrade prompt when credit limit reached */}
+        {showUpgrade && creditInfo && (
+          <UpgradePrompt
+            tier={creditInfo.tier}
+            remaining={creditInfo.remaining}
+            onDismiss={() => setShowUpgrade(false)}
+          />
+        )}
+
         {/* Time expectation callout */}
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-semibold mb-1">⏱ Heads up — this step takes a while</p>

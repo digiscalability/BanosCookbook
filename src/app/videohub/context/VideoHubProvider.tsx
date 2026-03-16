@@ -64,7 +64,8 @@ export type VideoHubAction =
   | { type: 'POSTED' }
   | { type: 'RESET' }
   | { type: 'BACK' }
-  | { type: 'ERROR'; message: string };
+  | { type: 'ERROR'; message: string }
+  | { type: 'CLEAR_ERROR' };
 
 const initialState: VideoHubState = {
   currentStep: 'selectingRecipe',
@@ -193,6 +194,9 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
     case 'ERROR':
       return { ...state, error: action.message };
 
+    case 'CLEAR_ERROR':
+      return { ...state, error: null };
+
     default:
       return state;
   }
@@ -215,6 +219,7 @@ export interface VideoHubContextValue {
   completeWorkflow: () => void;
   goBack: () => void;
   setError: (message: string) => void;
+  clearError: () => void;
 }
 
 const VideoHubContext = createContext<VideoHubContextValue | undefined>(undefined);
@@ -299,6 +304,10 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ERROR', message });
   }, []);
 
+  const clearError = useCallback(() => {
+    dispatch({ type: 'CLEAR_ERROR' });
+  }, []);
+
   const value: VideoHubContextValue = {
     state,
     dispatch,
@@ -316,6 +325,7 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     completeWorkflow,
     goBack,
     setError,
+    clearError,
   };
 
   return (

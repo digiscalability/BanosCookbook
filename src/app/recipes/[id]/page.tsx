@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import CommentSection from '@/components/comment-section';
+import { MadeItButton } from '@/components/made-it-button';
 import NutritionalInfo from '@/components/nutritional-info';
+import { SaveButton } from '@/components/save-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -85,12 +87,25 @@ export default async function RecipePage({ params }: RecipePageProps) {
             <h1 className="font-headline text-2xl font-bold leading-tight text-foreground sm:text-3xl md:text-4xl lg:text-5xl">
               {recipe.title}
             </h1>
-            <Button asChild size="sm" className="shrink-0">
-              <Link href={`/videohub?recipeId=${id}`}>
-                <Video className="mr-2 h-4 w-4" />
-                Create Video
-              </Link>
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <SaveButton
+                recipeId={id}
+                initialSaved={false}
+                initialCount={recipe.savedCount ?? 0}
+                showCount
+              />
+              <MadeItButton
+                recipeId={id}
+                initialMade={false}
+                initialCount={recipe.madeItCount ?? 0}
+              />
+              <Button asChild size="sm">
+                <Link href={`/videohub?recipeId=${id}`}>
+                  <Video className="mr-2 h-4 w-4" />
+                  Create Video
+                </Link>
+              </Button>
+            </div>
           </div>
           <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">
             {recipe.description}
@@ -136,8 +151,14 @@ export default async function RecipePage({ params }: RecipePageProps) {
             </div>
 
             <Card>
-              <CardHeader className="pb-4">
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <CardTitle className="font-headline text-xl sm:text-2xl">Instructions</CardTitle>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/recipes/${id}/cook`}>
+                    <ChefHat className="mr-2 h-4 w-4" />
+                    Cook Mode
+                  </Link>
+                </Button>
               </CardHeader>
               <CardContent>
                 <ol className="space-y-4 sm:space-y-6">

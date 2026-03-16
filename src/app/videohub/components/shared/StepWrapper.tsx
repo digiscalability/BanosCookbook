@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ export function StepWrapper({
   onSkip,
   isLoading = false,
 }: StepWrapperProps) {
-  const { state, goBack } = useVideoHub();
+  const { state, goBack, clearError } = useVideoHub();
 
   const handleBack = () => {
     goBack();
@@ -63,10 +63,18 @@ export function StepWrapper({
       {state.error && (
         <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold text-red-900">Error</p>
             <p className="text-sm text-red-700">{state.error}</p>
           </div>
+          <button
+            type="button"
+            onClick={clearError}
+            className="text-red-400 hover:text-red-600 transition-colors"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 

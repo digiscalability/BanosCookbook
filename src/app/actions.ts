@@ -988,39 +988,32 @@ export async function generateVoiceOverAction(
     const textHash = createHash('sha256').update(normalizedText).digest('hex');
     const activeVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
 
-    // Prefer Gemini TTS via Google GenAI if API key is available
-    const apiKey =
-      process.env.GOOGLE_GENAI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      process.env.GOOGLE_AI_API_KEY;
+    const OPENAI_TTS_VOICES = new Set(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']);
     let audioBuffer: ArrayBuffer | null = null;
     let audioSource: VoiceOverMetadata['source'] = 'unknown';
 
-    if (apiKey) {
+    // Try OpenAI TTS first (used when UI sends alloy/echo/fable/onyx/nova/shimmer voice names)
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (openaiKey && OPENAI_TTS_VOICES.has(activeVoiceId)) {
       try {
-        // Use the new Google GenAI TTS endpoint (example)
-        const resp = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-tts:generateAudio',
-          {
-            method: 'POST',
-            headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input: { text }, audioConfig: { audioEncoding: 'mp3' } }),
-          }
-        );
+        const resp = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'tts-1',
+            input: normalizedText,
+            voice: activeVoiceId,
+            response_format: 'mp3',
+          }),
+        });
         if (resp.ok) {
-          const json = await resp.json();
-          // The API may return base64 audio in `audioContent` or inline data in candidates
-          const b64 =
-            json.audioContent || json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-          if (b64) {
-            audioBuffer = Uint8Array.from(Buffer.from(b64, 'base64')).buffer;
-            audioSource = 'gemini';
-          }
+          audioBuffer = await resp.arrayBuffer();
+          audioSource = 'unknown'; // 'openai' not in union — map to unknown
         } else {
-          console.warn('Gemini TTS request failed, status:', resp.status);
+          console.warn('OpenAI TTS failed, status:', resp.status, await resp.text());
         }
       } catch (err) {
-        console.warn('Gemini TTS error:', err instanceof Error ? err.message : String(err));
+        console.warn('OpenAI TTS error:', err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -5619,5 +5612,117 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
   } catch (error) {
     console.error('[combineRecipeStepVideosAction]', error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// =============================================================================
+// TikTok Integration Actions
+// =============================================================================
+
+/**
+ * Share a recipe to TikTok using the combined video URL stored in Firestore.
+ */
+export async function shareRecipeToTikTok(
+  recipeId: string
+): Promise<{ postId?: string; error?: string }> {
+  try {
+    const admin = await ensureFirebaseAdmin();
+    const db = admin.firestore();
+
+    // Load the combined video URL from split_scenes doc
+    const splitDoc = await db.collection('split_scenes').doc(recipeId).get();
+    const combinedVideoUrl =
+      (splitDoc.data()?.combinedVideo as { url?: string } | undefined)?.url ??
+      (splitDoc.data()?.combinedVideoUrl as string | undefined);
+
+    if (!combinedVideoUrl) {
+      return { error: 'No combined video found for this recipe. Generate and combine scenes first.' };
+    }
+
+    // Load recipe for title/description
+    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
+    const title = (recipeDoc.data()?.title as string | undefined) ?? 'Recipe';
+    const description =
+      (recipeDoc.data()?.description as string | undefined) ??
+      `Check out this amazing ${title} recipe!`;
+
+    const { shareToTikTok } = await import('@/lib/tiktok-api');
+    return shareToTikTok(combinedVideoUrl, title, description);
+  } catch (error) {
+    console.error('[shareRecipeToTikTok]', error);
+    return { error: error instanceof Error ? error.message : 'Failed to share to TikTok' };
+  }
+}
+
+// ─── Save Recipe ────────────────────────────────────────────────────────────
+
+export async function saveRecipeAction(
+  recipeId: string,
+  userId: string
+): Promise<{ success: boolean; saved: boolean; savedCount: number; error?: string }> {
+  'use server';
+  try {
+    const db = await ensureFirestore();
+    const ref = db.collection('recipes').doc(recipeId);
+    const snap = await ref.get();
+    if (!snap.exists) return { success: false, saved: false, savedCount: 0, error: 'Recipe not found' };
+
+    const data = snap.data()!;
+    const savedBy: string[] = Array.isArray(data.savedBy) ? data.savedBy : [];
+    const alreadySaved = savedBy.includes(userId);
+    const updated = alreadySaved
+      ? savedBy.filter((id: string) => id !== userId)
+      : [...savedBy, userId];
+
+    await ref.update({ savedBy: updated, savedCount: updated.length });
+    return { success: true, saved: !alreadySaved, savedCount: updated.length };
+  } catch (error) {
+    console.error('[saveRecipeAction]', error);
+    return { success: false, saved: false, savedCount: 0, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function getSavedRecipesAction(
+  userId: string
+): Promise<{ success: boolean; recipes?: import('@/lib/types').Recipe[]; error?: string }> {
+  'use server';
+  try {
+    const { getAdminDb } = await import('@/lib/firebase-admin');
+    const db = await getAdminDb();
+    const snap = await db.collection('recipes').where('savedBy', 'array-contains', userId).limit(50).get();
+    const recipes = snap.docs.map(d => ({ id: d.id, ...d.data() } as import('@/lib/types').Recipe));
+    return { success: true, recipes };
+  } catch (error) {
+    console.error('[getSavedRecipesAction]', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// ─── Made It ────────────────────────────────────────────────────────────────
+
+export async function madeItAction(
+  recipeId: string,
+  userId: string
+): Promise<{ success: boolean; made: boolean; madeItCount: number; error?: string }> {
+  'use server';
+  try {
+    const { getAdminDb } = await import('@/lib/firebase-admin');
+    const db = await getAdminDb();
+    const ref = db.collection('recipes').doc(recipeId);
+    const snap = await ref.get();
+    if (!snap.exists) return { success: false, made: false, madeItCount: 0, error: 'Recipe not found' };
+
+    const data = snap.data()!;
+    const madeItBy: string[] = Array.isArray(data.madeItBy) ? data.madeItBy : [];
+    const alreadyMade = madeItBy.includes(userId);
+    const updated = alreadyMade
+      ? madeItBy.filter((id: string) => id !== userId)
+      : [...madeItBy, userId];
+
+    await ref.update({ madeItBy: updated, madeItCount: updated.length });
+    return { success: true, made: !alreadyMade, madeItCount: updated.length };
+  } catch (error) {
+    console.error('[madeItAction]', error);
+    return { success: false, made: false, madeItCount: 0, error: error instanceof Error ? error.message : String(error) };
   }
 }

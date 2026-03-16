@@ -119,11 +119,16 @@ export async function GET(request: NextRequest) {
           .filter(Boolean)
       : null;
 
+    const userIdFilter = searchParams.get('userId');
+
     const db = getDb();
     let queryRef: firestore.Query<firestore.DocumentData> = db.collection('recipes');
 
     if (cuisineFilter) {
       queryRef = queryRef.where('cuisine', '==', cuisineFilter);
+    }
+    if (userIdFilter) {
+      queryRef = queryRef.where('userId', '==', userIdFilter);
     }
 
     queryRef = queryRef.orderBy('createdAt', 'desc').limit(limit);
@@ -154,6 +159,19 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = getAdmin();
+
+    // Extract verified userId from Bearer token if present
+    let verifiedUserId: string | undefined;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const idToken = authHeader.slice(7);
+      try {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        verifiedUserId = decoded.uid;
+      } catch {
+        // Token invalid — treat as anonymous (recipe still created, just unowned)
+      }
+    }
 
     // If an image URL or data URI was provided by the client (selectedImageUrl),
     // attempt to upload it to Firebase Storage and replace imageId with a stable
@@ -445,6 +463,8 @@ export async function POST(request: NextRequest) {
       rating: recipeData.rating ?? 0,
       ratingCount: recipeData.ratingCount ?? 0,
       comments: recipeData.comments ?? [],
+      // Attach verified userId (overrides any client-supplied value for security)
+      ...(verifiedUserId ? { userId: verifiedUserId } : {}),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };

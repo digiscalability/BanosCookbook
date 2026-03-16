@@ -79,7 +79,7 @@ export function StudioEditor() {
                   <GripVertical className="h-5 w-5 text-gray-400 shrink-0" />
                   <Badge>{scene.sceneNumber}</Badge>
                   <span className="flex-grow text-sm text-gray-700 truncate">
-                    {scene.content.substring(0, 60)}…
+                    {String(scene.content ?? '').substring(0, 60)}…
                   </span>
                   <div className="shrink-0 flex items-center gap-2">
                     <span className="text-xs text-gray-400">{scene.duration}s</span>
@@ -107,7 +107,7 @@ export function StudioEditor() {
                         <span className="ml-1 font-normal text-gray-400">(used as video generation prompt)</span>
                       </label>
                       <Textarea
-                        value={scene.content}
+                        value={String(scene.content ?? '')}
                         onChange={(e) => handleUpdateContent(scene.sceneNumber, e.target.value)}
                         className="text-sm min-h-[80px] resize-y"
                         placeholder="Describe what happens in this scene…"

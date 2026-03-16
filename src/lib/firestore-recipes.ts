@@ -5,6 +5,8 @@ export interface CreateRecipeData {
   description: string;
   author: string;
   authorEmail?: string;
+  userId?: string; // Firebase Auth UID — attached client-side and verified server-side
+  username?: string; // denormalized creator username
   ingredients: string[];
   instructions: string[];
   prepTime: string;
@@ -64,7 +66,7 @@ const resolveBaseUrl = () => {
     return vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
   }
 
-  return 'http://localhost:3000';
+  return 'http://localhost:9002';
 };
 
 const buildApiUrl = (path: string) => `${resolveBaseUrl()}${normalizePath(path)}`;
@@ -209,6 +211,13 @@ export async function getAllRecipes(): Promise<Recipe[]> {
   return extractRecipes(payload);
 }
 
+export async function getRecipesByUserId(userId: string): Promise<Recipe[]> {
+  const payload = await apiRequest<ApiRecipeResponse>(
+    `/api/recipes?userId=${encodeURIComponent(userId)}`
+  );
+  return extractRecipes(payload);
+}
+
 export async function getRecipeById(id: string): Promise<Recipe | null> {
   if (!id) return null;
   const payload = await apiRequest<ApiRecipeResponse>(`/api/recipes/${encodeURIComponent(id)}`);
@@ -217,9 +226,22 @@ export async function getRecipeById(id: string): Promise<Recipe | null> {
 }
 
 export async function createRecipe(data: CreateRecipeData): Promise<Recipe> {
+  // Attach the Firebase ID token so the server can verify and record userId
+  let authHeaders: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    try {
+      const { auth } = await import('./firebase');
+      const token = await auth.currentUser?.getIdToken();
+      if (token) authHeaders = { Authorization: `Bearer ${token}` };
+    } catch {
+      // Not signed in — recipe created anonymously
+    }
+  }
+
   const payload = await apiRequest<ApiRecipeResponse>('/api/recipes', {
     method: 'POST',
     body: JSON.stringify(data),
+    headers: authHeaders,
   });
   const recipe = extractRecipe(payload);
   if (!recipe) {

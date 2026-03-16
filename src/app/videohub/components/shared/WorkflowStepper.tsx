@@ -1,6 +1,7 @@
 'use client';
 
 import { Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface WorkflowStep {
   label: string;
@@ -14,14 +15,18 @@ interface WorkflowStepperProps {
 }
 
 export function WorkflowStepper({ steps, currentStep, className = '' }: WorkflowStepperProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const currentIdx = steps.findIndex(s => s.id === currentStep);
 
   return (
     <div className={`${className}`}>
       <div className="flex items-center justify-between">
         {steps.map((step, idx) => {
-          const isActive = idx === currentIdx;
-          const isCompleted = idx < currentIdx;
+          // Defer completion/active state until client-side to avoid hydration mismatch
+          // (currentStep is restored from localStorage after SSR)
+          const isActive = mounted && idx === currentIdx;
+          const isCompleted = mounted && idx < currentIdx;
 
           return (
             <div key={step.id} className="flex items-center flex-1">

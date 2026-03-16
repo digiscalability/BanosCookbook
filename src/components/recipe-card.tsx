@@ -1,5 +1,5 @@
 'use client';
-import { MessageCircle, Star } from 'lucide-react';
+import { MessageCircle, Play, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -7,9 +7,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useAuth } from '@/lib/auth-context';
 import type { Recipe } from '@/lib/types';
 
 import { InstagramBadge } from './instagram-badge';
+import { SaveButton } from './save-button';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -17,6 +19,11 @@ interface RecipeCardProps {
 }
 
 function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
+  const { user } = useAuth();
+  const isSaved = user ? (recipe.savedBy ?? []).includes(user.uid) : false;
+  const hasVideo = !!recipe.videoUrl;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoHovered, setVideoHovered] = useState(false);
   // Count comments (top-level only)
   const commentCount = Array.isArray(recipe.comments) ? recipe.comments.length : 0;
   // Check if any comment is from Instagram
@@ -74,7 +81,23 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
       `}</style>
       <Card className="flex h-full flex-col transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg">
         <CardHeader className="p-0">
-          <div className="relative aspect-video overflow-hidden rounded-t-lg">
+          <div
+            className="relative aspect-video overflow-hidden rounded-t-lg"
+            onMouseEnter={() => { if (hasVideo) { setVideoHovered(true); videoRef.current?.play().catch(() => {}); } }}
+            onMouseLeave={() => { if (hasVideo) { setVideoHovered(false); if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; } } }}
+          >
+            {/* Video preview (shown on hover when video exists) */}
+            {hasVideo && (
+              <video
+                ref={videoRef}
+                src={recipe.videoUrl}
+                muted
+                loop
+                playsInline
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${videoHovered ? 'opacity-100' : 'opacity-0'}`}
+              />
+            )}
+            {/* Static image */}
             {(isImageUrl || placeholder) &&
               (shouldUseImgTag ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -82,7 +105,7 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
                   src={imageSrc}
                   alt={imageAlt}
                   data-ai-hint={placeholder?.imageHint}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-300 ${videoHovered ? 'opacity-0' : 'group-hover:scale-105'}`}
                 />
               ) : (
                 <Image
@@ -91,11 +114,28 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
                   data-ai-hint={placeholder?.imageHint}
                   fill
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  className={`object-cover transition-all duration-300 ${videoHovered ? 'opacity-0' : 'group-hover:scale-105'}`}
                   priority={priority}
                   unoptimized={isImageUrl}
                 />
               ))}
+            {/* Video badge */}
+            {hasVideo && !videoHovered && (
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-white">
+                <Play className="h-3 w-3 fill-current" />
+                <span className="text-xs font-medium">Video</span>
+              </div>
+            )}
+            {/* Save button overlay — top-right corner */}
+            <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+              <SaveButton
+                recipeId={recipe.id}
+                initialSaved={isSaved}
+                initialCount={recipe.savedCount ?? 0}
+                size="icon"
+                className="h-8 w-8 rounded-full shadow-md"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="flex-grow p-3 sm:p-4">

@@ -5,6 +5,7 @@ import ErrorBoundary from '@/components/error-boundary';
 import Footer from '@/components/layout/footer';
 import Header from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import './globals.css';
 
@@ -33,12 +34,14 @@ export default function RootLayout({
           'flex flex-col'
         )}
       >
-        <Header />
-        <main className="flex-grow">
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </main>
-        <Footer />
-        <Toaster />
+        <AuthProvider>
+          <Header />
+          <main className="flex-grow">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </main>
+          <Footer />
+          <Toaster />
+        </AuthProvider>
         <script src="/share-modal-fix.js" defer />
       </body>
     </html>

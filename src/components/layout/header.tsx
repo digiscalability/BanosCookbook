@@ -1,13 +1,16 @@
 'use client';
 
-import { CookingPot, PlusCircle, Video, Menu, X } from 'lucide-react';
+import { Bookmark, CookingPot, Menu, PlusCircle, Video, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { UserMenu } from '@/components/auth/user-menu';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth-context';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { loading } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-card shadow-sm">
@@ -28,6 +31,12 @@ export default function Header() {
               <Link href="/">Home</Link>
             </Button>
             <Button variant="ghost" asChild>
+              <Link href="/saved">
+                <Bookmark className="mr-2 h-4 w-4" />
+                Saved
+              </Link>
+            </Button>
+            <Button variant="ghost" asChild>
               <Link href="/videohub">
                 <Video className="mr-2" />
                 Video Hub
@@ -39,17 +48,24 @@ export default function Header() {
                 Add Recipe
               </Link>
             </Button>
+            {!loading && (
+              <div className="ml-2 border-l border-border pl-2">
+                <UserMenu />
+              </div>
+            )}
           </nav>
 
-          {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="md:hidden"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          {/* Mobile: auth + hamburger */}
+          <div className="flex items-center gap-2 md:hidden">
+            {!loading && <UserMenu />}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
@@ -58,6 +74,12 @@ export default function Header() {
             <Button variant="ghost" asChild className="w-full justify-start">
               <Link href="/" onClick={() => setIsMenuOpen(false)}>
                 Home
+              </Link>
+            </Button>
+            <Button variant="ghost" asChild className="w-full justify-start">
+              <Link href="/saved" onClick={() => setIsMenuOpen(false)}>
+                <Bookmark className="mr-2 h-4 w-4" />
+                Saved
               </Link>
             </Button>
             <Button variant="ghost" asChild className="w-full justify-start">

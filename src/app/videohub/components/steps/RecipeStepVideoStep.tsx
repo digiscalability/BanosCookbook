@@ -39,6 +39,7 @@ export function RecipeStepVideoStep() {
   const [steps, setSteps] = useState<StepVideoRecord[]>([]);
   const [stepStatus, setStepStatus] = useState<Record<number, StepStatus>>({});
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
   const abortRef = useRef(false);
@@ -59,6 +60,7 @@ export function RecipeStepVideoStep() {
 
     async function load() {
       setIsLoadingPrompts(true);
+      setPromptError(null);
       try {
         const result = await getRecipeStepVideosAction(recipe!.id);
         if (result.success && result.steps && result.steps.length > 0) {
@@ -69,11 +71,14 @@ export function RecipeStepVideoStep() {
             if (s.videoUrl) initialStatus[s.stepIndex] = 'done';
           }
           setStepStatus(initialStatus);
+          setIsLoadingPrompts(false);
         } else {
-          // No prompts yet — generate them now
+          // No prompts yet — generate them (handleGeneratePrompts manages its own loading state)
+          setIsLoadingPrompts(false);
           await handleGeneratePrompts();
         }
-      } finally {
+      } catch (err) {
+        setPromptError(err instanceof Error ? err.message : 'Failed to load step data.');
         setIsLoadingPrompts(false);
       }
     }
@@ -86,11 +91,16 @@ export function RecipeStepVideoStep() {
   async function handleGeneratePrompts() {
     if (!recipe?.id) return;
     setIsLoadingPrompts(true);
+    setPromptError(null);
     try {
       const result = await generateStepVideoPromptsAction(recipe.id);
       if (result.success && result.steps) {
         setSteps(result.steps);
+      } else {
+        setPromptError(result.error ?? 'Failed to generate step prompts. Check your API key and try again.');
       }
+    } catch (err) {
+      setPromptError(err instanceof Error ? err.message : 'Unexpected error generating prompts.');
     } finally {
       setIsLoadingPrompts(false);
     }
@@ -213,6 +223,22 @@ export function RecipeStepVideoStep() {
           <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
             <span className="text-sm text-gray-600">Generating AI prompts for each step…</span>
+          </div>
+        )}
+
+        {/* Prompt generation error */}
+        {promptError && !isLoadingPrompts && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+            <p className="font-semibold mb-1">⚠ Failed to generate step prompts</p>
+            <p className="text-xs mb-3 text-red-700">{promptError}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-100"
+              onClick={handleGeneratePrompts}
+            >
+              Try Again
+            </Button>
           </div>
         )}
 
