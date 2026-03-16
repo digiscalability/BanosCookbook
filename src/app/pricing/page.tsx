@@ -70,14 +70,15 @@ const TIERS = [
   },
 ];
 
-export default function PricingPage({
+export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: { success?: string };
+  searchParams: Promise<{ success?: string }>;
 }) {
+  const params = await searchParams;
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12">
-      {searchParams.success === 'true' && (
+      {params.success === 'true' && (
         <div className="mb-8 rounded-lg border border-green-200 bg-green-50 p-4 text-center text-green-800">
           <p className="font-semibold">Payment successful! Your plan has been upgraded.</p>
           <p className="text-sm mt-1">Your new video credits will be available momentarily.</p>
