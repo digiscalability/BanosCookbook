@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { combineVideoScenesAction, combineRecipeStepVideosAction } from '@/app/actions';
+import { combineVideoScenesAction, combineRecipeStepVideosAction, getRecipeStepVideosAction } from '@/app/actions';
 import { StepWrapper } from '../shared/StepWrapper';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -10,10 +10,31 @@ import { Progress } from '@/components/ui/progress';
 import { useVideoHub } from '../../context/VideoHubProvider';
 
 export function CombineStep() {
-  const { state, setCombinedVideo } = useVideoHub();
+  const { state, setCombinedVideo, dispatch } = useVideoHub();
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // If we arrived here via stepper jump (stepVideos empty but Firestore has them), load them
+  useEffect(() => {
+    const recipeId = state.selectedRecipe?.id;
+    if (!recipeId) return;
+    if (Object.keys(state.stepVideos).length > 0) return; // already have them
+    if (Object.keys(state.sceneVideos).length > 0) return; // using scene videos
+
+    getRecipeStepVideosAction(recipeId).then((result) => {
+      if (!result.success || !result.steps) return;
+      const videoMap: Record<number, string> = {};
+      for (const s of result.steps) {
+        if (s.videoUrl) videoMap[s.stepIndex + 1] = s.videoUrl;
+      }
+      if (Object.keys(videoMap).length > 0) {
+        // Inject into context without advancing step (we're already on combining)
+        dispatch({ type: 'STEP_VIDEOS_READY', stepVideos: videoMap });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.selectedRecipe?.id]);
 
   // Prefer step videos (recipe-step based) over scene videos (script based)
   const stepVideoCount = Object.keys(state.stepVideos).length;
