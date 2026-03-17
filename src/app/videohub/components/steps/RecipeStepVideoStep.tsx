@@ -329,8 +329,8 @@ export function RecipeStepVideoStep() {
                       <p className="text-sm font-medium text-gray-900 leading-snug">
                         {step.stepText}
                       </p>
-                      <p className="text-xs text-gray-400 truncate" title={step.runwayPrompt}>
-                        🎥 {step.cameraAngle} · {step.duration}s · {step.runwayPrompt.substring(0, 60)}…
+                      <p className="text-xs text-gray-400" title={step.runwayPrompt}>
+                        🎥 {step.cameraAngle} · {step.duration}s
                       </p>
                     </div>
 
