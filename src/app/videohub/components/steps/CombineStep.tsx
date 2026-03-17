@@ -49,6 +49,13 @@ export function CombineStep() {
 
       if (result.success && result.combinedVideoUrl) {
         setCombinedVideo(result.combinedVideoUrl, result.duration);
+        if (result.processingMethod === 'manual') {
+          // Fallback: first clip used — let the user know
+          setError(
+            `Full concatenation requires Cloudinary or a dedicated worker. ` +
+            `Using clip 1 of ${videoCount} for sharing. Download all ${videoCount} clips manually to combine them.`
+          );
+        }
       } else {
         setError(result.error ?? 'Combining failed — server returned no video URL.');
       }
@@ -76,11 +83,11 @@ export function CombineStep() {
     return (
       <StepWrapper
         stepNumber={7}
-        title="Final Video Ready"
-        description={usingStepVideos ? `All ${totalScenes} recipe step clips combined into one instructional video` : 'All scenes have been stitched into one video'}
+        title="Video Ready"
+        description={usingStepVideos ? `${totalScenes} step clip${totalScenes !== 1 ? 's' : ''} ready to share` : 'Scenes stitched into one video'}
         showBack
         showNext
-        nextLabel="Share to Instagram"
+        nextLabel="Continue to Share"
       >
         <div className="space-y-4">
           <div className="rounded-lg border border-green-200 bg-green-50 p-4">

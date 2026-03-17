@@ -106,3 +106,8 @@ jspm_packages/
 tmp/
 temp/
 assets/Pellow food colouing.pdf
+
+# Playwright
+playwright-report/
+test-results/
+

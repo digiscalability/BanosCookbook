@@ -8,6 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    exclude: ['node_modules/**', 'e2e/**', 'dist/**'],
     environmentMatchGlobs: [
       // Backend/AI tests run in node environment (no browser globals needed)
       ['src/__tests__/**', 'node'],

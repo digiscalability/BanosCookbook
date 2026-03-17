@@ -14,7 +14,7 @@ import { VideoGenerationStep } from './components/steps/VideoGenerationStep';
 import { VoiceoverStep } from './components/steps/VoiceoverStep';
 import { RecipeStepVideoStep } from './components/steps/RecipeStepVideoStep';
 import { ProtectedPage } from '@/components/auth/protected-page';
-import { useVideoHub, VideoHubProvider } from './context/VideoHubProvider';
+import { useVideoHub, VideoHubProvider, type VideoHubState } from './context/VideoHubProvider';
 
 function RecipePreloader() {
   const { state, selectRecipe } = useVideoHub();
@@ -33,7 +33,7 @@ function RecipePreloader() {
 }
 
 function VideoHubContent() {
-  const { state } = useVideoHub();
+  const { state, jumpToStep } = useVideoHub();
 
   const steps = [
     { label: 'Recipe', id: 'selectingRecipe' },
@@ -64,6 +64,7 @@ function VideoHubContent() {
           steps={steps}
           currentStep={state.currentStep}
           className="mb-8"
+          onStepClick={(stepId) => jumpToStep(stepId as VideoHubState['currentStep'])}
         />
 
         {/* Step Content */}

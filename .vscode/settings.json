@@ -5,7 +5,7 @@
   // ============================================
 
   // ===== Editor Settings =====
-  "editor.formatOnSave": false,
+  "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
     "source.organizeImports": "explicit"
@@ -174,7 +174,11 @@
   // ===== Terminal Settings =====
   "terminal.integrated.fontSize": 13,
   "terminal.integrated.fontFamily": "monospace",
+  "terminal.integrated.defaultProfile.windows": "Git Bash",
   "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.env.windows": {
+    "NODE_OPTIONS": "--max-old-space-size=8192"
+  },
   "terminal.integrated.env.linux": {
     "NODE_OPTIONS": "--max-old-space-size=8192"
   },

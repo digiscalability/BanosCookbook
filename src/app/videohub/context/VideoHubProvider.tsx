@@ -65,7 +65,8 @@ export type VideoHubAction =
   | { type: 'RESET' }
   | { type: 'BACK' }
   | { type: 'ERROR'; message: string }
-  | { type: 'CLEAR_ERROR' };
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'JUMP_TO_STEP'; step: VideoHubState['currentStep'] };
 
 const initialState: VideoHubState = {
   currentStep: 'selectingRecipe',
@@ -200,6 +201,9 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
     case 'CLEAR_ERROR':
       return { ...state, error: null };
 
+    case 'JUMP_TO_STEP':
+      return { ...state, currentStep: action.step };
+
     default:
       return state;
   }
@@ -221,6 +225,7 @@ export interface VideoHubContextValue {
   setCombinedVideo: (videoUrl: string, duration?: number) => void;
   completeWorkflow: () => void;
   goBack: () => void;
+  jumpToStep: (step: VideoHubState['currentStep']) => void;
   setError: (message: string) => void;
   clearError: () => void;
 }
@@ -303,6 +308,10 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'BACK' });
   }, []);
 
+  const jumpToStep = useCallback((step: VideoHubState['currentStep']) => {
+    dispatch({ type: 'JUMP_TO_STEP', step });
+  }, []);
+
   const setError = useCallback((message: string) => {
     dispatch({ type: 'ERROR', message });
   }, []);
@@ -327,6 +336,7 @@ export function VideoHubProvider({ children }: { children: ReactNode }) {
     setCombinedVideo,
     completeWorkflow,
     goBack,
+    jumpToStep,
     setError,
     clearError,
   };

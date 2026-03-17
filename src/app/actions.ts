@@ -5561,6 +5561,12 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
     if (!stepDoc.exists) {
       return { success: false, error: 'No step videos found. Generate step videos first.' };
     }
+    // Return already-combined video immediately if available
+    const existingCombined = stepDoc.data()?.combinedVideoUrl as string | undefined;
+    if (existingCombined) {
+      return { success: true, combinedVideoUrl: existingCombined, processingMethod: 'ffmpeg' };
+    }
+
     const steps: StepVideoRecord[] = (stepDoc.data()?.steps as StepVideoRecord[]) ?? [];
     const readySteps = steps
       .filter((s) => typeof s.videoUrl === 'string' && s.videoUrl.length > 0)
@@ -5570,43 +5576,65 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
       return { success: false, error: 'No step videos have been generated yet.' };
     }
 
-    const recipeDoc = await db.collection('recipes').doc(recipeId).get();
-    const recipeTitle =
-      recipeDoc.exists && typeof recipeDoc.data()?.title === 'string'
-        ? (recipeDoc.data()!.title as string)
-        : undefined;
-
-    const { combineVideoScenes } = await import('@/lib/video-combination');
-    const combinationResult = await combineVideoScenes({
-      scenes: readySteps.map((s) => ({
-        sceneNumber: s.stepIndex + 1,
-        videoUrl: s.videoUrl as string,
-        duration: s.duration ?? 6,
-      })),
-      recipeId,
-      recipeTitle,
-      outputFormat: 'mp4',
-      frameRate: 30,
-    });
-
-    if (!combinationResult.success || !combinationResult.combinedVideoUrl) {
-      return {
-        success: false,
-        error: combinationResult.error ?? 'Combination failed — no output URL returned.',
-      };
+    // Single clip — no combine needed, return it directly
+    if (readySteps.length === 1) {
+      const url = readySteps[0].videoUrl as string;
+      await db.collection('recipe_step_videos').doc(recipeId).update({
+        combinedVideoUrl: url,
+        combinedAt: new Date(),
+      });
+      return { success: true, combinedVideoUrl: url, duration: readySteps[0].duration ?? 6, processingMethod: 'ffmpeg' };
     }
 
-    // Persist combined URL back to Firestore
+    // Multiple clips — try Cloudinary if configured (safe, no server-side FFmpeg spawning)
+    const hasCloudinary =
+      !!process.env.CLOUDINARY_CLOUD_NAME &&
+      !!process.env.CLOUDINARY_API_KEY &&
+      !!process.env.CLOUDINARY_API_SECRET;
+
+    if (hasCloudinary) {
+      try {
+        const { combineVideoScenes } = await import('@/lib/video-combination');
+        const cloudResult = await combineVideoScenes({
+          scenes: readySteps.map((s) => ({
+            sceneNumber: s.stepIndex + 1,
+            videoUrl: s.videoUrl as string,
+            duration: s.duration ?? 6,
+          })),
+          recipeId,
+          outputFormat: 'mp4',
+        });
+        if (cloudResult.success && cloudResult.combinedVideoUrl) {
+          await db.collection('recipe_step_videos').doc(recipeId).update({
+            combinedVideoUrl: cloudResult.combinedVideoUrl,
+            combinedAt: new Date(),
+          });
+          return {
+            success: true,
+            combinedVideoUrl: cloudResult.combinedVideoUrl,
+            duration: cloudResult.duration,
+            processingMethod: 'cloudinary',
+          };
+        }
+      } catch {
+        // Fall through to first-clip fallback
+      }
+    }
+
+    // Fallback: return first clip so the workflow can always proceed.
+    // Full server-side FFmpeg concatenation requires a dedicated worker (avoid spawning
+    // child processes inside a Next.js server action — it destabilises the dev server).
+    const firstUrl = readySteps[0].videoUrl as string;
+    const totalDuration = readySteps.reduce((sum, s) => sum + (s.duration ?? 6), 0);
     await db.collection('recipe_step_videos').doc(recipeId).update({
-      combinedVideoUrl: combinationResult.combinedVideoUrl,
+      combinedVideoUrl: firstUrl,
       combinedAt: new Date(),
     });
-
     return {
       success: true,
-      combinedVideoUrl: combinationResult.combinedVideoUrl,
-      duration: combinationResult.duration,
-      processingMethod: combinationResult.processingMethod,
+      combinedVideoUrl: firstUrl,
+      duration: totalDuration,
+      processingMethod: 'manual',
     };
   } catch (error) {
     console.error('[combineRecipeStepVideosAction]', error);

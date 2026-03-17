@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useVideoHub } from '../../context/VideoHubProvider';
 
 export function StudioEditor() {
-  const { state, updateScene, reorderScenes, generateVideos, goToStepVideos } = useVideoHub();
+  const { state, updateScene, reorderScenes, generateVideos, goToStepVideos, jumpToStep } = useVideoHub();
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
@@ -58,6 +58,8 @@ export function StudioEditor() {
       showNext
       nextLabel="Generate Step Videos"
       onNext={handleContinue}
+      showSkip
+      onSkip={() => jumpToStep('combining')}
     >
       <div className="space-y-4">
         <div className="text-sm text-gray-600">
