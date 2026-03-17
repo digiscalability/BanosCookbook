@@ -78,6 +78,17 @@ const SPLIT_SCRIPT_OPTIMIZED_PROMPT = `You are an expert video editor and cinema
 
 5. **Avoid Generic Intros/Outros**: Skip "Welcome to..." or "Thanks for watching" - focus on core cooking action
 
+6. **Visual Actions over Narration**: Each scene must describe specific VISUAL ACTIONS happening on screen, not just narration text. Show what the camera records, not what is said.
+
+7. **B-roll Suggestions**: Include documentary-style B-roll ideas for every scene:
+   - Close-ups of raw ingredients being handled
+   - Equipment shots: knife on cutting board, pan on flame, whisk in bowl
+   - Process shots: hands working dough, steam rising from pot, oil sizzling
+   - Texture details: bubbling sauce, browning onions, melting butter
+   Scenes should feel like documentary-style food cinematography, not just a talking head.
+
+8. **No Finished Dish**: Only describe ingredients and tools as they appear at that specific cooking stage. Never describe the final plated result until the very last scene.
+
 6. **Transition Planning**: Specify how scenes connect visually
    - Match-cut: "Close-up of knife cutting → cut tomato on cutting board"
    - Action continuity: "Hand stirring → stir completes, camera pulls back"

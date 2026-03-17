@@ -5478,8 +5478,35 @@ export async function getRecipeStepVideosAction(recipeId: string): Promise<{
 }
 
 /**
+ * Generate a step-specific keyframe image using DALL-E 3 to use as the
+ * Runway reference frame instead of the finished dish photo.
+ */
+async function generateStepKeyframeImage(
+  stepText: string,
+  recipeTitle: string,
+  ingredients: string[],
+  cameraAngle: string
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const ingredientStr = ingredients.slice(0, 5).join(', ');
+    const prompt = `Photorealistic food photography: ${cameraAngle} showing ${stepText.toLowerCase()} for making ${recipeTitle}. Key ingredients visible: ${ingredientStr}. Professional kitchen setting, warm natural lighting, shallow depth of field, no text or labels, high resolution, appetizing, realistic hands and tools if applicable.`;
+    const res = await fetch('https://api.openai.com/v1/images/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: 'dall-e-3', prompt: prompt.substring(0, 1000), n: 1, size: '1792x1024', quality: 'standard' }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { data?: Array<{ url?: string }> };
+    return data.data?.[0]?.url ?? null;
+  } catch { return null; }
+}
+
+/**
  * Generate a Runway ML video for a single recipe instruction step.
- * Uses the recipe's main image as the reference frame for visual consistency.
+ * Generates a DALL-E 3 step-specific keyframe image as the reference frame
+ * so each clip matches its cooking action rather than the finished dish.
  * Updates Firestore recipe_step_videos/{recipeId} with the returned videoUrl.
  */
 export async function generateSingleStepVideoAction(
@@ -5494,7 +5521,7 @@ export async function generateSingleStepVideoAction(
   try {
     const db = await ensureFirestore();
 
-    // Fetch recipe for image + title
+    // Fetch recipe for image + title + ingredients
     const recipeDoc = await db.collection('recipes').doc(recipeId).get();
     if (!recipeDoc.exists) return { success: false, error: 'Recipe not found' };
     const recipe = recipeDoc.data();
@@ -5519,10 +5546,43 @@ export async function generateSingleStepVideoAction(
       return { success: false, error: `Step ${stepIndex} not found. Run prompt generation first.` };
     }
 
+    // Build ingredient names list from recipe (supports {name, amount} objects or plain strings)
+    const rawIngredients: unknown[] = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+    const ingredientNames: string[] = rawIngredients.map((ing) => {
+      if (typeof ing === 'string') return ing;
+      if (typeof ing === 'object' && ing !== null && 'name' in ing) return String((ing as { name: unknown }).name);
+      return String(ing);
+    }).filter(Boolean);
+
+    // Generate a step-specific keyframe image; fall back to recipe image if DALL-E fails
+    const keyframeUrl = await generateStepKeyframeImage(
+      step.stepText,
+      String(recipe.title ?? 'Recipe'),
+      ingredientNames,
+      step.cameraAngle
+    );
+    const promptImage = keyframeUrl ?? (recipe.imageUrl as string);
+
+    // Look up voiceover audio for this step from split_scenes (scene numbers are 1-based; stepIndex is 0-based)
+    let audioUrl: string | undefined;
+    try {
+      const sceneDoc = await db.collection('split_scenes').doc(recipeId).get();
+      if (sceneDoc.exists) {
+        const scenes = (sceneDoc.data()?.scenes as Array<Record<string, unknown>>) ?? [];
+        const matchingScene = scenes.find((s) => Number(s.sceneNumber) === stepIndex + 1);
+        const voiceOverUrl = matchingScene?.voiceOverUrl ?? matchingScene?.voiceoverUrl;
+        if (typeof voiceOverUrl === 'string' && voiceOverUrl.length > 0) {
+          audioUrl = voiceOverUrl;
+        }
+      }
+    } catch {
+      // Non-fatal — continue without audio
+    }
+
     // Call Runway ML image-to-video
     const { generateRecipeVideo } = await import('@/lib/openai-video-gen');
     const genResult = await generateRecipeVideo(
-      recipe.imageUrl as string,
+      promptImage,
       `${recipe.title ?? 'Recipe'} — Step ${stepIndex + 1}`,
       step.runwayPrompt,
       'gen4_turbo',
@@ -5530,14 +5590,17 @@ export async function generateSingleStepVideoAction(
         duration: step.duration as 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
         ratio: '1280:720',
         promptOverride: step.runwayPrompt,
+        ...(audioUrl ? { audioUrl } : {}),
       }
     );
 
     const videoUrl = typeof genResult === 'string' ? genResult : genResult.videoUrl;
 
-    // Persist the videoUrl back to Firestore
+    // Persist the videoUrl + keyframe back to Firestore
     const updatedSteps = steps.map((s) =>
-      s.stepIndex === stepIndex ? { ...s, videoUrl, videoGeneratedAt: new Date() } : s
+      s.stepIndex === stepIndex
+        ? { ...s, videoUrl, videoGeneratedAt: new Date(), ...(keyframeUrl ? { stepKeyframeUrl: keyframeUrl } : {}) }
+        : s
     );
     await db.collection('recipe_step_videos').doc(recipeId).update({ steps: updatedSteps });
 

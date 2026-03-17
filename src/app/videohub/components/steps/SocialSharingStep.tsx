@@ -268,8 +268,24 @@ export function SocialSharingStep() {
         {/* Share errors */}
         {shareError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <p className="font-semibold mb-1">⚠ Failed to post to Instagram</p>
+            <p className="font-semibold mb-1">Failed to post to Instagram</p>
             <p className="text-xs">{shareError}</p>
+          </div>
+        )}
+
+        {/* Instagram token expired banner */}
+        {shareError && /expired|session has expired/i.test(shareError) && (
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+            <p className="font-semibold mb-1">Your Instagram connection has expired.</p>
+            <p className="text-xs mb-2">
+              Your access token is no longer valid. Reconnect your Instagram account to continue posting.
+            </p>
+            <a
+              href="/api/auth/instagram"
+              className="inline-flex items-center gap-1 text-xs font-medium text-yellow-800 underline hover:text-yellow-600"
+            >
+              Reconnect Instagram &rarr;
+            </a>
           </div>
         )}
         {tiktokError && (

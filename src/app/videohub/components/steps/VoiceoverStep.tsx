@@ -24,6 +24,8 @@ export function VoiceoverStep() {
   const [progressMap, setProgressMap] = useState<Record<number, 'pending' | 'generating' | 'done' | 'error'>>({});
   // Per-scene error messages (Bug 6)
   const [sceneErrors, setSceneErrors] = useState<Record<number, string>>({});
+  // Per-scene audio durations (seconds, measured via onLoadedMetadata)
+  const [audioDurations, setAudioDurations] = useState<Record<number, number>>({});
   const [voiceOptions, setVoiceOptions] = useState<VoiceoverOption>({
     voice: 'alloy',
     language: 'en-US', // TODO: language/speed are UI-only until generateVoiceOverAction accepts them (Bug 7)
@@ -260,11 +262,32 @@ export function VoiceoverStep() {
 
                     {/* Audio preview */}
                     {voiceoverUrl && (
-                      <audio
-                        controls
-                        src={voiceoverUrl}
-                        className="w-full h-8"
-                      />
+                      <div className="space-y-1">
+                        <audio
+                          controls
+                          src={voiceoverUrl}
+                          className="w-full h-8"
+                          onLoadedMetadata={(e) => {
+                            const dur = (e.currentTarget as HTMLAudioElement).duration;
+                            if (isFinite(dur)) {
+                              setAudioDurations(prev => ({ ...prev, [scene.sceneNumber]: Math.round(dur * 10) / 10 }));
+                            }
+                          }}
+                        />
+                        {audioDurations[scene.sceneNumber] != null && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-gray-500">
+                              Audio: {audioDurations[scene.sceneNumber]}s
+                            </span>
+                            {scene.duration != null &&
+                              audioDurations[scene.sceneNumber] > (scene.duration as number) && (
+                              <span className="text-amber-600 font-medium">
+                                Warning: voiceover ({audioDurations[scene.sceneNumber]}s) is longer than video clip ({scene.duration as number}s)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </Card>
                 );

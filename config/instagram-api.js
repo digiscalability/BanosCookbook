@@ -61,21 +61,92 @@ function getConfig() {
 }
 
 /**
- * Get or generate access token
+ * Refresh a long-lived Instagram token via the Graph API.
+ * Stores the refreshed token in Firestore on success.
+ * @param {string} token - The current long-lived token to refresh
+ * @returns {Promise<string|null>} New token or null on failure
+ */
+async function refreshLongLivedToken(token) {
+  const config = initConfig();
+  if (!config) return null;
+  try {
+    const url = `${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${config.appId}&client_secret=${config.appSecret}&fb_exchange_token=${token}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.access_token) return null;
+    // Store refreshed token in Firestore
+    try {
+      const admin = require('./firebase-admin');
+      if (admin && typeof admin.getDb === 'function') {
+        const db = admin.getDb();
+        const expiresAt = new Date(Date.now() + (data.expires_in ?? 5184000) * 1000);
+        await db.collection('instagram_tokens').doc('main').set({
+          accessToken: data.access_token,
+          expiresAt: expiresAt.toISOString(),
+          refreshedAt: new Date().toISOString(),
+        });
+      }
+    } catch {}
+    return data.access_token;
+  } catch { return null; }
+}
+
+/**
+ * Save an access token to Firestore with expiry metadata.
+ * @param {string} token - The long-lived access token to store
+ * @param {number} [expiresIn=5184000] - Seconds until token expires (default 60 days)
+ * @returns {Promise<void>}
+ */
+async function saveAccessToken(token, expiresIn) {
+  const admin = require('./firebase-admin');
+  if (!admin || typeof admin.getDb !== 'function') {
+    throw new Error('Firebase Admin not available — cannot save token');
+  }
+  const db = admin.getDb();
+  const expiresAt = new Date(Date.now() + (expiresIn ?? 5184000) * 1000);
+  await db.collection('instagram_tokens').doc('main').set({
+    accessToken: token,
+    expiresAt: expiresAt.toISOString(),
+    connectedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Get or generate access token.
+ * Checks Firestore first (auto-refreshes within 7 days of expiry), then falls back to env var.
  * @returns {Promise<string>} Access token
  */
 async function getAccessToken() {
-  // Check for stored long-lived token
-  const storedToken = process.env.INSTAGRAM_ACCESS_TOKEN;
-  if (storedToken) {
-    // TODO: Implement token validation and refresh logic
-    return storedToken;
-  }
+  // 1. Check Firestore for a stored/refreshed token (takes precedence over env var)
+  try {
+    const admin = require('./firebase-admin');
+    if (admin && typeof admin.getDb === 'function') {
+      const db = admin.getDb();
+      const tokenDoc = await db.collection('instagram_tokens').doc('main').get();
+      if (tokenDoc.exists) {
+        const data = tokenDoc.data();
+        const token = data.accessToken;
+        const expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+        if (token && expiresAt && expiresAt > new Date()) {
+          // Auto-refresh if within 7 days of expiry
+          const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          if (expiresAt < sevenDaysFromNow) {
+            const refreshed = await refreshLongLivedToken(token);
+            if (refreshed) return refreshed;
+          }
+          return token;
+        }
+        if (token && !expiresAt) return token; // Legacy: no expiry stored, use it
+      }
+    }
+  } catch (e) { /* Firestore unavailable, fall through */ }
 
-  // For now, require manual token configuration
-  throw new Error(
-    'INSTAGRAM_ACCESS_TOKEN not configured. Please obtain a long-lived user access token from Instagram.'
-  );
+  // 2. Fall back to env var
+  const storedToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  if (storedToken) return storedToken;
+
+  throw new Error('INSTAGRAM_ACCESS_TOKEN not configured or expired. Reconnect Instagram in Settings.');
 }
 
 /**
@@ -311,6 +382,8 @@ function isConfigured() {
 module.exports = {
   getConfig,
   getAccessToken,
+  refreshLongLivedToken,
+  saveAccessToken,
   publishPost,
   publishVideoPost,
   getComments,

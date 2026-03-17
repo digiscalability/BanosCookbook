@@ -77,7 +77,7 @@ function buildFallbackPrompt(
     .trim()
     .substring(0, 120);
 
-  const prompt = `${cameraAngle}, ${visualAction.toLowerCase()}, ${lightingNote}, food cinematography, shallow depth of field, professional kitchen, appetizing presentation, 4K quality, no text or labels`;
+  const prompt = `${cameraAngle}, ${visualAction.toLowerCase()}, raw and partially-cooked ingredients at this stage of preparation, ${lightingNote}, food cinematography, shallow depth of field, professional kitchen, realistic hands and tools visible, no finished dish, no text or labels`;
 
   return prompt.substring(0, 900);
 }
@@ -107,12 +107,17 @@ Convert each cooking instruction step into an optimized Runway ML image-to-video
 
 Rules for each prompt:
 - Start with camera angle (overhead shot / close-up macro / medium shot at counter height)
-- Describe the specific visual action happening (hands, ingredients, tools)
+- Focus on the COOKING ACTION happening at that exact step, not the end result
+- Include specific props: the exact ingredient being handled, the tool being used (knife, pan, wooden spoon, whisk, etc.)
+- Include motion descriptors: hands chopping, steam rising, oil sizzling, batter being poured, etc.
+- Describe the raw or partially-cooked state of ingredients as they appear AT THAT STEP
 - Include lighting (warm kitchen lighting / bright natural light / soft shadows)
 - End with: food cinematography, shallow depth of field, professional kitchen
 - Maximum 900 characters per prompt
 - Be specific and visual — describe what the CAMERA SEES, not abstract concepts
 - Use action verbs: sizzling, drizzling, folding, dicing, etc.
+
+IMPORTANT: Never describe the finished dish. Each prompt must show the specific cooking action for that step only, with the raw or partially-cooked ingredients as they appear at that stage.
 
 Return a JSON array with objects:
 {"stepIndex": 0, "stepText": "...", "runwayPrompt": "...", "duration": 6, "cameraAngle": "..."}
