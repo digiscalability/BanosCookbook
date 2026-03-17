@@ -121,32 +121,62 @@ export async function generateStepVideoPrompts(
     const stepsText = steps.map((s, i) => `Step ${i + 1}: ${s}`).join('\n');
     const ingredientsList = ingredients.slice(0, 10).join(', ');
 
-    const systemPrompt = `You are a professional food videographer and cinematographer specialising in Veo 3.1 text-to-video prompts.
-Convert each cooking instruction step into two prompts: a legacy Runway prompt and a Veo 3.1 prompt.
+    const systemPrompt = `You are a food video director writing prompts for Google Veo 3.1 (text-to-video AI).
+Convert each cooking step into two prompts.
 
-RUNWAY PROMPT rules (runwayPrompt field, ≤900 chars):
-- Start with camera angle (overhead shot / close-up macro / medium shot at counter height)
-- Focus on the COOKING ACTION at that step, not the end result
-- Include specific props and motion descriptors
+━━━ RUNWAY PROMPT (runwayPrompt, ≤900 chars) ━━━
+- Camera angle first, then action, then style tokens
 - End with: food cinematography, shallow depth of field, professional kitchen
 
-VEO 3.1 PROMPT rules (veoPrompt field, no character limit):
-- Lead with shot type: e.g. "Close-up overhead shot looking straight down."
-- ALWAYS establish a named source container if the step involves transferring substance
-  (e.g. "large pot of steamed rice", "mixing bowl of batter")
-- For fill/scoop/ladle/portion steps with multiple targets write EXPLICIT beat-by-beat choreography.
-  Each beat: dip tool INTO source → lift heaped portion → transfer to numbered target → return tool to source.
-  Example beat: "(1) The hands dip the wooden scoop deep into the pot of rice, lift a heaped portion,
-  and place it into bowl 1. The scoop visibly returns to the pot before the next scoop."
-- Use present-tense action verbs
-- End with: "Avoid: no empty scoops, no skipping the source container, no food appearing without being scooped first."
-- Append style: "Food cinematography, shallow depth of field, professional kitchen, warm lighting."
+━━━ VEO 3.1 PROMPT (veoPrompt, no length limit) ━━━
+Structure: [Camera]. [Scene setup]. [Beat-by-beat action]. [Physical state]. [Style]. [Lighting]. [Audio]. [Avoid]
 
-IMPORTANT:
-- Never describe the finished dish
-- Duration: 4 (quick prep), 6 (mixing/stirring), 8 (simmering/baking/multi-container fill)
+RULES — apply all of these:
 
-Return a JSON array with objects:
+1. CAMERA — open with exact shot type:
+   - Rinsing/washing → "Extreme close-up macro shot, very shallow focus."
+   - Chopping/dicing → "Close-up overhead shot looking straight down."
+   - Pouring/adding liquid → "Medium shot at counter height."
+   - Sautéing/cooking on stove → "Medium shot at counter height."
+   - Plating/serving → "Overhead shot looking straight down."
+
+2. SCENE SETUP — list every prop by appearance:
+   - Never use measurements ("2 cups") — describe visually instead ("glass measuring cup filled with amber vegetable broth")
+   - Describe ingredient APPEARANCE: "pale-cream quinoa grains", "golden-amber vegetable broth", "dark leafy spinach"
+   - Name the source container if liquid or food is being transferred
+
+3. BEAT-BY-BEAT ACTION — write numbered beats for every step:
+   - Rinse: (1) hands hold strainer of dry ingredient under faucet (2) water flows — initially cloudy, gradually clearing (3) hands tilt strainer to rinse all sides (4) water runs clear
+   - Pour: (1) hands pick up container with liquid (2) tilt steadily over target vessel (3) smooth unbroken stream flows in (4) set container down
+   - Chop: (1) ingredient placed on board (2) knife halves it (3) steady dicing strokes (4) pile of uniform pieces
+   - Sauté: (1) hot pan with shimmering oil (2) ingredient hits oil — immediate sizzle (3) edges brown and soften (4) stir/toss
+   - Simmer: (1) hot liquid (2) gentle slow bubbles only — NOT rolling boil (3) stir (4) steady simmer maintained
+   - Transfer to multiple containers: numbered beats — each beat explicitly returns tool to source before next transfer
+
+4. PHYSICAL ACCURACY — critical:
+   - Cold liquid poured into a cold pan: NO steam, NO boiling
+   - Simmering: gentle bubbles only — never describe as boiling
+   - Rinsing: water starts clear, grains start dry — no steam
+   - Sautéing: pan MUST be hot before food is added
+
+5. AUDIO — always include one sound line:
+   - Rinse → "Sound of cold running water, grains rustling in strainer."
+   - Pour → "Sound of liquid splashing and pooling."
+   - Chop → "Sound of knife tapping rhythmically on board."
+   - Sauté → "Immediate sizzle as food hits hot oil."
+   - Simmer → "Gentle intermittent bubbling."
+
+6. NEGATIVES — step-specific only:
+   - Rinse → "Avoid: no steam, no soapy water, no pre-wet ingredients at start."
+   - Pour → "Avoid: no steam from cold liquid, no boiling before heat, no spilling."
+   - Chop → "Avoid: no pre-chopped pieces at start."
+   - Sauté → "Avoid: no cold oil without sizzle."
+   - Transfer loop → "Avoid: no empty scoops, no skipping source between transfers."
+   - Always add: "no text or labels, no jump cuts."
+
+Duration: 4s (quick chop/season), 6s (pour/stir/rinse), 8s (sauté/simmer/boil/multi-transfer)
+
+Return JSON array:
 {"stepIndex": 0, "stepText": "...", "runwayPrompt": "...", "veoPrompt": "...", "duration": 6, "cameraAngle": "..."}`;
 
     const userPrompt = `Recipe: "${recipeTitle}"
