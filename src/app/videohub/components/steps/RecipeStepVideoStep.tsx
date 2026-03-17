@@ -32,6 +32,45 @@ type StepStatus = 'idle' | 'generating' | 'done' | 'error';
  *   4. Per-step Retry on failure
  *   5. "Continue to Combine" when ≥ 1 video ready
  */
+function PromptRow({ cameraAngle, duration, prompt }: { cameraAngle: string; duration: number; prompt: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="text-xs text-gray-400 space-y-1">
+      <div className="flex items-center gap-2">
+        <span>🎥 {cameraAngle} · {duration}s</span>
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="text-blue-400 hover:text-blue-600 underline underline-offset-2"
+        >
+          {expanded ? 'hide' : 'read more'}
+        </button>
+      </div>
+      {expanded && (
+        <div className="relative bg-gray-50 border border-gray-200 rounded p-2 pr-16 text-gray-600 leading-relaxed select-all">
+          {prompt}
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="absolute top-2 right-2 text-xs text-white bg-gray-500 hover:bg-gray-700 px-2 py-1 rounded"
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RecipeStepVideoStep() {
   const { state, setStepVideos } = useVideoHub();
   const recipe = state.selectedRecipe;
@@ -329,9 +368,7 @@ export function RecipeStepVideoStep() {
                       <p className="text-sm font-medium text-gray-900 leading-snug">
                         {step.stepText}
                       </p>
-                      <p className="text-xs text-gray-400" title={step.runwayPrompt}>
-                        🎥 {step.cameraAngle} · {step.duration}s
-                      </p>
+                      <PromptRow cameraAngle={step.cameraAngle} duration={step.duration} prompt={step.runwayPrompt} />
                     </div>
 
                     {/* Status / action */}
