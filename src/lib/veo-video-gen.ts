@@ -9,10 +9,7 @@
  * SDK:   @google/genai
  */
 
-// @google/genai is an optional peer dependency — loaded dynamically at runtime
-// so the build doesn't fail if the package is absent from node_modules.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GoogleGenAI = any;
+import { GoogleGenAI } from '@google/genai';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,7 +46,7 @@ export interface VeoVideoResult {
 
 let _client: GoogleGenAI | null = null;
 
-async function getVeoClient(): Promise<GoogleGenAI> {
+function getVeoClient(): GoogleGenAI {
   if (!_client) {
     const apiKey =
       process.env.GOOGLE_AI_API_KEY ??
@@ -58,9 +55,7 @@ async function getVeoClient(): Promise<GoogleGenAI> {
       process.env.GOOGLE_API_KEY;
 
     if (!apiKey) throw new Error('No Google AI API key found for Veo 3.1');
-    // Dynamic import so the build succeeds even when @google/genai is not installed
-    const { GoogleGenAI: GGenAI } = await import('@google/genai');
-    _client = new GGenAI({ apiKey });
+    _client = new GoogleGenAI({ apiKey });
   }
   return _client;
 }
@@ -90,7 +85,7 @@ export async function generateVideoWithVeo3(
     timeoutMs = 5 * 60 * 1000,
   } = options;
 
-  const ai = await getVeoClient();
+  const ai = getVeoClient();
   const model = 'veo-3.1-generate-preview';
 
   console.warn(`[Veo3] Starting generation — model: ${model}, duration: ${durationSeconds}s`);
