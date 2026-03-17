@@ -121,6 +121,7 @@ export function CombineStep() {
         showBack
         showNext
         nextLabel="Continue to Share"
+        onNext={() => dispatch({ type: 'JUMP_TO_STEP', step: 'socialSharing' })}
       >
         <div className="space-y-4">
           <div className="rounded-lg border border-green-200 bg-green-50 p-4">
