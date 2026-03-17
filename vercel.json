@@ -3,6 +3,13 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
+  "functions": {
+    "src/app/api/video/combine/route.ts": {
+      "maxDuration": 60,
+      "memory": 3008,
+      "includeFiles": "node_modules/ffmpeg-static/**"
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",

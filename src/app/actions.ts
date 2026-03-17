@@ -5743,24 +5743,27 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
       return { success: true, combinedVideoUrl: url, duration: readySteps[0].duration ?? 6, processingMethod: 'ffmpeg' };
     }
 
-    // Multiple clips — use combineVideoScenes which tries Cloudinary then falls back to local FFmpeg.
-    const { combineVideoScenes } = await import('@/lib/video-combination');
-    const result = await combineVideoScenes({
-      scenes: readySteps.map((s) => ({
-        sceneNumber: s.stepIndex + 1,
-        videoUrl: s.videoUrl as string,
-        duration: s.duration ?? 6,
-      })),
-      recipeId,
-      outputFormat: 'mp4',
+    // Multiple clips — delegate to /api/video/combine which runs in a Vercel Function
+    // configured with includeFiles for the ffmpeg-static binary (server actions can't do this).
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+      ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    const apiRes = await fetch(`${baseUrl}/api/video/combine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipeId }),
     });
 
+    type CombineApiResponse = {
+      success: boolean;
+      combinedVideoUrl?: string;
+      duration?: number;
+      processingMethod?: string;
+      error?: string;
+    };
+    const result: CombineApiResponse = await apiRes.json() as CombineApiResponse;
+
     if (result.success && result.combinedVideoUrl) {
-      await db.collection('recipe_step_videos').doc(recipeId).update({
-        combinedVideoUrl: result.combinedVideoUrl,
-        combinedVideoMethod: result.processingMethod ?? 'ffmpeg',
-        combinedAt: new Date(),
-      });
       return {
         success: true,
         combinedVideoUrl: result.combinedVideoUrl,
