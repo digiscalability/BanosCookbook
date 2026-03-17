@@ -5421,7 +5421,13 @@ export async function generateStepVideoPromptsAction(recipeId: string): Promise<
       const existing = existingSteps.find((e) => e.stepIndex === p.stepIndex);
       const record: StepVideoRecord = { ...p };
       if (existing?.videoUrl) record.videoUrl = existing.videoUrl;
-      if (existing?.videoGeneratedAt !== undefined) record.videoGeneratedAt = existing.videoGeneratedAt;
+      if (existing?.videoGeneratedAt !== undefined) {
+        const vga = existing.videoGeneratedAt as unknown;
+        record.videoGeneratedAt =
+          typeof vga === 'object' && vga !== null && '_seconds' in vga
+            ? new Date((vga as { _seconds: number })._seconds * 1000).toISOString()
+            : String(vga);
+      }
       return record;
     });
 
@@ -5450,7 +5456,20 @@ export async function getRecipeStepVideosAction(recipeId: string): Promise<{
     const db = await ensureFirestore();
     const doc = await db.collection('recipe_step_videos').doc(recipeId).get();
     if (!doc.exists) return { success: true, steps: [] };
-    const steps = (doc.data()?.steps as StepVideoRecord[]) ?? [];
+    const rawSteps = (doc.data()?.steps as StepVideoRecord[]) ?? [];
+    // Serialize Firestore Timestamps → ISO strings so Next.js can pass them to Client Components
+    const steps: StepVideoRecord[] = rawSteps.map((s) => {
+      const vga = s.videoGeneratedAt as unknown;
+      return {
+        ...s,
+        videoGeneratedAt:
+          vga == null
+            ? undefined
+            : typeof vga === 'object' && '_seconds' in (vga as object)
+              ? new Date((vga as { _seconds: number })._seconds * 1000).toISOString()
+              : String(vga),
+      };
+    });
     return { success: true, steps };
   } catch (error) {
     console.error('[getRecipeStepVideosAction]', error);
