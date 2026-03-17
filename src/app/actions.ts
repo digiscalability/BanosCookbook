@@ -5674,8 +5674,9 @@ export async function getCombinedVideoUrlAction(recipeId: string): Promise<{
     if (stepDoc.exists) {
       const data = stepDoc.data();
       const stepUrl = data?.combinedVideoUrl as string | undefined;
-      // Only return a cached combined URL if it was produced by a real combiner (not a manual first-clip fallback)
-      if (stepUrl && data?.combinedVideoMethod !== 'manual') {
+      // Only serve cache when method is explicitly a real combiner — 'undefined' means legacy/stale
+      const method = data?.combinedVideoMethod as string | undefined;
+      if (stepUrl && (method === 'ffmpeg' || method === 'cloudinary')) {
         return { success: true, combinedVideoUrl: stepUrl };
       }
     }
@@ -5714,11 +5715,11 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
 
     const data = stepDoc.data();
 
-    // Return cached combined URL only when it came from a real combiner (ffmpeg / cloudinary).
-    // A stored 'manual' entry means we previously fell back to clip-1 — ignore it and redo.
+    // Only use the cache when method is explicitly 'ffmpeg' or 'cloudinary'.
+    // Missing or 'manual' means a legacy/fallback record — ignore and re-run.
     const existingCombined = data?.combinedVideoUrl as string | undefined;
     const existingMethod = data?.combinedVideoMethod as string | undefined;
-    if (existingCombined && existingMethod && existingMethod !== 'manual') {
+    if (existingCombined && (existingMethod === 'ffmpeg' || existingMethod === 'cloudinary')) {
       return { success: true, combinedVideoUrl: existingCombined, processingMethod: existingMethod };
     }
 
