@@ -157,6 +157,34 @@ async function getAccessToken() {
  * @param {string} [params.accessToken] - Optional access token (uses env var if not provided)
  * @returns {Promise<Object>} Instagram media object with id and permalink
  */
+/**
+ * Poll a media container until Instagram has finished processing it.
+ * Instagram requires status_code === 'FINISHED' before publishing.
+ * @param {string} containerId
+ * @param {string} token
+ * @param {number} [maxWaitMs=60000] - Give up after this many ms (default 60s)
+ */
+async function waitForContainer(containerId, token, maxWaitMs = 60000) {
+  const config = getConfig();
+  const deadline = Date.now() + maxWaitMs;
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  while (Date.now() < deadline) {
+    const res = await fetch(
+      `${config.graphApiBase}/${containerId}?fields=status_code,status&access_token=${token}`
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(`Instagram status check error: ${data.error.message}`);
+    if (data.status_code === 'FINISHED') return;
+    if (data.status_code === 'ERROR' || data.status_code === 'EXPIRED') {
+      throw new Error(`Instagram media processing failed: ${data.status_code} — ${data.status || ''}`);
+    }
+    // IN_PROGRESS or PUBLISHED — keep waiting
+    await delay(4000);
+  }
+  throw new Error('Instagram media processing timed out after 60s');
+}
+
 async function publishPost({ imageUrl, caption, accessToken }) {
   const config = getConfig();
   const token = accessToken || (await getAccessToken());
@@ -180,7 +208,10 @@ async function publishPost({ imageUrl, caption, accessToken }) {
 
   const creationId = containerData.id;
 
-  // Step 2: Publish the container
+  // Step 2: Wait for Instagram to finish processing the image
+  await waitForContainer(creationId, token);
+
+  // Step 3: Publish the container
   const publishUrl = `${config.graphApiBase}/${config.instagramAccountId}/media_publish`;
   const publishResponse = await fetch(publishUrl, {
     method: 'POST',
@@ -196,7 +227,7 @@ async function publishPost({ imageUrl, caption, accessToken }) {
     throw new Error(`Instagram Publish Error: ${publishData.error.message}`);
   }
 
-  // Step 3: Get the published post details (permalink)
+  // Step 4: Get the published post details (permalink)
   const mediaId = publishData.id;
   const mediaUrl = `${config.graphApiBase}/${mediaId}?fields=id,permalink,timestamp&access_token=${token}`;
   const mediaResponse = await fetch(mediaUrl);
@@ -241,7 +272,10 @@ async function publishVideoPost({ videoUrl, caption, accessToken }) {
 
   const creationId = containerData.id;
 
-  // Step 2: Publish the container
+  // Step 2: Wait for Instagram to finish processing the video
+  await waitForContainer(creationId, token, 120000); // videos can take up to 2 min
+
+  // Step 3: Publish the container
   const publishUrl = `${config.graphApiBase}/${config.instagramAccountId}/media_publish`;
   const publishResponse = await fetch(publishUrl, {
     method: 'POST',
@@ -257,7 +291,7 @@ async function publishVideoPost({ videoUrl, caption, accessToken }) {
     throw new Error(`Instagram Publish Error: ${publishData.error.message}`);
   }
 
-  // Step 3: Get the published post details
+  // Step 4: Get the published post details
   const mediaId = publishData.id;
   const mediaUrl = `${config.graphApiBase}/${mediaId}?fields=id,permalink,timestamp&access_token=${token}`;
   const mediaResponse = await fetch(mediaUrl);
