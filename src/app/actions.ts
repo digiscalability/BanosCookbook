@@ -5671,8 +5671,14 @@ export async function getCombinedVideoUrlAction(recipeId: string): Promise<{
   try {
     const db = await ensureFirestore();
     const stepDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
-    const stepUrl = stepDoc.exists ? (stepDoc.data()?.combinedVideoUrl as string | undefined) : undefined;
-    if (stepUrl) return { success: true, combinedVideoUrl: stepUrl };
+    if (stepDoc.exists) {
+      const data = stepDoc.data();
+      const stepUrl = data?.combinedVideoUrl as string | undefined;
+      // Only return a cached combined URL if it was produced by a real combiner (not a manual first-clip fallback)
+      if (stepUrl && data?.combinedVideoMethod !== 'manual') {
+        return { success: true, combinedVideoUrl: stepUrl };
+      }
+    }
 
     const sceneDoc = await db.collection('split_scenes').doc(recipeId).get();
     const sceneUrl = sceneDoc.exists
@@ -5705,13 +5711,18 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
     if (!stepDoc.exists) {
       return { success: false, error: 'No step videos found. Generate step videos first.' };
     }
-    // Return already-combined video immediately if available
-    const existingCombined = stepDoc.data()?.combinedVideoUrl as string | undefined;
-    if (existingCombined) {
-      return { success: true, combinedVideoUrl: existingCombined, processingMethod: 'ffmpeg' };
+
+    const data = stepDoc.data();
+
+    // Return cached combined URL only when it came from a real combiner (ffmpeg / cloudinary).
+    // A stored 'manual' entry means we previously fell back to clip-1 — ignore it and redo.
+    const existingCombined = data?.combinedVideoUrl as string | undefined;
+    const existingMethod = data?.combinedVideoMethod as string | undefined;
+    if (existingCombined && existingMethod && existingMethod !== 'manual') {
+      return { success: true, combinedVideoUrl: existingCombined, processingMethod: existingMethod };
     }
 
-    const steps: StepVideoRecord[] = (stepDoc.data()?.steps as StepVideoRecord[]) ?? [];
+    const steps: StepVideoRecord[] = (data?.steps as StepVideoRecord[]) ?? [];
     const readySteps = steps
       .filter((s) => typeof s.videoUrl === 'string' && s.videoUrl.length > 0)
       .sort((a, b) => a.stepIndex - b.stepIndex);
@@ -5720,65 +5731,46 @@ export async function combineRecipeStepVideosAction(recipeId: string): Promise<{
       return { success: false, error: 'No step videos have been generated yet.' };
     }
 
-    // Single clip — no combine needed, return it directly
+    // Single clip — no combine needed
     if (readySteps.length === 1) {
       const url = readySteps[0].videoUrl as string;
       await db.collection('recipe_step_videos').doc(recipeId).update({
         combinedVideoUrl: url,
+        combinedVideoMethod: 'ffmpeg',
         combinedAt: new Date(),
       });
       return { success: true, combinedVideoUrl: url, duration: readySteps[0].duration ?? 6, processingMethod: 'ffmpeg' };
     }
 
-    // Multiple clips — try Cloudinary if configured (safe, no server-side FFmpeg spawning)
-    const hasCloudinary =
-      !!process.env.CLOUDINARY_CLOUD_NAME &&
-      !!process.env.CLOUDINARY_API_KEY &&
-      !!process.env.CLOUDINARY_API_SECRET;
+    // Multiple clips — use combineVideoScenes which tries Cloudinary then falls back to local FFmpeg.
+    const { combineVideoScenes } = await import('@/lib/video-combination');
+    const result = await combineVideoScenes({
+      scenes: readySteps.map((s) => ({
+        sceneNumber: s.stepIndex + 1,
+        videoUrl: s.videoUrl as string,
+        duration: s.duration ?? 6,
+      })),
+      recipeId,
+      outputFormat: 'mp4',
+    });
 
-    if (hasCloudinary) {
-      try {
-        const { combineVideoScenes } = await import('@/lib/video-combination');
-        const cloudResult = await combineVideoScenes({
-          scenes: readySteps.map((s) => ({
-            sceneNumber: s.stepIndex + 1,
-            videoUrl: s.videoUrl as string,
-            duration: s.duration ?? 6,
-          })),
-          recipeId,
-          outputFormat: 'mp4',
-        });
-        if (cloudResult.success && cloudResult.combinedVideoUrl) {
-          await db.collection('recipe_step_videos').doc(recipeId).update({
-            combinedVideoUrl: cloudResult.combinedVideoUrl,
-            combinedAt: new Date(),
-          });
-          return {
-            success: true,
-            combinedVideoUrl: cloudResult.combinedVideoUrl,
-            duration: cloudResult.duration,
-            processingMethod: 'cloudinary',
-          };
-        }
-      } catch {
-        // Fall through to first-clip fallback
-      }
+    if (result.success && result.combinedVideoUrl) {
+      await db.collection('recipe_step_videos').doc(recipeId).update({
+        combinedVideoUrl: result.combinedVideoUrl,
+        combinedVideoMethod: result.processingMethod ?? 'ffmpeg',
+        combinedAt: new Date(),
+      });
+      return {
+        success: true,
+        combinedVideoUrl: result.combinedVideoUrl,
+        duration: result.duration,
+        processingMethod: result.processingMethod,
+      };
     }
 
-    // Fallback: return first clip so the workflow can always proceed.
-    // Full server-side FFmpeg concatenation requires a dedicated worker (avoid spawning
-    // child processes inside a Next.js server action — it destabilises the dev server).
-    const firstUrl = readySteps[0].videoUrl as string;
-    const totalDuration = readySteps.reduce((sum, s) => sum + (s.duration ?? 6), 0);
-    await db.collection('recipe_step_videos').doc(recipeId).update({
-      combinedVideoUrl: firstUrl,
-      combinedAt: new Date(),
-    });
     return {
-      success: true,
-      combinedVideoUrl: firstUrl,
-      duration: totalDuration,
-      processingMethod: 'manual',
+      success: false,
+      error: result.error ?? 'Video combination failed. Check server logs for details.',
     };
   } catch (error) {
     console.error('[combineRecipeStepVideosAction]', error);

@@ -82,15 +82,8 @@ export function CombineStep() {
 
       if (result.success && result.combinedVideoUrl) {
         setCombinedVideo(result.combinedVideoUrl, result.duration);
-        if (result.processingMethod === 'manual') {
-          // Fallback: first clip used — let the user know
-          setError(
-            `Full concatenation requires Cloudinary or a dedicated worker. ` +
-            `Using clip 1 of ${videoCount} for sharing. Download all ${videoCount} clips manually to combine them.`
-          );
-        }
       } else {
-        setError(result.error ?? 'Combining failed — server returned no video URL.');
+        setError(result.error ?? 'Combining failed — check server logs for details.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred while combining videos.');
