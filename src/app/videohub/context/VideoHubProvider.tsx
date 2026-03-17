@@ -60,6 +60,7 @@ export type VideoHubAction =
   | { type: 'STEP_VIDEOS_READY'; stepVideos: Record<number, string> }
   | { type: 'SKIP_STEP_VIDEOS' }
   | { type: 'VIDEO_COMBINED'; videoUrl: string; duration?: number }
+  | { type: 'CLEAR_COMBINED_VIDEO' }
   | { type: 'SKIP_COMBINE' }
   | { type: 'POSTED' }
   | { type: 'RESET' }
@@ -167,6 +168,9 @@ function videoHubReducer(state: VideoHubState, action: VideoHubAction): VideoHub
         currentStep: 'socialSharing',
         combinedVideo: { url: action.videoUrl, duration: action.duration },
       };
+
+    case 'CLEAR_COMBINED_VIDEO':
+      return { ...state, combinedVideo: null };
 
     case 'SKIP_COMBINE':
       return { ...state, currentStep: 'socialSharing' };

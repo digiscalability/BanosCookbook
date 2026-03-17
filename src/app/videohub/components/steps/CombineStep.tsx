@@ -36,13 +36,16 @@ export function CombineStep() {
       });
     }
 
-    // 2. Always refresh combined video URL from Firestore (overrides stale localStorage value)
+    // 2. Always refresh combined video URL from Firestore (overrides stale localStorage value).
+    //    If the server returns no URL (stale/manual fallback was cleared), wipe local state too.
     getCombinedVideoUrlAction(recipeId).then((result) => {
       if (result.success && result.combinedVideoUrl) {
-        // Only update if it differs from what's cached (avoids no-op re-renders)
         if (result.combinedVideoUrl !== state.combinedVideo?.url) {
           setCombinedVideo(result.combinedVideoUrl);
         }
+      } else if (result.success && !result.combinedVideoUrl && state.combinedVideo?.url) {
+        // Server has no valid combined video — clear the stale in-memory/localStorage value
+        dispatch({ type: 'CLEAR_COMBINED_VIDEO' });
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
