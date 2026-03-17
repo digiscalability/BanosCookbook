@@ -3650,10 +3650,31 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
         error: 'Instagram API not initialized. Please check configuration.',
       };
     }
-    const result = (await instagramApi.publishPost({
-      imageUrl: postImageUrl,
-      caption: caption.trim(),
-    })) as { id: string; permalink: string; timestamp: string };
+
+    // Prefer combined video (Reel) over static image if available
+    const stepVideoDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    const combinedVideoUrl = stepVideoDoc.exists
+      ? (stepVideoDoc.data()?.combinedVideoUrl as string | undefined)
+      : undefined;
+    const splitScenesDoc = await db.collection('split_scenes').doc(recipeId).get();
+    const sceneCombinedUrl = splitScenesDoc.exists
+      ? ((splitScenesDoc.data()?.combinedVideo as { url?: string } | undefined)?.url ??
+         (splitScenesDoc.data()?.combinedVideoUrl as string | undefined))
+      : undefined;
+    const reelUrl = combinedVideoUrl || sceneCombinedUrl;
+
+    let result: { id: string; permalink: string; timestamp: string };
+    if (reelUrl) {
+      result = (await instagramApi.publishVideoPost({
+        videoUrl: reelUrl,
+        caption: caption.trim(),
+      })) as { id: string; permalink: string; timestamp: string };
+    } else {
+      result = (await instagramApi.publishPost({
+        imageUrl: postImageUrl,
+        caption: caption.trim(),
+      })) as { id: string; permalink: string; timestamp: string };
+    }
 
     // Save Instagram post mapping to Firestore
     await db.collection('instagram_posts').add({
@@ -3662,6 +3683,7 @@ export async function shareRecipeToInstagram(recipeId: string): Promise<{
       instagramPermalink: result.permalink,
       postedAt: new Date(result.timestamp),
       caption,
+      postedAsReel: Boolean(reelUrl),
       likeCount: 0,
       commentsCount: 0,
       lastSyncedAt: new Date(),
@@ -5579,22 +5601,34 @@ export async function generateSingleStepVideoAction(
       // Non-fatal — continue without audio
     }
 
-    // Call Runway ML image-to-video
-    const { generateRecipeVideo } = await import('@/lib/openai-video-gen');
-    const genResult = await generateRecipeVideo(
-      promptImage,
-      `${recipe.title ?? 'Recipe'} — Step ${stepIndex + 1}`,
-      step.runwayPrompt,
-      'gen4_turbo',
+    // Build a Veo 3.1-optimised prompt (beat-by-beat sequential action choreography)
+    const { buildVeoPrompt } = await import('@/lib/veo-prompt-optimizer');
+    const veoPrompt = (step as unknown as Record<string, unknown>).veoPrompt
+      ? String((step as unknown as Record<string, unknown>).veoPrompt)
+      : buildVeoPrompt({
+          recipeTitle: String(recipe.title ?? 'Recipe'),
+          stepText: step.stepText ?? step.runwayPrompt,
+          cameraAngle: step.cameraAngle,
+          visualElements: ingredientNames,
+          duration: step.duration,
+        });
+
+    // Call Veo 3.1 text-to-video (replaces Runway ML image-to-video)
+    const { generateStepVideoWithVeo3 } = await import('@/lib/veo-video-gen');
+    const genResult = await generateStepVideoWithVeo3(
+      recipeId,
+      stepIndex,
+      veoPrompt,
       {
-        duration: step.duration as 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
-        ratio: '1280:720',
-        promptOverride: step.runwayPrompt,
-        ...(audioUrl ? { audioUrl } : {}),
+        durationSeconds: ([4, 6, 8].includes(step.duration ?? 0)
+          ? step.duration
+          : 6) as 4 | 6 | 8,
+        aspectRatio: '16:9',
+        resolution: '720p',
       }
     );
 
-    const videoUrl = typeof genResult === 'string' ? genResult : genResult.videoUrl;
+    const videoUrl = genResult.videoUrl;
 
     // Persist the videoUrl + keyframe back to Firestore
     const updatedSteps = steps.map((s) =>

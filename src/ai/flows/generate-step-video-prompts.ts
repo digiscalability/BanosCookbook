@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { buildVeoPrompt } from '../../lib/veo-prompt-optimizer';
 
 /**
  * Converts each recipe instruction step into a Runway ML-optimized cinematic visual prompt.
@@ -14,11 +15,12 @@ import { z } from 'zod';
  */
 
 export interface StepVideoPrompt {
-  stepIndex: number;   // 0-based
-  stepText: string;    // Original recipe instruction
-  runwayPrompt: string; // Optimized prompt for Runway image-to-video (≤900 chars)
-  duration: number;    // Suggested clip duration in seconds (5–10)
-  cameraAngle: string; // e.g. "overhead", "close-up", "medium"
+  stepIndex: number;    // 0-based
+  stepText: string;     // Original recipe instruction
+  runwayPrompt: string; // Legacy Runway image-to-video prompt (≤900 chars) — kept for backward-compat
+  veoPrompt?: string;   // Veo 3.1 text-to-video prompt (beat-by-beat sequential, no char limit)
+  duration: number;     // Suggested clip duration in seconds (4, 6, or 8 for Veo)
+  cameraAngle: string;  // e.g. "overhead", "close-up", "medium"
 }
 
 const CAMERA_ANGLES = [
@@ -70,9 +72,8 @@ function buildFallbackPrompt(
       ? 'warm golden kitchen lighting, appetizing finish'
       : 'warm kitchen lighting, soft shadows';
 
-  // Clean up the step for a visual description
   const visualAction = stepText
-    .replace(/^\d+[\.\)]\s*/, '') // Remove leading numbers
+    .replace(/^\d+[\.\)]\s*/, '')
     .replace(/\b(then|next|now|after that|once done)\b/gi, '')
     .trim()
     .substring(0, 120);
@@ -80,6 +81,26 @@ function buildFallbackPrompt(
   const prompt = `${cameraAngle}, ${visualAction.toLowerCase()}, raw and partially-cooked ingredients at this stage of preparation, ${lightingNote}, food cinematography, shallow depth of field, professional kitchen, realistic hands and tools visible, no finished dish, no text or labels`;
 
   return prompt.substring(0, 900);
+}
+
+/** Build a Veo 3.1-optimised prompt without AI (deterministic fallback) */
+function buildFallbackVeoPrompt(
+  stepText: string,
+  recipeTitle: string,
+  cameraAngle: string,
+  stepIndex: number,
+  totalSteps: number
+): string {
+  return buildVeoPrompt({
+    recipeTitle,
+    stepText,
+    cameraAngle,
+    lighting: stepIndex === 0
+      ? 'bright natural kitchen lighting'
+      : stepIndex === totalSteps - 1
+        ? 'warm golden kitchen lighting'
+        : 'warm kitchen lighting, soft shadows',
+  });
 }
 
 /**
@@ -102,32 +123,33 @@ export async function generateStepVideoPrompts(
     const stepsText = steps.map((s, i) => `Step ${i + 1}: ${s}`).join('\n');
     const ingredientsList = ingredients.slice(0, 10).join(', ');
 
-    const systemPrompt = `You are a professional food videographer and cinematographer.
-Convert each cooking instruction step into an optimized Runway ML image-to-video prompt.
+    const systemPrompt = `You are a professional food videographer and cinematographer specialising in Veo 3.1 text-to-video prompts.
+Convert each cooking instruction step into two prompts: a legacy Runway prompt and a Veo 3.1 prompt.
 
-Rules for each prompt:
+RUNWAY PROMPT rules (runwayPrompt field, ≤900 chars):
 - Start with camera angle (overhead shot / close-up macro / medium shot at counter height)
-- Focus on the COOKING ACTION happening at that exact step, not the end result
-- Include specific props: the exact ingredient being handled, the tool being used (knife, pan, wooden spoon, whisk, etc.)
-- Include motion descriptors: hands chopping, steam rising, oil sizzling, batter being poured, etc.
-- Describe the raw or partially-cooked state of ingredients as they appear AT THAT STEP
-- Include lighting (warm kitchen lighting / bright natural light / soft shadows)
+- Focus on the COOKING ACTION at that step, not the end result
+- Include specific props and motion descriptors
 - End with: food cinematography, shallow depth of field, professional kitchen
-- Maximum 900 characters per prompt
-- Be specific and visual — describe what the CAMERA SEES, not abstract concepts
-- Use action verbs: sizzling, drizzling, folding, dicing, etc.
 
-IMPORTANT: Never describe the finished dish. Each prompt must show the specific cooking action for that step only, with the raw or partially-cooked ingredients as they appear at that stage.
+VEO 3.1 PROMPT rules (veoPrompt field, no character limit):
+- Lead with shot type: e.g. "Close-up overhead shot looking straight down."
+- ALWAYS establish a named source container if the step involves transferring substance
+  (e.g. "large pot of steamed rice", "mixing bowl of batter")
+- For fill/scoop/ladle/portion steps with multiple targets write EXPLICIT beat-by-beat choreography.
+  Each beat: dip tool INTO source → lift heaped portion → transfer to numbered target → return tool to source.
+  Example beat: "(1) The hands dip the wooden scoop deep into the pot of rice, lift a heaped portion,
+  and place it into bowl 1. The scoop visibly returns to the pot before the next scoop."
+- Use present-tense action verbs
+- End with: "Avoid: no empty scoops, no skipping the source container, no food appearing without being scooped first."
+- Append style: "Food cinematography, shallow depth of field, professional kitchen, warm lighting."
+
+IMPORTANT:
+- Never describe the finished dish
+- Duration: 4 (quick prep), 6 (mixing/stirring), 8 (simmering/baking/multi-container fill)
 
 Return a JSON array with objects:
-{"stepIndex": 0, "stepText": "...", "runwayPrompt": "...", "duration": 6, "cameraAngle": "..."}
-
-Duration guide:
-- Chopping/prep actions: 5s
-- Mixing/stirring: 6s
-- Sautéing/cooking: 7s
-- Simmering/baking: 8s
-- Plating/serving: 7s`;
+{"stepIndex": 0, "stepText": "...", "runwayPrompt": "...", "veoPrompt": "...", "duration": 6, "cameraAngle": "..."}`;
 
     const userPrompt = `Recipe: "${recipeTitle}"
 Key ingredients: ${ingredientsList}
