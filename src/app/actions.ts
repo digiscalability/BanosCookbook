@@ -5563,6 +5563,34 @@ export async function generateSingleStepVideoAction(
 }
 
 /**
+ * Fetch the already-combined video URL for a recipe (step-based or scene-based).
+ * Returns null if no combined video exists yet.
+ */
+export async function getCombinedVideoUrlAction(recipeId: string): Promise<{
+  success: boolean;
+  combinedVideoUrl?: string;
+  error?: string;
+}> {
+  try {
+    const db = await ensureFirestore();
+    const stepDoc = await db.collection('recipe_step_videos').doc(recipeId).get();
+    const stepUrl = stepDoc.exists ? (stepDoc.data()?.combinedVideoUrl as string | undefined) : undefined;
+    if (stepUrl) return { success: true, combinedVideoUrl: stepUrl };
+
+    const sceneDoc = await db.collection('split_scenes').doc(recipeId).get();
+    const sceneUrl = sceneDoc.exists
+      ? ((sceneDoc.data()?.combinedVideo as { url?: string } | undefined)?.url ??
+         (sceneDoc.data()?.combinedVideoUrl as string | undefined))
+      : undefined;
+    if (sceneUrl) return { success: true, combinedVideoUrl: sceneUrl };
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
  * Combine all generated step videos into a single instructional video using
  * the same FFmpeg/Cloudinary pipeline as the scene-based combiner.
  */

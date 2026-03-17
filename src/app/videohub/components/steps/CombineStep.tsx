@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { combineVideoScenesAction, combineRecipeStepVideosAction, getRecipeStepVideosAction } from '@/app/actions';
+import { combineVideoScenesAction, combineRecipeStepVideosAction, getRecipeStepVideosAction, getCombinedVideoUrlAction } from '@/app/actions';
 import { StepWrapper } from '../shared/StepWrapper';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -15,22 +15,34 @@ export function CombineStep() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // If we arrived here via stepper jump (stepVideos empty but Firestore has them), load them
+  // On mount: sync both step videos and combined video from Firestore.
+  // This handles the case where the user jumped here via the stepper (bypassing
+  // handleContinue) or where localStorage has a stale/first-clip combined URL.
   useEffect(() => {
     const recipeId = state.selectedRecipe?.id;
     if (!recipeId) return;
-    if (Object.keys(state.stepVideos).length > 0) return; // already have them
-    if (Object.keys(state.sceneVideos).length > 0) return; // using scene videos
 
-    getRecipeStepVideosAction(recipeId).then((result) => {
-      if (!result.success || !result.steps) return;
-      const videoMap: Record<number, string> = {};
-      for (const s of result.steps) {
-        if (s.videoUrl) videoMap[s.stepIndex + 1] = s.videoUrl;
-      }
-      if (Object.keys(videoMap).length > 0) {
-        // Inject into context without advancing step (we're already on combining)
-        dispatch({ type: 'STEP_VIDEOS_READY', stepVideos: videoMap });
+    // 1. Load step videos if context is empty
+    if (Object.keys(state.stepVideos).length === 0 && Object.keys(state.sceneVideos).length === 0) {
+      getRecipeStepVideosAction(recipeId).then((result) => {
+        if (!result.success || !result.steps) return;
+        const videoMap: Record<number, string> = {};
+        for (const s of result.steps) {
+          if (s.videoUrl) videoMap[s.stepIndex + 1] = s.videoUrl;
+        }
+        if (Object.keys(videoMap).length > 0) {
+          dispatch({ type: 'STEP_VIDEOS_READY', stepVideos: videoMap });
+        }
+      });
+    }
+
+    // 2. Always refresh combined video URL from Firestore (overrides stale localStorage value)
+    getCombinedVideoUrlAction(recipeId).then((result) => {
+      if (result.success && result.combinedVideoUrl) {
+        // Only update if it differs from what's cached (avoids no-op re-renders)
+        if (result.combinedVideoUrl !== state.combinedVideo?.url) {
+          setCombinedVideo(result.combinedVideoUrl);
+        }
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
