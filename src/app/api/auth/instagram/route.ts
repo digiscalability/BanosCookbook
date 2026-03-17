@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   const appId = process.env.FACEBOOK_APP_ID;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.banoscookbook.com'}/api/auth/instagram/callback`;
+  const rawBase = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.banoscookbook.com';
+  const base = rawBase.startsWith('http') ? rawBase : `https://${rawBase}`;
+  const redirectUri = `${base.replace(/\/$/, '')}/api/auth/instagram/callback`;
   if (!appId) return NextResponse.json({ error: 'Facebook App ID not configured' }, { status: 500 });
 
   const scope =
