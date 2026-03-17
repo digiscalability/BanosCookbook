@@ -97,7 +97,7 @@ export async function generateVideoWithVeo3(
     prompt,
     config: {
       aspectRatio,
-      durationSeconds: String(durationSeconds) as '4' | '6' | '8',
+      durationSeconds,
       resolution,
     } as Record<string, unknown>,
   });

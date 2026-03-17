@@ -31,16 +31,14 @@ const CAMERA_ANGLES = [
   'side profile shot',
 ] as const;
 
-/** Heuristic duration based on step complexity */
+/** Heuristic duration based on step complexity (Veo 3.1 supports 4, 6, 8 seconds only) */
 function suggestDuration(stepText: string): number {
   const lower = stepText.toLowerCase();
   // Long actions
-  if (/simmer|bake|roast|marinate|rest|cook.*minute|boil/.test(lower)) return 8;
-  // Medium actions
-  if (/sauté|fry|stir|whisk|mix|fold|knead|blend/.test(lower)) return 7;
+  if (/simmer|bake|roast|marinate|rest|cook.*minute|boil|fill|ladle|scoop.*bowl/.test(lower)) return 8;
   // Quick actions
-  if (/chop|dice|slice|mince|peel|crush|grate|season|add|pour/.test(lower)) return 5;
-  // Default
+  if (/chop|dice|slice|mince|peel|crush|grate|season|add|pour/.test(lower)) return 4;
+  // Default (stir, whisk, mix, fold, sauté, fry, etc.)
   return 6;
 }
 
@@ -193,12 +191,14 @@ Return a JSON array (one entry per step).`;
         const idx = typeof obj.stepIndex === 'number' ? obj.stepIndex : 0;
         const stepText = typeof obj.stepText === 'string' ? obj.stepText : (steps[idx] ?? '');
         const rawPrompt = typeof obj.runwayPrompt === 'string' ? obj.runwayPrompt : '';
-        const duration = typeof obj.duration === 'number' ? Math.min(Math.max(obj.duration, 4), 10) : suggestDuration(stepText);
+        const rawVeoPrompt = typeof obj.veoPrompt === 'string' ? obj.veoPrompt : '';
+        const duration = typeof obj.duration === 'number' ? Math.min(Math.max(obj.duration, 4), 8) : suggestDuration(stepText);
         const cameraAngle = typeof obj.cameraAngle === 'string' ? obj.cameraAngle : suggestCameraAngle(stepText);
         return {
           stepIndex: idx,
           stepText,
           runwayPrompt: rawPrompt.substring(0, 900) || buildFallbackPrompt(stepText, recipeTitle, cameraAngle, idx, totalSteps),
+          veoPrompt: rawVeoPrompt || buildFallbackVeoPrompt(stepText, recipeTitle, cameraAngle, idx, totalSteps),
           duration,
           cameraAngle,
         } satisfies StepVideoPrompt;
@@ -217,7 +217,8 @@ Return a JSON array (one entry per step).`;
     const cameraAngle = suggestCameraAngle(stepText);
     const duration = suggestDuration(stepText);
     const runwayPrompt = buildFallbackPrompt(stepText, recipeTitle, cameraAngle, idx, totalSteps);
-    return { stepIndex: idx, stepText, runwayPrompt, duration, cameraAngle } satisfies StepVideoPrompt;
+    const veoPrompt = buildFallbackVeoPrompt(stepText, recipeTitle, cameraAngle, idx, totalSteps);
+    return { stepIndex: idx, stepText, runwayPrompt, veoPrompt, duration, cameraAngle } satisfies StepVideoPrompt;
   });
 }
 
@@ -226,10 +227,12 @@ export const StepVideoSchema = z.object({
   stepIndex: z.number(),
   stepText: z.string(),
   runwayPrompt: z.string(),
+  veoPrompt: z.string().optional(),
   duration: z.number(),
   cameraAngle: z.string(),
   videoUrl: z.string().optional(),
   videoGeneratedAt: z.unknown().optional(),
+  stepKeyframeUrl: z.string().optional(),
 });
 
 export type StepVideoRecord = z.infer<typeof StepVideoSchema>;
