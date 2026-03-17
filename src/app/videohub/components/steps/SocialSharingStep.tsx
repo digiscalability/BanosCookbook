@@ -280,12 +280,13 @@ export function SocialSharingStep() {
             <p className="text-xs mb-2">
               Your access token is no longer valid. Reconnect your Instagram account to continue posting.
             </p>
-            <a
-              href="/api/auth/instagram"
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/api/auth/instagram'; }}
               className="inline-flex items-center gap-1 text-xs font-medium text-yellow-800 underline hover:text-yellow-600"
             >
-              Reconnect Instagram &rarr;
-            </a>
+              Reconnect Instagram →
+            </button>
           </div>
         )}
         {tiktokError && (
