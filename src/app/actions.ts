@@ -4811,6 +4811,23 @@ export async function combineVideoScenesAction(recipeId: string): Promise<{
       return { success: false, error: 'Script data missing for this recipe.' };
     }
 
+    // Return already-combined video immediately if available (avoids FFmpeg on Vercel)
+    const existingCombinedScene =
+      (scriptData.combinedVideo as { url?: string } | undefined)?.url ??
+      (scriptData.combinedVideoUrl as string | undefined);
+    if (existingCombinedScene) {
+      return { success: true, combinedVideoUrl: existingCombinedScene, processingMethod: 'ffmpeg' };
+    }
+
+    // Also check split_scenes collection
+    const splitDoc = await db.collection('split_scenes').doc(recipeId).get();
+    if (splitDoc.exists) {
+      const splitUrl =
+        (splitDoc.data()?.combinedVideo as { url?: string } | undefined)?.url ??
+        (splitDoc.data()?.combinedVideoUrl as string | undefined);
+      if (splitUrl) return { success: true, combinedVideoUrl: splitUrl, processingMethod: 'ffmpeg' };
+    }
+
     const sceneVideosRaw = Array.isArray(scriptData.sceneVideos) ? scriptData.sceneVideos : [];
     const sceneVideos = sceneVideosRaw
       .map(scene => {

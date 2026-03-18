@@ -75,10 +75,12 @@ export function CombineStep() {
         setProgress(p => Math.min(p + 5, 85));
       }, 3000);
 
-      // Call the appropriate combiner
-      const result = usingStepVideos
-        ? await combineRecipeStepVideosAction(state.selectedRecipe.id)
-        : await combineVideoScenesAction(state.selectedRecipe.id);
+      // Always try step-based first (checks Firestore cache, no FFmpeg needed if URL exists).
+      // Fall back to scene-based only if step action returns no URL.
+      let result = await combineRecipeStepVideosAction(state.selectedRecipe.id);
+      if (!result.success || !result.combinedVideoUrl) {
+        result = await combineVideoScenesAction(state.selectedRecipe.id);
+      }
 
       clearInterval(ticker);
       setProgress(100);
