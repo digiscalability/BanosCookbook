@@ -1,0 +1,15 @@
+{
+  "name": "banos-video-combiner",
+  "version": "1.0.0",
+  "description": "Cloud Run service: FFmpeg video concatenation for Banos Cookbook",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "firebase-admin": "^12.0.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "uuid": "^9.0.0"
+  }
+}
