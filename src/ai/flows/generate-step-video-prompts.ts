@@ -23,7 +23,7 @@ export interface StepVideoPrompt {
   cameraAngle: string;  // e.g. "overhead", "close-up", "medium"
 }
 
-const CAMERA_ANGLES = [
+const _CAMERA_ANGLES = [
   'overhead top-down shot',
   'close-up macro shot',
   'medium shot at counter height',

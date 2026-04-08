@@ -111,3 +111,5 @@ assets/Pellow food colouing.pdf
 playwright-report/
 test-results/
 
+env
+env.download

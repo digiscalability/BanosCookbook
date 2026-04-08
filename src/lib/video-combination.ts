@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { existsSync, promises as fs } from 'fs';
+import { chmodSync, existsSync, promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
 
@@ -24,6 +24,14 @@ function ensureFfmpegPath(): void {
       throw new Error(
         'Unable to locate ffmpeg binary. Set FFMPEG_PATH to the executable as a fallback.'
       );
+    }
+    // Vercel and some Linux envs unpack binaries without execute permission
+    if (process.platform !== 'win32') {
+      try {
+        chmodSync(binaryPath, 0o755);
+      } catch {
+        // ignore — binary may already be executable
+      }
     }
     ffmpeg.setFfmpegPath(binaryPath);
     ffmpegReady = true;

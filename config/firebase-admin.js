@@ -25,8 +25,26 @@ function initializeAdmin() {
     }
   }
 
+  // Fallback: build from individual FIREBASE_* env vars (set on Vercel)
+  if (!credential && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+    try {
+      credential = admin.credential.cert({
+        type: 'service_account',
+        project_id: process.env.FIREBASE_PROJECT_ID,
+        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+        private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        client_email: process.env.FIREBASE_CLIENT_EMAIL,
+        client_id: process.env.FIREBASE_CLIENT_ID,
+        auth_uri: process.env.FIREBASE_AUTH_URI || 'https://accounts.google.com/o/oauth2/auth',
+        token_uri: process.env.FIREBASE_TOKEN_URI || 'https://oauth2.googleapis.com/token',
+      });
+    } catch (e) {
+      console.warn('Failed to build credential from FIREBASE_* vars:', e.message);
+    }
+  }
+
   if (!credential) {
-    // Fallback: use application default credentials (works in GCP/Firebase hosting)
+    // Last resort: application default credentials (works in GCP/Firebase hosting)
     try {
       credential = admin.credential.applicationDefault();
     } catch (e) {

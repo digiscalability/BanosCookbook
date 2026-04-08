@@ -1,9 +1,9 @@
 /**
  * POST /api/video/combine
  *
- * Runs server-side FFmpeg concatenation via the existing combineVideoScenes pipeline.
- * Deployed as a dedicated Vercel Function so the ffmpeg-static binary can be
- * included via vercel.json "includeFiles" — server actions don't support this.
+ * Proxies to the Cloud Run video-combiner service when CLOUD_RUN_COMBINE_URL is set.
+ * Falls back to the local FFmpeg pipeline (ffmpeg-static) for local dev / if Cloud Run
+ * is not yet deployed.
  *
  * Body: { recipeId: string }
  * Returns: { success, combinedVideoUrl?, duration?, processingMethod?, error? }
@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-export const maxDuration = 300; // seconds — requires Vercel Pro; Hobby caps at 60 (still enough for ~10 clips)
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
@@ -22,7 +22,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'recipeId is required' }, { status: 400 });
     }
 
-    // Fetch the step video records from Firestore
+    // ---------------------------------------------------------------------------
+    // Cloud Run path (production)
+    // ---------------------------------------------------------------------------
+    const cloudRunUrl = process.env.CLOUD_RUN_COMBINE_URL;
+    if (cloudRunUrl) {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const secret = process.env.CLOUD_RUN_SECRET;
+      if (secret) headers['Authorization'] = `Bearer ${secret}`;
+
+      const upstream = await fetch(`${cloudRunUrl}/combine`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ recipeId }),
+      });
+
+      const result = await upstream.json() as Record<string, unknown>;
+      return NextResponse.json(result, { status: upstream.status });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Local FFmpeg fallback (dev / no Cloud Run configured)
+    // ---------------------------------------------------------------------------
     const { getAdmin } = await import('../../../../../config/firebase-admin');
     const admin = getAdmin();
     const db = admin.firestore();
@@ -53,7 +74,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success && result.combinedVideoUrl) {
-      // Persist the real combined URL with method tag so the cache guard accepts it
       await db.collection('recipe_step_videos').doc(recipeId).update({
         combinedVideoUrl: result.combinedVideoUrl,
         combinedVideoMethod: result.processingMethod ?? 'ffmpeg',
