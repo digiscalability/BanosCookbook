@@ -36,7 +36,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <Header />
-          <main className="flex-grow">
+          <main className="flex flex-1 flex-col">
             <ErrorBoundary>{children}</ErrorBoundary>
           </main>
           <Footer />

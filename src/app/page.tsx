@@ -44,9 +44,14 @@ function HomeContent() {
             Banos Cookbook
           </h1>
           <p className="mx-auto max-w-2xl px-4 text-base text-muted-foreground sm:text-lg">
-            Loading recipes...
+            Preserving and sharing our most cherished family recipes, from our kitchen to yours.
           </p>
         </section>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-[280px] animate-pulse rounded-xl bg-muted/60" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -117,9 +122,23 @@ function HomeContent() {
         </div>
         {filteredRecipes.length === 0 && (
           <div className="py-12 text-center sm:py-16">
-            <p className="px-4 text-base text-muted-foreground sm:text-lg">
-              No recipes found. Try a different search or filter.
-            </p>
+            {recipes.length === 0 ? (
+              <div className="flex flex-col items-center gap-4">
+                <p className="px-4 text-base text-muted-foreground sm:text-lg">
+                  No recipes yet — be the first to add one!
+                </p>
+                <a
+                  href="/add-recipe"
+                  className="inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
+                >
+                  Add a Recipe
+                </a>
+              </div>
+            ) : (
+              <p className="px-4 text-base text-muted-foreground sm:text-lg">
+                No recipes match your search. Try a different term or filter.
+              </p>
+            )}
           </div>
         )}
       </section>
