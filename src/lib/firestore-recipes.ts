@@ -74,6 +74,9 @@ const buildApiUrl = (path: string) => `${resolveBaseUrl()}${normalizePath(path)}
 const toDate = (value: unknown): Date | undefined => {
   if (!value) return undefined;
   if (value instanceof Date) return value;
+  // Firestore Timestamp (both admin SDK and client SDK have .toDate())
+  const maybeTs = value as { toDate?: () => Date };
+  if (typeof maybeTs.toDate === 'function') return maybeTs.toDate();
   if (typeof value === 'string') {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
@@ -206,12 +209,57 @@ const extractRecipe = (payload: ApiRecipeResponse): Recipe | null => {
   return null;
 };
 
+// ── Client-SDK direct reads ──────────────────────────────────────────────────
+// The `recipes` collection has `allow read: if true` in Firestore rules, so
+// the client SDK can read directly without going through the Admin SDK API
+// route (which requires billing enabled on the GCP project).
+
+async function getClientDb(): Promise<import('firebase/firestore').Firestore> {
+  const { db } = await import('./firebase');
+  return db;
+}
+
+async function getAllRecipesDirect(maxLimit = 50): Promise<Recipe[]> {
+  const db = await getClientDb();
+  const { collection, query, orderBy, limit, getDocs } = await import('firebase/firestore');
+  const q = query(collection(db, 'recipes'), orderBy('createdAt', 'desc'), limit(maxLimit));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+}
+
+async function getRecipesByUserIdDirect(userId: string, maxLimit = 50): Promise<Recipe[]> {
+  const db = await getClientDb();
+  const { collection, query, orderBy, limit, getDocs, where } = await import('firebase/firestore');
+  const q = query(
+    collection(db, 'recipes'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(maxLimit)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+}
+
+async function getRecipeByIdDirect(id: string): Promise<Recipe | null> {
+  const db = await getClientDb();
+  const { doc, getDoc } = await import('firebase/firestore');
+  const snap = await getDoc(doc(db, 'recipes', id));
+  if (!snap.exists()) return null;
+  return normalizeRecipe({ id: snap.id, ...snap.data() });
+}
+
 export async function getAllRecipes(): Promise<Recipe[]> {
+  if (typeof window !== 'undefined') {
+    return getAllRecipesDirect();
+  }
   const payload = await apiRequest<ApiRecipeResponse>('/api/recipes');
   return extractRecipes(payload);
 }
 
 export async function getRecipesByUserId(userId: string): Promise<Recipe[]> {
+  if (typeof window !== 'undefined') {
+    return getRecipesByUserIdDirect(userId);
+  }
   const payload = await apiRequest<ApiRecipeResponse>(
     `/api/recipes?userId=${encodeURIComponent(userId)}`
   );
@@ -220,6 +268,9 @@ export async function getRecipesByUserId(userId: string): Promise<Recipe[]> {
 
 export async function getRecipeById(id: string): Promise<Recipe | null> {
   if (!id) return null;
+  if (typeof window !== 'undefined') {
+    return getRecipeByIdDirect(id);
+  }
   const payload = await apiRequest<ApiRecipeResponse>(`/api/recipes/${encodeURIComponent(id)}`);
   const recipe = extractRecipe(payload) ?? (payload ? normalizeRecipe(payload) : null);
   return recipe;

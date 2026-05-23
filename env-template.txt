@@ -82,7 +82,61 @@ INSTAGRAM_WEBHOOK_VERIFY_TOKEN=your_random_verify_token_here
 # ===========================================
 # Required for AI video generation from recipe images
 # Get your API key from: https://dev.runwayml.com
-# Sign up at: https://dev.runwayml.com/login
-# Generate API key in Developer Portal → API Keys
 RUNWAY_API_KEY=your_runway_api_key_here
+
+# ===========================================
+# OpenAI API Configuration
+# ===========================================
+# Required for TTS voiceover generation (fallback chain: OpenAI → ElevenLabs)
+# Get your API key from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# ===========================================
+# ElevenLabs API Configuration
+# ===========================================
+# Optional: Higher-quality TTS, used as fallback when OpenAI TTS succeeds or as primary
+# Get your API key from: https://elevenlabs.io/app/settings/api-keys
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+
+# ===========================================
+# Stripe Configuration
+# ===========================================
+# Required for subscription billing (creator/pro tiers)
+# Get keys from: https://dashboard.stripe.com/apikeys
+STRIPE_SECRET_KEY=sk_live_your_stripe_secret_key
+
+# Price IDs from your Stripe Dashboard → Products
+STRIPE_PRICE_CREATOR=price_your_creator_price_id
+STRIPE_PRICE_PRO=price_your_pro_price_id
+
+# Webhook signing secret — from Stripe Dashboard → Webhooks → your endpoint
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# ===========================================
+# Email (Resend)
+# ===========================================
+# Required for comment/like/reply notifications
+# Sign up at: https://resend.com — free tier is 3k emails/month
+RESEND_API_KEY=re_your_resend_api_key
+
+# From address for outbound emails (must be a verified domain in Resend)
+FROM_EMAIL=notifications@banoscookbook.com
+
+# ===========================================
+# Cloud Run Video Combiner
+# ===========================================
+# The deployed URL of the Cloud Run video-combiner service
+# Deployed from cloud-run/video-combiner/ — see deploy.sh
+CLOUD_RUN_COMBINE_URL=https://video-combiner-xxxxx-uc.a.run.app
+
+# Shared secret between Vercel and Cloud Run (set same value in Cloud Run env)
+CLOUD_RUN_SECRET=your_random_shared_secret
+
+# ===========================================
+# Cron Job Authorization
+# ===========================================
+# A random secret used to authenticate manual cron triggers and protect
+# the /api/cron/* endpoints. Vercel sets this automatically; for manual
+# calls supply it as: Authorization: Bearer <CRON_SECRET>
+CRON_SECRET=your_random_cron_secret
 

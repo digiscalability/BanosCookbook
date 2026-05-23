@@ -1,85 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Unused for now - will be used when email provider is integrated
-// import { generateEmailHTML } from '@/lib/email-templates';
+
+import { sendEmail } from '@/lib/email';
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
-/**
- * Send email notification
- * POST /api/notifications/email
- *
- * Note: This is a placeholder implementation. In production, you would integrate with:
- * - SendGrid
- * - AWS SES
- * - Resend
- * - Mailgun
- * - Or any other email service provider
- */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const {
-      to,
-      subject,
-      type, // 'new_comment', 'new_reply', 'new_like'
-      recipeTitle,
-      authorName,
-    } = body as {
+    const { to, type, recipeTitle, recipeUrl, authorName, commentText, replyText } = body as {
       to?: string;
-      subject?: string;
-      html?: string;
-      text?: string;
-      type?: string;
+      type?: 'new_comment' | 'new_reply' | 'new_like';
       recipeTitle?: string;
-      commentText?: string;
+      recipeUrl?: string;
       authorName?: string;
+      commentText?: string;
+      replyText?: string;
     };
 
-    if (!to || !subject) {
+    if (!to || !type || !recipeTitle || !recipeUrl || !authorName) {
       return NextResponse.json(
-        { error: 'Email recipient (to) and subject are required.' },
+        { error: 'Missing required fields: to, type, recipeTitle, recipeUrl, authorName' },
         { status: 400 }
       );
     }
 
-    // Log the email (in production, send actual email)
-    console.warn('📧 Email Notification:', {
-      to,
-      subject,
-      type,
-      recipeTitle,
-      authorName,
-      timestamp: new Date().toISOString(),
-    });
+    const validTypes = ['new_comment', 'new_reply', 'new_like'] as const;
+    if (!validTypes.includes(type as (typeof validTypes)[number])) {
+      return NextResponse.json({ error: 'Invalid notification type' }, { status: 400 });
+    }
 
-    // TODO: Integrate with email service provider
-    // Example with SendGrid:
-    /*
-    const sgMail = require('@sendgrid/mail');
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    await sendEmail({ to, type, recipeTitle, recipeUrl, authorName, commentText, replyText });
 
-    await sgMail.send({
-      to,
-      from: process.env.FROM_EMAIL,
-      subject,
-      text: text || '',
-      html: html || text || '',
-    });
-    */
-
-    // For now, just simulate success
-    return NextResponse.json({
-      success: true,
-      message: 'Email notification logged (not sent - configure email provider)',
-      details: {
-        to,
-        subject,
-        type,
-      },
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error sending email notification:', error);
+    console.error('[email/route] Failed to send email:', error);
     return NextResponse.json({ error: 'Failed to send email notification.' }, { status: 500 });
   }
 }

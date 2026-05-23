@@ -144,6 +144,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(recipe);
   } catch (error) {
     console.error('Error fetching recipe:', error);
+    const grpcCode = (error as Record<string, unknown>)?.code;
+    if (grpcCode === 7 || grpcCode === 'PERMISSION_DENIED') {
+      return NextResponse.json(
+        { error: 'Firebase project requires billing enabled for Admin SDK access.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch recipe' }, { status: 500 });
   }
 }

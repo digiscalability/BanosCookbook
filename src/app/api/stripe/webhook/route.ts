@@ -62,27 +62,41 @@ export async function POST(req: NextRequest) {
     if (event.type === 'customer.subscription.updated') {
       const subscription = event.data.object as Stripe.Subscription;
       const priceId = subscription.items.data[0]?.price.id;
-      // Find user by stripeCustomerId
-      const userId = (subscription.metadata?.userId as string | undefined);
-      if (userId && priceId) {
+      if (!priceId) return NextResponse.json({ received: true });
+
+      // metadata.userId is only present if we set it explicitly — fall back to
+      // querying user_credits by stripeCustomerId (always written at checkout).
+      let userId = subscription.metadata?.userId as string | undefined;
+      if (!userId && subscription.customer) {
+        const snap = await db
+          .collection('user_credits')
+          .where('stripeCustomerId', '==', subscription.customer)
+          .limit(1)
+          .get();
+        if (!snap.empty) userId = snap.docs[0].id;
+      }
+
+      if (userId) {
         const tier = tierFromPriceId(priceId);
         if (tier) {
-          await db.collection('user_credits').doc(userId).set(
-            { tier },
-            { merge: true }
-          );
+          await db.collection('user_credits').doc(userId).set({ tier }, { merge: true });
         }
       }
     }
 
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription;
-      const userId = subscription.metadata?.userId as string | undefined;
+      let userId = subscription.metadata?.userId as string | undefined;
+      if (!userId && subscription.customer) {
+        const snap = await db
+          .collection('user_credits')
+          .where('stripeCustomerId', '==', subscription.customer)
+          .limit(1)
+          .get();
+        if (!snap.empty) userId = snap.docs[0].id;
+      }
       if (userId) {
-        await db.collection('user_credits').doc(userId).set(
-          { tier: 'free' },
-          { merge: true }
-        );
+        await db.collection('user_credits').doc(userId).set({ tier: 'free' }, { merge: true });
       }
     }
 

@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
           if (isRecord(value))
             await handleCommentEvent(value as { media_id?: string; id?: string; text?: string });
         } else if (field === 'mentions') {
-          await handleMentionEvent();
+          await handleMentionEvent(isRecord(value) ? (value as Record<string, unknown>) : undefined);
         } else if (
           field === 'likes' ||
           field === 'engagement' ||
@@ -264,12 +264,44 @@ async function handleCommentEvent(value: {
 
 /**
  * Handle mention events from Instagram
+ * Generates an AI reply suggestion and logs it (auto-reply to mentions
+ * requires additional Graph API permissions — log for manual follow-up).
  */
-async function handleMentionEvent() {
+async function handleMentionEvent(value?: Record<string, unknown>) {
   try {
-    console.warn(`📣 Mentioned in Instagram post/comment`);
-    // You can implement mention handling logic here
-    // For example, create a notification or auto-reply
+    const commentText =
+      typeof value?.text === 'string' ? value.text : undefined;
+    const mediaId =
+      typeof value?.media_id === 'string' ? value.media_id : undefined;
+
+    console.warn(`📣 Mentioned in Instagram post/comment`, { mediaId, commentText });
+
+    if (!commentText) return;
+
+    // Generate an AI reply suggestion using the existing Genkit flow.
+    const { commentReplySuggestion } = await import('@/ai/flows/comment-reply-suggestion');
+    const result = await commentReplySuggestion({
+      recipeTitle: 'BanosCookbook recipe',
+      recipeDescription: 'A delicious home-style recipe from BanosCookbook.',
+      comment: commentText,
+    });
+
+    const suggestion = result.suggestions[0];
+    if (suggestion) {
+      console.warn(`📣 AI reply suggestion for mention: "${suggestion}"`);
+
+      // Store the suggestion in Firestore for the admin to review/send.
+      const { getDb } = adminConfig;
+      const db = getDb();
+      await db.collection('mention_replies').add({
+        mediaId: mediaId ?? null,
+        commentText,
+        aiSuggestion: suggestion,
+        allSuggestions: result.suggestions,
+        status: 'pending',
+        createdAt: new Date(),
+      });
+    }
   } catch (error) {
     console.error('❌ Error handling mention event:', error);
   }

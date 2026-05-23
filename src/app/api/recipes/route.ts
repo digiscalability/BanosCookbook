@@ -144,6 +144,17 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching recipes:', error);
+    const grpcCode = (error as Record<string, unknown>)?.code;
+    if (grpcCode === 7 || grpcCode === 'PERMISSION_DENIED') {
+      return NextResponse.json(
+        {
+          error:
+            'Firebase project requires billing to be enabled for Admin SDK access. ' +
+            'Enable billing at https://console.cloud.google.com/billing or use the client SDK for reads.',
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch recipes' }, { status: 500 });
   }
 }
