@@ -221,23 +221,34 @@ async function getClientDb(): Promise<import('firebase/firestore').Firestore> {
 
 async function getAllRecipesDirect(maxLimit = 50): Promise<Recipe[]> {
   const db = await getClientDb();
-  const { collection, query, orderBy, limit, getDocs } = await import('firebase/firestore');
-  const q = query(collection(db, 'recipes'), orderBy('createdAt', 'desc'), limit(maxLimit));
+  const { collection, query, limit, getDocs } = await import('firebase/firestore');
+  // No orderBy — Firestore silently drops documents missing the field from ordered queries.
+  // Sort client-side so legacy recipes without createdAt still appear.
+  const q = query(collection(db, 'recipes'), limit(maxLimit));
   const snap = await getDocs(q);
-  return snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+  const recipes = snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+  return recipes.sort((a, b) => {
+    const ta = a.createdAt?.getTime() ?? 0;
+    const tb = b.createdAt?.getTime() ?? 0;
+    return tb - ta;
+  });
 }
 
 async function getRecipesByUserIdDirect(userId: string, maxLimit = 50): Promise<Recipe[]> {
   const db = await getClientDb();
-  const { collection, query, orderBy, limit, getDocs, where } = await import('firebase/firestore');
+  const { collection, query, limit, getDocs, where } = await import('firebase/firestore');
   const q = query(
     collection(db, 'recipes'),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
     limit(maxLimit)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+  const recipes = snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
+  return recipes.sort((a, b) => {
+    const ta = a.createdAt?.getTime() ?? 0;
+    const tb = b.createdAt?.getTime() ?? 0;
+    return tb - ta;
+  });
 }
 
 async function getRecipeByIdDirect(id: string): Promise<Recipe | null> {
