@@ -4,6 +4,7 @@
  * sitemap and link previews are concerned.
  */
 import type { firestore } from 'firebase-admin';
+import { cache } from 'react';
 
 import type { Comment, Recipe, RecipeSource, RecipeStatus } from '@/lib/types';
 
@@ -112,3 +113,6 @@ export async function listPublishedRecipes(
   const snap = await q.limit(Math.min(opts.limit ?? 500, 1000)).get();
   return snap.docs.map(serializeRecipeDoc).sort(newestFirst);
 }
+
+/** Request-deduplicated getPublishedRecipe (metadata, page and image share one read). */
+export const getPublishedRecipeCached = cache(getPublishedRecipe);
