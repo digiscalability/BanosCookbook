@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { bookTitle } from '@/lib/book';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { canOptimizeImage } from '@/lib/recipe-image';
 import { buildRecipeJsonLd, jsonLdScript } from '@/lib/recipe-jsonld';
 import { AMMI_NAME, metaDescription, SITE_NAME } from '@/lib/site';
 import { getPublishedRecipeCached } from '@/server/recipes/read-recipes';
@@ -79,42 +80,25 @@ export default async function RecipePage({ params }: RecipePageProps) {
     ? `${recipe.title} - generated image`
     : placeholder?.description || recipe.title;
 
-  // Determine if we should use native img tag
-  // Use native img for data URIs, signed URLs, or Firebase Storage URLs to avoid proxy issues
-  const isDataUri = imageSrc.startsWith('data:');
-  const isStorageUrl =
-    imageSrc.includes('storage.googleapis.com') ||
-    imageSrc.includes('firebasestorage.googleapis.com');
-  const isImageUrl = imageSrc.startsWith('http');
-  const shouldUseImgTag =
-    isDataUri || isStorageUrl || (process.env.NODE_ENV === 'development' && isImageUrl);
-
   const totalTime =
     parseInt(recipe.prepTime.split(' ')[0]) + parseInt(recipe.cookTime.split(' ')[0]);
   const ratingCount = recipe.ratingCount ?? 0;
 
-  // Precompute the image element to keep JSX simple and avoid parser issues
-  const imageElement =
-    isImageUrl || placeholder ? (
-      shouldUseImgTag ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageSrc}
-          alt={imageAlt}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
-        <Image
-          src={imageSrc}
-          alt={imageAlt}
-          data-ai-hint={placeholder?.imageHint}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 66vw, 50vw"
-          className="object-cover"
-          priority={true}
-        />
-      )
-    ) : null;
+  // The hero is the page's LCP image: served resized (next/image) and preloaded. Below 1024px
+  // the grid is one column, so it spans the viewport; above it it takes two of three columns.
+  const imageElement = imageSrc ? (
+    <Image
+      src={imageSrc}
+      alt={imageAlt}
+      data-ai-hint={placeholder?.imageHint}
+      fill
+      sizes="(max-width: 1024px) 100vw, min(66vw, 900px)"
+      className="object-cover"
+      priority
+      fetchPriority="high"
+      unoptimized={!canOptimizeImage(imageSrc)}
+    />
+  ) : null;
 
   return (
     <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8 lg:py-12">
@@ -196,7 +180,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-4">
-                <CardTitle className="font-headline text-xl sm:text-2xl">Instructions</CardTitle>
+                <CardTitle as="h2" className="font-headline text-xl sm:text-2xl">Instructions</CardTitle>
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/recipes/${id}/cook`}>
                     <ChefHat className="mr-2 h-4 w-4" />
@@ -224,7 +208,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
           <aside className="h-fit space-y-6 sm:space-y-8 lg:sticky lg:top-24">
             <Card>
               <CardHeader className="pb-4">
-                <CardTitle className="font-headline text-xl sm:text-2xl">Ingredients</CardTitle>
+                <CardTitle as="h2" className="font-headline text-xl sm:text-2xl">Ingredients</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 sm:space-y-3">
@@ -241,7 +225,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
             {recipe.scanUrl && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                  <CardTitle as="h2" className="flex items-center gap-2 font-headline text-lg">
                     <BookOpen className="h-5 w-5" /> From Ammi&apos;s notebook
                   </CardTitle>
                 </CardHeader>

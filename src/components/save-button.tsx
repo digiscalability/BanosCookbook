@@ -1,7 +1,7 @@
 'use client';
 
 import { Bookmark } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { saveRecipeAction } from '@/app/actions';
 import { useAuth } from '@/lib/auth-context';
@@ -33,6 +33,12 @@ export function SaveButton({
     { saved: initialSaved, count: initialCount }
   );
 
+  // A card can mount before the signed-in user's saved state is known (server-rendered list),
+  // so follow the props when they change.
+  useEffect(() => {
+    setOptimistic({ saved: initialSaved, count: initialCount });
+  }, [initialSaved, initialCount]);
+
   const handleToggle = () => {
     if (!user) {
       window.location.href = '/sign-in?redirect=' + encodeURIComponent(window.location.pathname);
@@ -54,7 +60,7 @@ export function SaveButton({
       size={size}
       onClick={(e) => { e.preventDefault(); handleToggle(); }}
       disabled={isPending}
-      aria-label={optimistic.saved ? 'Unsave recipe' : 'Save recipe'}
+      aria-label={optimistic.saved ? 'Saved. Unsave recipe' : 'Save recipe'}
       className={cn(
         'gap-1.5 transition-all',
         optimistic.saved && 'bg-amber-500 hover:bg-amber-600 border-amber-500 text-white',

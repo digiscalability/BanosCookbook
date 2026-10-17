@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import RecipeCard from '@/components/recipe-card';
+import RecipeCard, { type RecipeCardData } from '@/components/recipe-card';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -13,12 +13,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useFirestoreRecipes } from '@/hooks/use-firestore-recipes';
-import type { Recipe } from '@/lib/types';
 
-function HomeContent() {
+function HomeContent({ initialRecipes }: { initialRecipes?: RecipeCardData[] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
-  const { recipes, loading, error, getRecipeCount } = useFirestoreRecipes();
+  const { recipes: liveRecipes, loading, error } = useFirestoreRecipes();
+  // The server-rendered list stands in until the client's own read lands (it carries the
+  // signed-in user's saved state) and when that read fails.
+  const firstRender = initialRecipes?.length ? initialRecipes : undefined;
+  const recipes: RecipeCardData[] =
+    loading || error ? (firstRender ?? liveRecipes) : liveRecipes;
 
   const normalizeCuisine = (value: string | null | undefined) =>
     typeof value === 'string' ? value.trim() : '';
@@ -37,7 +41,7 @@ function HomeContent() {
     return ['all', ...Array.from(unique)];
   }, [recipes]);
 
-  if (loading) {
+  if (loading && !firstRender) {
     return (
       <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
         <section className="py-8 text-center sm:py-12">
@@ -57,7 +61,7 @@ function HomeContent() {
     );
   }
 
-  if (error) {
+  if (error && !firstRender) {
     return (
       <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
         <section className="py-8 text-center sm:py-12">
@@ -82,7 +86,7 @@ function HomeContent() {
           Preserving and sharing our most cherished family recipes, from our kitchen to yours.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          {getRecipeCount()} recipes in the collection
+          {recipes.length} recipes in the collection
         </p>
       </section>
 
@@ -93,6 +97,7 @@ function HomeContent() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground sm:h-5 sm:w-5" />
             <Input
               type="search"
+              aria-label="Search recipes"
               placeholder="Search for recipes..."
               className="h-10 w-full pl-9 sm:h-11 sm:pl-10"
               value={searchTerm}
@@ -100,7 +105,7 @@ function HomeContent() {
             />
           </div>
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="h-10 w-full sm:h-11 sm:w-[180px]">
+            <SelectTrigger aria-label="Filter by cuisine" className="h-10 w-full sm:h-11 sm:w-[180px]">
               <SelectValue placeholder="Filter by cuisine" />
             </SelectTrigger>
             <SelectContent>
@@ -116,8 +121,8 @@ function HomeContent() {
 
       <section>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8 xl:grid-cols-4">
-          {filteredRecipes.map((recipe: Recipe, index) => {
-            const isPriority = index < 4; // Priority for first 4 images (above the fold)
+          {filteredRecipes.map((recipe, index) => {
+            const isPriority = index === 0; // the first card's image is the LCP element
             return <RecipeCard key={recipe.id} recipe={recipe} priority={isPriority} />;
           })}
         </div>
@@ -147,6 +152,6 @@ function HomeContent() {
   );
 }
 
-export default function HomeClient() {
-  return <HomeContent />;
+export default function HomeClient({ initialRecipes }: { initialRecipes?: RecipeCardData[] }) {
+  return <HomeContent initialRecipes={initialRecipes} />;
 }

@@ -10,12 +10,13 @@
     --card-foreground: 25 30% 20%;
     --popover: 60 56% 95%;
     --popover-foreground: 25 30% 20%;
-    --primary: 127 25% 45%;
+    /* primary and muted-foreground are set to clear 4.5:1 on the cream surfaces (WCAG AA) */
+    --primary: 127 25% 36%;
     --primary-foreground: 60 50% 95%;
     --secondary: 60 20% 88%;
     --secondary-foreground: 25 30% 20%;
     --muted: 60 20% 88%;
-    --muted-foreground: 25 25% 45%;
+    --muted-foreground: 25 25% 38%;
     --accent: 25 57% 38%;
     --accent-foreground: 60 50% 95%;
     --destructive: 0 72% 51%;
