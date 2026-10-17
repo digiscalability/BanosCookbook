@@ -4,8 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import adminConfig from '../../../config/firebase-admin';
 import type { Recipe, UserProfile } from '@/lib/types';
+
+import adminConfig from '../../../config/firebase-admin';
 
 const { getDb } = adminConfig as unknown as {
   getDb: () => import('firebase-admin').firestore.Firestore;
@@ -29,11 +30,7 @@ async function getProfileAndRecipes(
   username: string
 ): Promise<{ profile: UserProfile; recipes: Recipe[] } | null> {
   const db = getDb();
-  const snap = await db
-    .collection('users')
-    .where('username', '==', username)
-    .limit(1)
-    .get();
+  const snap = await db.collection('users').where('username', '==', username).limit(1).get();
 
   if (snap.empty) return null;
 
@@ -59,29 +56,31 @@ async function getProfileAndRecipes(
     .limit(50)
     .get();
 
-  const recipes: Recipe[] = recipesSnap.docs.map((doc) => {
-    const r = doc.data();
-    return {
-      id: doc.id,
-      userId: r.userId,
-      username: r.username,
-      title: r.title ?? '',
-      description: r.description ?? '',
-      author: r.author ?? profile.displayName,
-      authorEmail: r.authorEmail,
-      imageId: r.imageId ?? '',
-      imageUrl: r.imageUrl,
-      ingredients: r.ingredients ?? [],
-      instructions: r.instructions ?? [],
-      prepTime: r.prepTime ?? '',
-      cookTime: r.cookTime ?? '',
-      servings: Number(r.servings ?? 0),
-      cuisine: r.cuisine ?? '',
-      comments: r.comments ?? [],
-      rating: Number(r.rating ?? 0),
-      ratingCount: Number(r.ratingCount ?? 0),
-    };
-  });
+  const recipes: Recipe[] = recipesSnap.docs
+    .filter(doc => doc.data().status === 'published')
+    .map(doc => {
+      const r = doc.data();
+      return {
+        id: doc.id,
+        userId: r.userId,
+        username: r.username,
+        title: r.title ?? '',
+        description: r.description ?? '',
+        author: r.author ?? profile.displayName,
+        authorEmail: r.authorEmail,
+        imageId: r.imageId ?? '',
+        imageUrl: r.imageUrl,
+        ingredients: r.ingredients ?? [],
+        instructions: r.instructions ?? [],
+        prepTime: r.prepTime ?? '',
+        cookTime: r.cookTime ?? '',
+        servings: Number(r.servings ?? 0),
+        cuisine: r.cuisine ?? '',
+        comments: r.comments ?? [],
+        rating: Number(r.rating ?? 0),
+        ratingCount: Number(r.ratingCount ?? 0),
+      };
+    });
 
   return { profile, recipes };
 }
@@ -97,7 +96,7 @@ export default async function CreatorProfilePage({ params }: Props) {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-10">
       {/* Profile header */}
-      <div className="mb-10 flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:gap-6">
+      <div className="mb-10 flex flex-col items-center gap-4 text-center sm:flex-row sm:gap-6 sm:text-left">
         {profile.photoURL ? (
           <Image
             src={profile.photoURL}
@@ -111,12 +110,10 @@ export default async function CreatorProfilePage({ params }: Props) {
             {profile.displayName.slice(0, 1).toUpperCase()}
           </div>
         )}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-foreground">{profile.displayName}</h1>
           <p className="text-sm text-muted-foreground">@{profile.username}</p>
-          {profile.bio && (
-            <p className="mt-2 text-sm text-foreground/80 max-w-md">{profile.bio}</p>
-          )}
+          {profile.bio && <p className="mt-2 max-w-md text-sm text-foreground/80">{profile.bio}</p>}
           {/* Social links */}
           {profile.socialLinks && (
             <div className="mt-3 flex flex-wrap gap-3">
@@ -125,7 +122,7 @@ export default async function CreatorProfilePage({ params }: Props) {
                   href={`https://instagram.com/${profile.socialLinks.instagram.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Instagram className="h-3.5 w-3.5" />
                   {profile.socialLinks.instagram}
@@ -136,7 +133,7 @@ export default async function CreatorProfilePage({ params }: Props) {
                   href={profile.socialLinks.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Link2 className="h-3.5 w-3.5" />
                   {profile.socialLinks.website.replace(/^https?:\/\//, '')}
@@ -153,14 +150,14 @@ export default async function CreatorProfilePage({ params }: Props) {
 
       {/* Recipes grid */}
       {recipes.length === 0 ? (
-        <p className="text-center text-muted-foreground py-16">No recipes yet.</p>
+        <p className="py-16 text-center text-muted-foreground">No recipes yet.</p>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {recipes.map((recipe) => (
+          {recipes.map(recipe => (
             <Link
               key={recipe.id}
               href={`/recipes/${recipe.id}`}
-              className="group rounded-xl border border-border bg-card overflow-hidden hover:shadow-md transition-shadow"
+              className="group overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md"
             >
               {recipe.imageUrl ? (
                 <div className="relative aspect-[4/3] overflow-hidden bg-muted">
@@ -168,19 +165,19 @@ export default async function CreatorProfilePage({ params }: Props) {
                     src={recipe.imageUrl}
                     alt={recipe.title}
                     fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
               ) : (
-                <div className="aspect-[4/3] bg-muted flex items-center justify-center text-muted-foreground text-4xl">
+                <div className="flex aspect-[4/3] items-center justify-center bg-muted text-4xl text-muted-foreground">
                   🍳
                 </div>
               )}
               <div className="p-4">
-                <h2 className="font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                <h2 className="line-clamp-1 font-semibold text-foreground transition-colors group-hover:text-primary">
                   {recipe.title}
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {recipe.description}
                 </p>
                 <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">

@@ -1,17 +1,19 @@
 /**
  * Field whitelist for recipe writes that come from HTTP callers.
  *
- * Shared contract with the ventures-ops content engine (stream D):
- *   source       'ammi_book' | 'sample' | 'user'
- *   status       'draft' | 'review' | 'published' | 'hidden'   (only 'published' is public)
- *   sourceBook, sourcePage, scanPath, scanUrl, tags[], dishPhoto {url, source, credit}
- *   social       {eligible, lastPostedAt, timesPosted, lastCycle}  (server/engine only)
+ * Shared contract with the ventures-ops content engine (stream-d-contracts.md §1):
+ *   source       'ammi_book' | 'sample' | 'community'
+ *   status       'draft' | 'published' | 'hidden'   (only 'published' is public)
+ *   sourceBook (slug), sourcePage, scanPath, scanUrl, tags (0-12 slugs),
+ *   dishPhoto {url, path?, aiGenerated?, credit?}, social {eligible, excludePlatforms?, hookNote?}
  *
- * Ratings, comments, saves, social and Instagram bookkeeping are never client-settable.
+ * source, sourceBook, sourcePage, scanPath, scanUrl, status and social are never
+ * client-settable; nor are ratings, comments, saves or Instagram bookkeeping.
  */
+import { MAX_TAGS, toTagSlug } from '@/lib/book';
 
-export const RECIPE_SOURCES = ['ammi_book', 'sample', 'user'] as const;
-export const RECIPE_STATUSES = ['draft', 'review', 'published', 'hidden'] as const;
+export const RECIPE_SOURCES = ['ammi_book', 'sample', 'community'] as const;
+export const RECIPE_STATUSES = ['draft', 'published', 'hidden'] as const;
 export type RecipeSource = (typeof RECIPE_SOURCES)[number];
 export type RecipeStatus = (typeof RECIPE_STATUSES)[number];
 
@@ -42,12 +44,7 @@ export const ADMIN_ONLY_FIELDS = [
   'dishPhoto',
 ] as const;
 
-export const DEFAULT_SOCIAL = {
-  eligible: false,
-  lastPostedAt: null,
-  timesPosted: 0,
-  lastCycle: null,
-} as const;
+export const DEFAULT_SOCIAL = { eligible: false } as const;
 
 type Picked = { ok: true; data: Record<string, unknown> } | { ok: false; error: string };
 
@@ -61,7 +58,10 @@ function str(value: unknown, max: number): string | undefined {
 function strList(value: unknown): string[] | undefined {
   if (typeof value === 'string') {
     // The add-recipe form sends newline-separated text.
-    value = value.split('\n').map(s => s.trim()).filter(Boolean);
+    value = value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
   }
   if (!Array.isArray(value) || value.length > MAX_LIST) return undefined;
   if (!value.every(v => typeof v === 'string' && v.length <= 2000)) return undefined;
@@ -91,8 +91,10 @@ export function pickRecipeFields(
       case 'cuisine':
       case 'prepTime':
       case 'cookTime':
-      case 'sourceBook':
         parsed = str(value, 100);
+        break;
+      case 'sourceBook':
+        parsed = typeof value === 'string' && /^[a-z][a-z0-9-]{0,59}$/.test(value) ? value : undefined;
         break;
       case 'description':
         parsed = str(value, MAX_TEXT);
@@ -108,9 +110,15 @@ export function pickRecipeFields(
       case 'instructions':
         parsed = strList(value);
         break;
-      case 'tags':
-        parsed = strList(value)?.map(t => t.toLowerCase().slice(0, 40));
+      case 'tags': {
+        // Accept comma or newline separated text or a list; keep valid unique slugs.
+        const raw = typeof value === 'string' ? value.split(/[,\n]/) : value;
+        const list = strList(raw);
+        parsed = list
+          ? [...new Set(list.map(toTagSlug).filter((t): t is string => !!t))].slice(0, MAX_TAGS)
+          : undefined;
         break;
+      }
       case 'servings': {
         const n = Number(value);
         parsed = Number.isFinite(n) && n >= 0 && n <= 1000 ? n : undefined;
@@ -129,16 +137,16 @@ export function pickRecipeFields(
         break;
       case 'dishPhoto': {
         const v = value as Record<string, unknown> | null;
-        parsed =
-          v && typeof v === 'object' && str(v.url, 2000)
-            ? {
-                url: v.url,
-                source: str(v.source, 50) ?? null,
-                credit: str(v.credit, 200) ?? null,
-              }
-            : value === null
-              ? null
-              : undefined;
+        if (value === null) {
+          parsed = null;
+        } else if (v && typeof v === 'object' && (str(v.url, 2000) ?? '').startsWith('https://')) {
+          parsed = {
+            url: v.url,
+            ...(str(v.path, 500) ? { path: v.path } : {}),
+            ...(typeof v.aiGenerated === 'boolean' ? { aiGenerated: v.aiGenerated } : {}),
+            ...(str(v.credit, 200) ? { credit: v.credit } : {}),
+          };
+        }
         break;
       }
     }

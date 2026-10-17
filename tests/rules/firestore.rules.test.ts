@@ -61,6 +61,10 @@ describe('recipes: create', () => {
   it.each([
     ['source', 'ammi_book'],
     ['status', 'published'],
+    ['sourceBook', 'monasal-bana'],
+    ['sourcePage', 12],
+    ['scanPath', 'book/monasal-bana/p012.jpg'],
+    ['scanUrl', 'https://firebasestorage.googleapis.com/x'],
     ['social', { eligible: true }],
     ['rating', 5],
     ['ratingCount', 100],
@@ -76,7 +80,7 @@ describe('recipes: create', () => {
 
 describe('recipes: update', () => {
   beforeEach(async () => {
-    await seed('recipes/mine', { ...content, userId: 'alice', source: 'user', status: 'review' });
+    await seed('recipes/mine', { ...content, userId: 'alice', source: 'community', status: 'draft' });
   });
 
   it('allows the owner to edit content fields', async () => {
@@ -130,7 +134,7 @@ describe('recipes: visibility', () => {
 describe('recipes: delete', () => {
   beforeEach(async () => {
     await seed('recipes/ammi', { ...content, userId: 'alice', source: 'ammi_book', status: 'published' });
-    await seed('recipes/mine', { ...content, userId: 'alice', source: 'user', status: 'review' });
+    await seed('recipes/mine', { ...content, userId: 'alice', source: 'community', status: 'draft' });
   });
 
   it('denies guests and non-owners', async () => {
@@ -208,6 +212,18 @@ describe('instagram_tokens: never client-readable', () => {
     await assertFails(getDoc(doc(user(), 'instagram_tokens/main')));
     await assertFails(getDoc(doc(admin(), 'instagram_tokens/main')));
     await assertFails(setDoc(doc(admin(), 'instagram_tokens/main'), { accessToken: 'x' }));
+  });
+});
+
+describe('book_pages: admin read, server-only writes', () => {
+  beforeEach(async () => {
+    await seed('book_pages/monasal-bana_p001', { page: 1, storagePath: 'book/monasal-bana/p001.jpg' });
+  });
+
+  it('lets an admin read and nobody write', async () => {
+    await assertSucceeds(getDoc(doc(admin(), 'book_pages/monasal-bana_p001')));
+    await assertFails(getDoc(doc(user(), 'book_pages/monasal-bana_p001')));
+    await assertFails(setDoc(doc(admin(), 'book_pages/monasal-bana_p002'), { page: 2 }));
   });
 });
 

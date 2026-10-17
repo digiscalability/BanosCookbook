@@ -113,3 +113,7 @@ test-results/
 
 env
 env.download
+
+# Local-only data (never commit): migration backups and rendered book pages
+backups/
+book-pages/

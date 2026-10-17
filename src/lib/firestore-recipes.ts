@@ -210,9 +210,9 @@ const extractRecipe = (payload: ApiRecipeResponse): Recipe | null => {
 };
 
 // ── Client-SDK direct reads ──────────────────────────────────────────────────
-// The `recipes` collection has `allow read: if true` in Firestore rules, so
-// the client SDK can read directly without going through the Admin SDK API
-// route (which requires billing enabled on the GCP project).
+// Firestore rules only let visitors read recipes with status == 'published', and
+// rules are not filters: every list query must carry that equality filter or it
+// fails as a whole.
 
 async function getClientDb(): Promise<import('firebase/firestore').Firestore> {
   const { db } = await import('./firebase');
@@ -224,7 +224,8 @@ async function getAllRecipesDirect(maxLimit = 50): Promise<Recipe[]> {
   const { collection, query, limit, getDocs } = await import('firebase/firestore');
   // No orderBy — Firestore silently drops documents missing the field from ordered queries.
   // Sort client-side so legacy recipes without createdAt still appear.
-  const q = query(collection(db, 'recipes'), limit(maxLimit));
+  const { where } = await import('firebase/firestore');
+  const q = query(collection(db, 'recipes'), where('status', '==', 'published'), limit(maxLimit));
   const snap = await getDocs(q);
   const recipes = snap.docs.map(d => normalizeRecipe({ id: d.id, ...d.data() }));
   return recipes.sort((a, b) => {
@@ -240,6 +241,7 @@ async function getRecipesByUserIdDirect(userId: string, maxLimit = 50): Promise<
   const q = query(
     collection(db, 'recipes'),
     where('userId', '==', userId),
+    where('status', '==', 'published'),
     limit(maxLimit)
   );
   const snap = await getDocs(q);
@@ -254,8 +256,9 @@ async function getRecipesByUserIdDirect(userId: string, maxLimit = 50): Promise<
 async function getRecipeByIdDirect(id: string): Promise<Recipe | null> {
   const db = await getClientDb();
   const { doc, getDoc } = await import('firebase/firestore');
-  const snap = await getDoc(doc(db, 'recipes', id));
-  if (!snap.exists()) return null;
+  // Hidden, draft and review recipes are denied by the rules: treat as not found.
+  const snap = await getDoc(doc(db, 'recipes', id)).catch(() => null);
+  if (!snap || !snap.exists()) return null;
   return normalizeRecipe({ id: snap.id, ...snap.data() });
 }
 

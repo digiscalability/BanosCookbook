@@ -2,7 +2,13 @@ import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 import type { Comment, Recipe } from '@/lib/types';
-import { authFailure, isAdminClaims, requireUser } from '@/server/auth/require-admin';
+import {
+  authFailure,
+  getRequestUser,
+  isAdminClaims,
+  requireUser,
+} from '@/server/auth/require-admin';
+import { isPublishedData } from '@/server/recipes/read-recipes';
 import { pickRecipeFields } from '@/server/recipes/recipe-fields';
 
 import adminConfig from '../../../../../config/firebase-admin';
@@ -87,6 +93,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!doc.exists) {
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 });
+    }
+    if (!isPublishedData(doc.data())) {
+      const caller = await getRequestUser(request);
+      const own = caller && doc.get('userId') === caller.uid;
+      if (!caller || (!own && !isAdminClaims(caller))) {
+        return NextResponse.json({ error: 'Recipe not found' }, { status: 404 });
+      }
     }
     // Prepare recipe for response
     const recipe = serializeRecipe(doc);

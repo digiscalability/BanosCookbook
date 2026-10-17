@@ -43,7 +43,9 @@ export async function removeDuplicateRecipes({
     const groups = new Map<string, Row[]>();
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      const key = String(data.title ?? '').trim().toLowerCase();
+      const key = String(data.title ?? '')
+        .trim()
+        .toLowerCase();
       if (!key) continue;
       const row: Row = {
         id: doc.id,

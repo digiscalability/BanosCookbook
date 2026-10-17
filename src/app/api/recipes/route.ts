@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Comment, Recipe } from '@/lib/types';
 import { authFailure, isAdminClaims, requireUser } from '@/server/auth/require-admin';
 import { safeFetch } from '@/server/net/ssrf-guard';
+import { listPublishedRecipes } from '@/server/recipes/read-recipes';
 import { DEFAULT_SOCIAL, pickRecipeFields } from '@/server/recipes/recipe-fields';
 
 import adminConfig from '../../../../config/firebase-admin';
@@ -123,20 +124,12 @@ export async function GET(request: NextRequest) {
 
     const userIdFilter = searchParams.get('userId');
 
-    const db = getDb();
-    let queryRef: firestore.Query<firestore.DocumentData> = db.collection('recipes');
-
-    if (cuisineFilter) {
-      queryRef = queryRef.where('cuisine', '==', cuisineFilter);
-    }
-    if (userIdFilter) {
-      queryRef = queryRef.where('userId', '==', userIdFilter);
-    }
-
-    queryRef = queryRef.orderBy('createdAt', 'desc').limit(limit);
-
-    const snapshot = await queryRef.get();
-    const recipes = snapshot.docs.map(doc => serializeRecipe(doc));
+    // Public endpoint: published recipes only (hidden samples, drafts and reviews never leave).
+    const recipes = await listPublishedRecipes({
+      limit,
+      cuisine: cuisineFilter ?? undefined,
+      userId: userIdFilter ?? undefined,
+    });
     const payload = fields ? recipes.map(recipe => filterRecipeFields(recipe, fields)) : recipes;
 
     return NextResponse.json({
@@ -497,8 +490,9 @@ export async function POST(request: NextRequest) {
       comments: [],
       userId: verifiedUserId,
       authorEmail: caller.email ?? null,
-      source: isAdmin && recipeData.source ? recipeData.source : 'user',
-      status: isAdmin ? (recipeData.status ?? 'draft') : 'review',
+      // Visitor submissions are community drafts: never public until an admin publishes.
+      source: isAdmin && recipeData.source ? recipeData.source : 'community',
+      status: isAdmin ? (recipeData.status ?? 'draft') : 'draft',
       tags: recipeData.tags ?? [],
       social: { ...DEFAULT_SOCIAL },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
