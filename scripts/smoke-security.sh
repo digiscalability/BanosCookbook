@@ -99,6 +99,9 @@ check POST /api/resolve-image                       "400" '{"url":"https://169.2
 check POST /api/resolve-image                       "400" '{"url":"http://127.0.0.1/"}'
 check POST /api/resolve-image                       "400" '{"url":"https://evilpicsum.photos/x"}'
 
+# Newsletter sign-up refuses cross-site posts
+check POST /api/newsletter                        "403" '{"email":"a@b.co"}' "Origin: https://evil.example"
+
 # Removed: cron, email relay, test, debug and TikTok routes
 check GET  /api/cron/daily-social                   "404"
 check POST /api/notifications/email                 "404" '{"to":"a@b.c","type":"new_like","recipeTitle":"x","recipeUrl":"x","authorName":"x"}'

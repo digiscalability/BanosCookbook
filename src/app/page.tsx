@@ -1,152 +1,46 @@
-'use client';
-import { Search } from 'lucide-react';
-import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import type { Metadata } from 'next';
 
-import RecipeCard from '@/components/recipe-card';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useFirestoreRecipes } from '@/hooks/use-firestore-recipes';
-import type { Recipe } from '@/lib/types';
+import { NewsletterSignup } from '@/components/newsletter-signup';
+import { jsonLdScript } from '@/lib/recipe-jsonld';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/site';
 
-function HomeContent() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('all');
-  const { recipes, loading, error, getRecipeCount } = useFirestoreRecipes();
+import HomeClient from './home-client';
 
-  const normalizeCuisine = (value: string | null | undefined) =>
-    typeof value === 'string' ? value.trim() : '';
+const title = `${SITE_NAME}: Ammi's recipes from her 1981 notebooks`;
 
-  const filteredRecipes = recipes
-    .filter(recipe => recipe.title.toLowerCase().includes(searchTerm.toLowerCase()))
-    .filter(recipe => (filter === 'all' ? true : normalizeCuisine(recipe.cuisine) === filter));
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    title,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+  },
+  twitter: { card: 'summary_large_image', title, description: SITE_DESCRIPTION },
+};
 
-  const cuisines = useMemo(() => {
-    const unique = new Set<string>();
-    for (const recipe of recipes) {
-      if (!recipe) continue;
-      const value = normalizeCuisine(recipe.cuisine);
-      if (value) unique.add(value);
-    }
-    return ['all', ...Array.from(unique)];
-  }, [recipes]);
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+};
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
-        <section className="py-8 text-center sm:py-12">
-          <h1 className="mb-3 font-headline text-3xl font-bold text-primary sm:mb-4 sm:text-4xl md:text-5xl">
-            Banos Cookbook
-          </h1>
-          <p className="mx-auto max-w-2xl px-4 text-base text-muted-foreground sm:text-lg">
-            Preserving and sharing our most cherished family recipes, from our kitchen to yours.
-          </p>
-        </section>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[280px] animate-pulse rounded-xl bg-muted/60" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
-        <section className="py-8 text-center sm:py-12">
-          <h1 className="mb-3 font-headline text-3xl font-bold text-primary sm:mb-4 sm:text-4xl md:text-5xl">
-            Banos Cookbook
-          </h1>
-          <p className="mx-auto max-w-2xl px-4 text-base text-destructive sm:text-lg">
-            Error loading recipes: {error}
-          </p>
-        </section>
-      </div>
-    );
-  }
-
+export default function HomePage() {
   return (
-    <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8">
-      <section className="py-8 text-center sm:py-12">
-        <h1 className="mb-3 font-headline text-3xl font-bold text-primary sm:mb-4 sm:text-4xl md:text-5xl">
-          Banos Cookbook
-        </h1>
-        <p className="mx-auto max-w-2xl px-4 text-base text-muted-foreground sm:text-lg">
-          Preserving and sharing our most cherished family recipes, from our kitchen to yours.
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {getRecipeCount()} recipes in the collection
-        </p>
-      </section>
-
-      {/* Search and Filter */}
-      <section className="mb-8 sm:mb-12">
-        <div className="mx-auto flex max-w-2xl flex-col gap-3 sm:flex-row sm:gap-4">
-          <div className="relative flex-grow">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground sm:h-5 sm:w-5" />
-            <Input
-              type="search"
-              placeholder="Search for recipes..."
-              className="h-10 w-full pl-9 sm:h-11 sm:pl-10"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="h-10 w-full sm:h-11 sm:w-[180px]">
-              <SelectValue placeholder="Filter by cuisine" />
-            </SelectTrigger>
-            <SelectContent>
-              {cuisines.map(cuisine => (
-                <SelectItem key={cuisine} value={cuisine} className="capitalize">
-                  {cuisine === 'all' ? 'All Cuisines' : cuisine}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
-
-      <section>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8 xl:grid-cols-4">
-          {filteredRecipes.map((recipe: Recipe, index) => {
-            const isPriority = index < 4; // Priority for first 4 images (above the fold)
-            return <RecipeCard key={recipe.id} recipe={recipe} priority={isPriority} />;
-          })}
-        </div>
-        {filteredRecipes.length === 0 && (
-          <div className="py-12 text-center sm:py-16">
-            {recipes.length === 0 ? (
-              <div className="flex flex-col items-center gap-4">
-                <p className="px-4 text-base text-muted-foreground sm:text-lg">
-                  No recipes yet — be the first to add one!
-                </p>
-                <Link
-                  href="/add-recipe"
-                  className="inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-                >
-                  Add a Recipe
-                </Link>
-              </div>
-            ) : (
-              <p className="px-4 text-base text-muted-foreground sm:text-lg">
-                No recipes match your search. Try a different term or filter.
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd) }}
+      />
+      <HomeClient />
+      <div className="container mx-auto max-w-3xl px-4 pb-12">
+        <NewsletterSignup />
+      </div>
+    </>
   );
-}
-
-export default function Home() {
-  return <HomeContent />;
 }

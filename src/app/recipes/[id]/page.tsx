@@ -1,18 +1,23 @@
-import { CheckCircle, ChefHat, Clock, Star, Users, Video } from 'lucide-react';
+import { BookOpen, CheckCircle, ChefHat, Clock, Star, Users, Video } from 'lucide-react';
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import CommentSection from '@/components/comment-section';
 import { MadeItButton } from '@/components/made-it-button';
+import { NewsletterSignup } from '@/components/newsletter-signup';
 import NutritionalInfo from '@/components/nutritional-info';
 import { SaveButton } from '@/components/save-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { bookTitle } from '@/lib/book';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { getPublishedRecipe } from '@/server/recipes/read-recipes';
+import { buildRecipeJsonLd, jsonLdScript } from '@/lib/recipe-jsonld';
+import { AMMI_NAME, metaDescription, SITE_NAME } from '@/lib/site';
+import { getPublishedRecipeCached } from '@/server/recipes/read-recipes';
 
 type RecipePageProps = {
   params: Promise<{
@@ -20,9 +25,44 @@ type RecipePageProps = {
   }>;
 };
 
+export async function generateMetadata({ params }: RecipePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const recipe = await getPublishedRecipeCached(id);
+  if (!recipe) {
+    return { title: 'Recipe not found', robots: { index: false, follow: true } };
+  }
+  const isAmmi = recipe.source === 'ammi_book';
+  const title = isAmmi ? `${recipe.title}: Ammi's recipe` : recipe.title;
+  const description = metaDescription(
+    recipe.description,
+    isAmmi
+      ? `${recipe.title}, from ${AMMI_NAME}'s handwritten notebook. ${recipe.cuisine} home cooking from ${SITE_NAME}.`
+      : `${recipe.title}: a ${recipe.cuisine} recipe on ${SITE_NAME}.`
+  );
+  const path = `/recipes/${recipe.id}`;
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    authors: [{ name: isAmmi ? AMMI_NAME : recipe.author }],
+    openGraph: {
+      type: 'article',
+      url: path,
+      title,
+      description,
+      siteName: SITE_NAME,
+      publishedTime: recipe.createdAt?.toISOString(),
+      modifiedTime: recipe.updatedAt?.toISOString(),
+      authors: [isAmmi ? AMMI_NAME : recipe.author],
+      tags: recipe.tags,
+    },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
+
 export default async function RecipePage({ params }: RecipePageProps) {
   const { id } = await params;
-  const recipe = await getPublishedRecipe(id);
+  const recipe = await getPublishedRecipeCached(id);
 
   if (!recipe) {
     notFound();
@@ -78,6 +118,10 @@ export default async function RecipePage({ params }: RecipePageProps) {
 
   return (
     <div className="container mx-auto px-3 py-6 duration-500 animate-in fade-in sm:px-4 sm:py-8 lg:py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(buildRecipeJsonLd(recipe)) }}
+      />
       <article>
         <header className="mb-6 sm:mb-8">
           <Badge variant="secondary" className="mb-2 text-xs capitalize sm:text-sm">
@@ -163,7 +207,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
               <CardContent>
                 <ol className="space-y-4 sm:space-y-6">
                   {recipe.instructions.map((step, index) => (
-                    <li key={index} className="flex gap-3 sm:gap-4">
+                    <li key={index} id={`step-${index + 1}`} className="flex gap-3 sm:gap-4">
                       <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary font-headline text-xs font-bold text-primary-foreground sm:h-8 sm:w-8 sm:text-sm">
                         {index + 1}
                       </div>
@@ -194,7 +238,35 @@ export default async function RecipePage({ params }: RecipePageProps) {
               </CardContent>
             </Card>
 
+            {recipe.scanUrl && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                    <BookOpen className="h-5 w-5" /> From Ammi&apos;s notebook
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <a href={recipe.scanUrl} target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={recipe.scanUrl}
+                      alt={`Handwritten page for ${recipe.title}${recipe.sourcePage ? `, page ${recipe.sourcePage}` : ''}`}
+                      loading="lazy"
+                      className="w-full rounded-md border"
+                    />
+                  </a>
+                  {recipe.sourcePage && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {bookTitle(recipe.sourceBook)}, page {recipe.sourcePage}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <NutritionalInfo recipeId={recipe.id} />
+
+            <NewsletterSignup />
           </aside>
         </div>
       </article>
