@@ -1,6 +1,9 @@
 /** Canonical site identity for metadata, sitemap, robots and structured data. */
 
-const rawUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.banoscookbook.com';
+// The served host is www: banoscookbook.com redirects there, and canonical, og:url and
+// sitemap URLs must not point at a redirect. Kept separate from NEXT_PUBLIC_APP_URL,
+// which other code (OAuth redirect URIs, server-side fetches) relies on as it is.
+const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.banoscookbook.com';
 
 export const SITE_URL = (rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`).replace(
   /\/$/,

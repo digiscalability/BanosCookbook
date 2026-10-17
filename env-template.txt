@@ -47,6 +47,8 @@ NODE_ENV=development
 # ===========================================
 # Base URL for the application
 NEXT_PUBLIC_APP_URL=https://banoscookbook.com
+# Canonical host for SEO (canonical, og:url, sitemap, robots). Defaults to https://www.banoscookbook.com
+NEXT_PUBLIC_SITE_URL=https://www.banoscookbook.com
 
 # ===========================================
 # Instagram API Configuration
