@@ -3,12 +3,6 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "crons": [
-    {
-      "path": "/api/cron/daily-social",
-      "schedule": "0 9 * * *"
-    }
-  ],
   "functions": {
     "src/app/api/video/combine/route.ts": {
       "maxDuration": 60,

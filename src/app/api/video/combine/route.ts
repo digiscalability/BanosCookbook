@@ -11,14 +11,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
+  try {
     const body = (await request.json()) as { recipeId?: string };
     const recipeId = body?.recipeId;
-    if (!recipeId || typeof recipeId !== 'string') {
+    if (!recipeId || typeof recipeId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(recipeId)) {
       return NextResponse.json({ success: false, error: 'recipeId is required' }, { status: 400 });
     }
 

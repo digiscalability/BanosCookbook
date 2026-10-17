@@ -1,8 +1,10 @@
 import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { shareRecipeToInstagram } from '@/app/actions';
 import type { Comment, Recipe } from '@/lib/types';
+import { authFailure, isAdminClaims, requireUser } from '@/server/auth/require-admin';
+import { safeFetch } from '@/server/net/ssrf-guard';
+import { DEFAULT_SOCIAL, pickRecipeFields } from '@/server/recipes/recipe-fields';
 
 import adminConfig from '../../../../config/firebase-admin';
 
@@ -159,30 +161,44 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/recipes - Create a new recipe
+// POST /api/recipes - Create a recipe (signed-in users; admins may set source/status)
 export async function POST(request: NextRequest) {
+  let caller: Awaited<ReturnType<typeof requireUser>>;
   try {
-    const recipeData = await request.json();
+    caller = await requireUser(request);
+  } catch (err) {
+    return authFailure(err);
+  }
+  const isAdmin = isAdminClaims(caller);
 
-    // Validate required fields
-    if (!recipeData.title || !recipeData.author) {
-      return NextResponse.json({ error: 'Title and author are required' }, { status: 400 });
+  try {
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'JSON body required' }, { status: 400 });
     }
+    const picked = pickRecipeFields(body, { admin: isAdmin });
+    if (!picked.ok) {
+      return NextResponse.json({ error: picked.error }, { status: 400 });
+    }
+    const recipeData = picked.data as Record<string, unknown> & {
+      title?: string;
+      author?: string;
+      imageId?: string;
+      imageUrl?: string;
+    };
+    // Transient input: uploaded to Storage below, never stored as-is.
+    const selectedImageUrlInput =
+      typeof body.selectedImageUrl === 'string' && body.selectedImageUrl.length <= 2_000_000
+        ? body.selectedImageUrl
+        : undefined;
+
+    if (!recipeData.title || recipeData.title.length < 3) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    }
+    recipeData.author = recipeData.author || caller.name || 'Anonymous';
 
     const admin = getAdmin();
-
-    // Extract verified userId from Bearer token if present
-    let verifiedUserId: string | undefined;
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const idToken = authHeader.slice(7);
-      try {
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        verifiedUserId = decoded.uid;
-      } catch {
-        // Token invalid — treat as anonymous (recipe still created, just unowned)
-      }
-    }
+    const verifiedUserId = caller.uid;
 
     // If an image URL or data URI was provided by the client (selectedImageUrl),
     // attempt to upload it to Firebase Storage and replace imageId with a stable
@@ -190,13 +206,13 @@ export async function POST(request: NextRequest) {
     let imageIdValue = recipeData.imageId as string | undefined;
     // Prefer an explicit selectedImageUrl or imageUrl from the client payload over the legacy imageId.
     const selectedImageUrl =
-      (recipeData.selectedImageUrl as string) ||
+      selectedImageUrlInput ||
       (recipeData.imageUrl as string) ||
       (recipeData.imageId as string) ||
       '';
     console.warn('Recipe image inputs:', {
       providedImageId: recipeData.imageId,
-      providedSelectedImageUrl: recipeData.selectedImageUrl,
+      providedSelectedImageUrl: selectedImageUrlInput?.slice(0, 100),
       providedImageUrl: recipeData.imageUrl,
       resolvedSelectedImageUrl: selectedImageUrl,
     });
@@ -266,7 +282,7 @@ export async function POST(request: NextRequest) {
 
         if (rawUrl.startsWith('data:')) {
           // data:<mime>;base64,<data>
-          const match = rawUrl.match(/^data:(.+);base64,(.*)$/);
+          const match = rawUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i);
           if (!match) return undefined;
           contentType = match[1];
           buffer = Buffer.from(match[2], 'base64');
@@ -282,10 +298,14 @@ export async function POST(request: NextRequest) {
               ? setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS * 2)
               : undefined;
             try {
-              const resp = await fetch(rawUrl, { method: 'GET', signal: controller?.signal });
+              const resp = await safeFetch(rawUrl, { method: 'GET', signal: controller?.signal });
               if (!resp.ok) {
                 fetchErr = new Error(`Image fetch failed with status ${resp.status}`);
                 continue;
+              }
+              if (!(resp.headers.get('content-type') ?? '').startsWith('image/')) {
+                fetchErr = new Error('URL is not an image');
+                break;
               }
               const arrayBuffer = await resp.arrayBuffer();
               buffer = Buffer.from(arrayBuffer);
@@ -470,12 +490,17 @@ export async function POST(request: NextRequest) {
       ...recipeData,
       imageId: imageIdValue ?? (recipeData.imageId as string) ?? '',
       // Prefer processed/stored imageUrl when available
-      imageUrl: finalImageUrl ?? (recipeData.imageUrl as string) ?? undefined,
-      rating: recipeData.rating ?? 0,
-      ratingCount: recipeData.ratingCount ?? 0,
-      comments: recipeData.comments ?? [],
-      // Attach verified userId (overrides any client-supplied value for security)
-      ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+      imageUrl: finalImageUrl ?? (recipeData.imageUrl as string) ?? null,
+      // Server-controlled fields: never taken from the request body.
+      rating: 0,
+      ratingCount: 0,
+      comments: [],
+      userId: verifiedUserId,
+      authorEmail: caller.email ?? null,
+      source: isAdmin && recipeData.source ? recipeData.source : 'user',
+      status: isAdmin ? (recipeData.status ?? 'draft') : 'review',
+      tags: recipeData.tags ?? [],
+      social: { ...DEFAULT_SOCIAL },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -483,32 +508,6 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const docRef = await db.collection('recipes').add(newRecipe);
     const createdDoc = await docRef.get();
-    console.warn('Created recipe document data:', createdDoc.data());
-
-    // If the client requested posting to Instagram and we have a public image URL, attempt to post asynchronously.
-    try {
-      const wantsInstagram = Boolean((recipeData as Record<string, unknown>).postToInstagram);
-      const publicImageUrl = (newRecipe.imageUrl as string) || (newRecipe.imageId as string) || '';
-      if (wantsInstagram) {
-        if (publicImageUrl && !publicImageUrl.startsWith('data:')) {
-          // fire-and-forget; log result when it completes
-          void shareRecipeToInstagram(docRef.id)
-            .then(res => {
-              if (!res.success)
-                console.warn('Instagram posting failed for recipe', docRef.id, res.error);
-              else console.warn('Instagram posted for recipe', docRef.id, res.permalink);
-            })
-            .catch(err => console.error('Error during Instagram post attempt:', err));
-        } else {
-          console.warn(
-            'Skipping Instagram post: no public image URL available for recipe',
-            docRef.id
-          );
-        }
-      }
-    } catch (igErr) {
-      console.error('Error scheduling Instagram post (non-fatal):', igErr);
-    }
 
     // Ensure the image URL stored in the recipe is accessible from the browser.
     try {

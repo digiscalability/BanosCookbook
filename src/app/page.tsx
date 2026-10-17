@@ -1,5 +1,6 @@
 'use client';
 import { Search } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import RecipeCard from '@/components/recipe-card';
@@ -127,12 +128,12 @@ function HomeContent() {
                 <p className="px-4 text-base text-muted-foreground sm:text-lg">
                   No recipes yet — be the first to add one!
                 </p>
-                <a
+                <Link
                   href="/add-recipe"
                   className="inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
                 >
                   Add a Recipe
-                </a>
+                </Link>
               </div>
             ) : (
               <p className="px-4 text-base text-muted-foreground sm:text-lg">

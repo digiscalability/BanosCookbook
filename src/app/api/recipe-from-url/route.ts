@@ -1,31 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { recipeFromUrl } from '@/ai/flows/recipe-from-url';
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+import { assertPublicHttpsUrl, UnsafeUrlError } from '@/server/net/ssrf-guard';
 
 export const runtime = 'nodejs';
 
+/** POST /api/recipe-from-url (admin only: model spend). Public https URLs only. */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { url } = body as { url?: string };
+    await requireAdmin(req);
+  } catch (err) {
+    return authFailure(err);
+  }
 
-    if (!url || typeof url !== 'string') {
+  try {
+    const body = (await req.json().catch(() => ({}))) as { url?: unknown };
+    const { url } = body;
+
+    if (!url || typeof url !== 'string' || url.length > 2048) {
       return NextResponse.json({ error: 'url is required' }, { status: 400 });
     }
 
-    // Basic URL validation
+    let safeUrl: URL;
     try {
-      new URL(url);
-    } catch {
-      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+      safeUrl = await assertPublicHttpsUrl(url);
+    } catch (err) {
+      const message = err instanceof UnsafeUrlError ? err.message : 'Invalid URL';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const result = await recipeFromUrl({ url });
+    const result = await recipeFromUrl({ url: safeUrl.toString() });
     return NextResponse.json(result);
   } catch (error) {
     console.error('[recipe-from-url]', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to extract recipe from URL' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to extract recipe from URL' }, { status: 500 });
   }
 }

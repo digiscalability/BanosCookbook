@@ -17,10 +17,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 type NutritionalInfoProps = {
-  ingredients: string[];
+  recipeId: string;
 };
 
-export default function NutritionalInfo({ ingredients }: NutritionalInfoProps) {
+export default function NutritionalInfo({ recipeId }: NutritionalInfoProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<NutritionalInformationOutput | null>(null);
@@ -32,7 +32,7 @@ export default function NutritionalInfo({ ingredients }: NutritionalInfoProps) {
     setData(null);
 
     try {
-      const result = await getNutritionalData(ingredients);
+      const result = await getNutritionalData(recipeId);
 
       if (result.success && result.data) {
         setData(result.data);

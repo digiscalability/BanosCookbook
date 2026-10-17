@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -7,61 +9,12 @@ export const runtime = 'nodejs';
 const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('firebase-admin') };
 
 export async function POST(request: NextRequest) {
-  // server-side guest rate limit and captcha enforcement
-  async function enforceGuestUploadLimits() {
-    const admin = getAdmin();
-    const authHeader = request.headers.get('authorization');
-    if (authHeader) return; // authenticated requests bypass guest limits
-
-    const ipRaw =
-      request.headers.get('x-forwarded-for') ||
-      request.headers.get('cf-connecting-ip') ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
-    const ip = ipRaw.split(',')[0].trim();
-
-    const limit = Number(process.env.GUEST_UPLOAD_LIMIT_PER_HOUR || '10');
-    const windowMs = 60 * 60 * 1000; // 1 hour
-
-    const ref = admin.firestore().collection('upload_rate_limits').doc(ip);
-    const snap = await ref.get();
-    const now = Date.now();
-    const data = snap.exists ? (snap.data() as { count?: number; windowStart?: number }) : null;
-
-    if (!data || typeof data.windowStart !== 'number' || now - (data.windowStart || 0) > windowMs) {
-      // start new window
-      await ref.set({ count: 1, windowStart: now }, { merge: true });
-      return;
-    }
-
-    if ((data.count || 0) < limit) {
-      await ref.update({ count: (data.count || 0) + 1 });
-      return;
-    }
-
-    // Over limit: require captcha verification
-    // Accept captcha token either in header 'x-captcha-token' or form field 'captcha'
-    const captchaToken =
-      request.headers.get('x-captcha-token') ||
-      (await request.formData()).get('captcha')?.toString();
-    const secret = process.env.RECAPTCHA_SECRET;
-    if (!captchaToken || !secret) {
-      throw { status: 429, message: 'Rate limit exceeded: please complete CAPTCHA' };
-    }
-
-    // Verify captcha
-    const verifyRes = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(captchaToken)}&remoteip=${encodeURIComponent(ip)}`,
-    });
-    const verifyJson = await verifyRes.json();
-    if (!verifyJson.success) {
-      throw { status: 429, message: 'CAPTCHA verification failed' };
-    }
-
-    // Captcha ok: reset window and increment
-    await ref.set({ count: 1, windowStart: now }, { merge: true });
+  // Admin only: uploads are made public in the bucket. (Replaces the old guest
+  // limit, which any `Authorization` header bypassed.)
+  try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
   }
 
   async function logUploadEvent(event: {
@@ -93,33 +46,6 @@ export async function POST(request: NextRequest) {
     const file = form.get('file') as File | null;
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    // enforce guest limits before processing
-    try {
-      await enforceGuestUploadLimits();
-    } catch (limitErr: unknown) {
-      const ipRaw =
-        request.headers.get('x-forwarded-for') ||
-        request.headers.get('cf-connecting-ip') ||
-        request.headers.get('x-real-ip') ||
-        'unknown';
-      const ip = ipRaw.split(',')[0].trim();
-      const msg =
-        typeof limitErr === 'object' && limitErr !== null && 'message' in limitErr
-          ? ((limitErr as Record<string, unknown>).message as string)
-          : String(limitErr);
-      const status =
-        typeof limitErr === 'object' && limitErr !== null && 'status' in limitErr
-          ? ((limitErr as Record<string, unknown>).status as number)
-          : 429;
-      await logUploadEvent({
-        path: '/api/images/upload',
-        ip,
-        success: false,
-        reason: msg || String(limitErr),
-      });
-      return NextResponse.json({ error: msg || 'Rate limit exceeded' }, { status: status || 429 });
     }
 
     const admin = getAdmin();
@@ -195,6 +121,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const contentType = file.type || 'application/octet-stream';
+    if (!contentType.startsWith('image/') || file.size > 15 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Only images up to 15 MB' }, { status: 400 });
+    }
     const ext = (contentType.split('/')[1] || 'bin').split('+')[0];
     const filename = `recipes/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
     const f = bucket.file(filename);

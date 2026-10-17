@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { splitScriptIntoScenesFlow } from '@/ai/flows/split-script-into-scenes';
 
@@ -13,17 +13,16 @@ describe('split-script fallback', () => {
   });
 });
 
-describe('getSceneHistoryAction smoke', () => {
-  it('should be callable (admin DB not available in test env) and return a predictable structure', async () => {
-    // Import lazily; this action uses admin DB so in test env it will likely return failure but shape should be respected
+describe('getSceneHistoryAction auth', () => {
+  it('rejects callers without an admin session', async () => {
+    vi.doMock('next/headers', () => ({
+      cookies: async () => ({ get: () => undefined }),
+    }));
     const { getSceneHistoryAction } = await import('@/app/actions');
-    const res = await getSceneHistoryAction('nonexistent_recipe', 1);
-    expect(res).toHaveProperty('success');
-    // success can be false in CI; ensure no exception thrown and keys present
-    if (res.success) {
-      expect(Array.isArray(res.history)).toBe(true);
-    } else {
-      expect(typeof res.error === 'string' || res.history === undefined).toBe(true);
-    }
+    await expect(getSceneHistoryAction('nonexistent_recipe', 1)).rejects.toMatchObject({
+      name: 'AuthError',
+      status: 401,
+    });
+    vi.doUnmock('next/headers');
   });
 });

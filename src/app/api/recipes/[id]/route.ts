@@ -2,6 +2,8 @@ import type { firestore } from 'firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 import type { Comment, Recipe } from '@/lib/types';
+import { authFailure, isAdminClaims, requireUser } from '@/server/auth/require-admin';
+import { pickRecipeFields } from '@/server/recipes/recipe-fields';
 
 import adminConfig from '../../../../../config/firebase-admin';
 
@@ -155,22 +157,47 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// PUT /api/recipes/[id] - Update a recipe
+type Caller = Awaited<ReturnType<typeof requireUser>>;
+
+/** Owner (the uid that created it) or admin; anyone else gets 403, unknown ids 404. */
+async function loadForWrite(id: string, caller: Caller) {
+  const ref = getDb().collection('recipes').doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return { ref, error: NextResponse.json({ error: 'Recipe not found' }, { status: 404 }) };
+  const isAdmin = isAdminClaims(caller);
+  const isOwner = typeof snap.get('userId') === 'string' && snap.get('userId') === caller.uid;
+  if (!isAdmin && !isOwner) {
+    return { ref, error: NextResponse.json({ error: 'Owner or admin only' }, { status: 403 }) };
+  }
+  return { ref, isAdmin, error: null };
+}
+
+// PUT /api/recipes/[id] - Update a recipe (owner or admin; whitelisted fields only)
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let caller: Caller;
+  try {
+    caller = await requireUser(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const { id } = await params;
-    const updateData = await request.json();
+    const { ref, isAdmin, error } = await loadForWrite(id, caller);
+    if (error) return error;
+
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'JSON body required' }, { status: 400 });
+    }
+    const picked = pickRecipeFields(body, { admin: Boolean(isAdmin) });
+    if (!picked.ok) return NextResponse.json({ error: picked.error }, { status: 400 });
+    if (Object.keys(picked.data).length === 0) {
+      return NextResponse.json({ error: 'No editable fields in body' }, { status: 400 });
+    }
 
     const admin = getAdmin();
-    const updateDoc = {
-      ...updateData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const db = getDb();
-    const recipeRef = db.collection('recipes').doc(id);
-    await recipeRef.update(updateDoc);
-    const updatedSnapshot = await recipeRef.get();
+    await ref.update({ ...picked.data, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    const updatedSnapshot = await ref.get();
 
     return NextResponse.json({ recipe: serializeRecipe(updatedSnapshot) });
   } catch (error) {
@@ -179,17 +206,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// DELETE /api/recipes/[id] - Delete a recipe
+// DELETE /api/recipes/[id] - Delete a recipe (owner or admin; Ammi's recipes: admin only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let caller: Caller;
+  try {
+    caller = await requireUser(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const { id } = await params;
+    const { ref, isAdmin, error } = await loadForWrite(id, caller);
+    if (error) return error;
+    if (!isAdmin && (await ref.get()).get('source') === 'ammi_book') {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
 
-    const db = getDb();
-    await db.collection('recipes').doc(id).delete();
-
+    await ref.delete();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting recipe:', error);

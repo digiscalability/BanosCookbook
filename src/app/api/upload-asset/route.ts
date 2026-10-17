@@ -6,12 +6,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import type { EditorAsset } from '@/components/video-editor/types';
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
 
 import adminConfig from '../../../../config/firebase-admin';
 
 const { getAdmin, getDb, getStorage } = adminConfig;
 
 export async function POST(request: NextRequest) {
+  try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -20,6 +26,9 @@ export async function POST(request: NextRequest) {
 
     if (!file || !recipeId || !assetType) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(recipeId) || !['video', 'audio', 'image', 'subtitle'].includes(assetType)) {
+      return NextResponse.json({ error: 'Invalid recipeId or assetType' }, { status: 400 });
     }
 
     console.warn('🎬 Uploading asset:', {
@@ -128,8 +137,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export const config = {
-  api: {
-    bodyParser: false, // Disable body parsing to handle FormData
-  },
-};

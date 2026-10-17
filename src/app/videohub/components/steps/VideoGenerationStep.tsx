@@ -56,7 +56,9 @@ export function VideoGenerationStep() {
     // Check credits before starting
     if (user) {
       const uid = user.uid;
-      const allowed = await canGenerateVideo(uid);
+      // VideoHub is admin-only and user_credits is not client-writable, so a failed
+      // credit lookup must not block the admin from generating.
+      const allowed = await canGenerateVideo(uid).catch(() => true);
       if (!allowed) {
         const credits = await getUserCredits(uid);
         const limit = credits.tier === 'free' ? 2 : credits.tier === 'creator' ? 15 : Infinity;
