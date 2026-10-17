@@ -11,8 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { getRecipeById } from '@/lib/firestore-recipes';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { getPublishedRecipe } from '@/server/recipes/read-recipes';
 
 type RecipePageProps = {
   params: Promise<{
@@ -22,7 +22,7 @@ type RecipePageProps = {
 
 export default async function RecipePage({ params }: RecipePageProps) {
   const { id } = await params;
-  const recipe = await getRecipeById(id);
+  const recipe = await getPublishedRecipe(id);
 
   if (!recipe) {
     notFound();

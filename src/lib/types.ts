@@ -41,6 +41,34 @@ export interface Recipe {
   madeItCount?: number; // Denormalized made-it count
   createdAt?: Date; // Added for Firestore timestamps
   updatedAt?: Date; // Added for Firestore timestamps
+  // ── Content model: shared contract with ventures-ops (stream-d-contracts.md §1) ──
+  source?: RecipeSource;
+  status?: RecipeStatus; // only 'published' is public or goes to social
+  sourceBook?: string; // slug, e.g. 'monasal-bana'
+  sourcePage?: number; // 1-based page of the book
+  scanPath?: string; // book/{sourceBook}/p{nnn}.jpg
+  scanUrl?: string; // Firebase download URL (token) for scanPath
+  tags?: string[]; // 0-12 slugs, ^[a-z][a-z0-9-]{0,39}$
+  dishPhoto?: DishPhoto | null;
+  social?: RecipeSocial;
+}
+
+export type RecipeSource = 'ammi_book' | 'sample' | 'community';
+export type RecipeStatus = 'draft' | 'published' | 'hidden';
+
+/** Missing `aiGenerated` is treated as true (the post carries the AI-visuals disclosure). */
+export interface DishPhoto {
+  url: string;
+  path?: string;
+  aiGenerated?: boolean;
+  credit?: string;
+}
+
+/** The engine never writes here; posting history lives in the ventures-ops hub. */
+export interface RecipeSocial {
+  eligible: boolean;
+  excludePlatforms?: string[];
+  hookNote?: string; // max 200 chars, a family-supplied fact captions may quote
 }
 
 export interface Comment {

@@ -1,6 +1,6 @@
 'use client';
 
-import { Film, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { BookOpen, Film, Image as ImageIcon, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export default function AdminPage() {
   const adminTools = [
+    {
+      title: "Ammi's Book",
+      description: 'Add recipes from the book by photo and attach scanned pages',
+      icon: BookOpen,
+      href: '/admin/ingest',
+      color: 'bg-amber-50 border-amber-200',
+      buttonColor: 'bg-amber-700 hover:bg-amber-800',
+      iconColor: 'text-amber-700',
+      badge: 'Content',
+    },
     {
       title: 'Video Hub',
       description: 'Create, manage, and generate video content for recipes',

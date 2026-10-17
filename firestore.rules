@@ -6,10 +6,10 @@ rules_version = '2';
 // are not affected by these rules. Anything not matched below is denied.
 //
 // Recipe contract (shared with ventures-ops):
-//   source  'ammi_book' | 'sample' | 'user'      status 'draft' | 'review' | 'published' | 'hidden'
-//   social  {eligible, lastPostedAt, timesPosted, lastCycle}
-// Only status == 'published' is public. source, status, social, ratings, comments,
-// saves and Instagram bookkeeping are server-only.
+//   source  'ammi_book' | 'sample' | 'community'   status 'draft' | 'published' | 'hidden'
+//   social  {eligible, excludePlatforms?, hookNote?}   (stream-d-contracts.md §1)
+// Only status == 'published' is public. source, sourceBook, sourcePage, scanPath, scanUrl,
+// status, social, ratings, comments, saves and Instagram bookkeeping are server-only.
 //
 // Tests: npm run test:rules (Firestore emulator, testing/rules/firestore.rules.test.ts)
 
@@ -44,7 +44,7 @@ service cloud.firestore {
         && (!('instructions' in d) || (d.instructions is list && d.instructions.size() <= 200))
         && (!('cuisine' in d) || (d.cuisine is string && d.cuisine.size() <= 100))
         && (!('imageUrl' in d) || (d.imageUrl is string && d.imageUrl.size() <= 2000))
-        && (!('tags' in d) || (d.tags is list && d.tags.size() <= 30));
+        && (!('tags' in d) || (d.tags is list && d.tags.size() <= 12));
     }
 
     function isRecipeOwner() {
@@ -134,6 +134,12 @@ service cloud.firestore {
 
     match /admin/{document} {
       allow read, write: if isAdmin();
+    }
+
+    // Book page index (written by scripts/book/upload-pages.ts and /admin/ingest).
+    match /book_pages/{pageId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Bano's Cookbook Storage: no direct client access. The server (Admin SDK) writes,
+// and pages are served through download-token URLs (book scans, recipe images).
+// Matches the ruleset deployed on studio-4664575455-de3d2.firebasestorage.app.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
