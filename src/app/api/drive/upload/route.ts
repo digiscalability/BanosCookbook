@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('firebase-admin') };
@@ -92,56 +94,6 @@ async function uploadBufferToFirebaseStorage(
   }
 }
 
-// Guest upload limits + captcha and logging (similar to images/upload route)
-async function enforceGuestUploadLimitsDrive(request: NextRequest, captchaToken?: string) {
-  const admin = getAdmin();
-  const authHeader = request.headers.get('authorization');
-  if (authHeader) return; // authenticated bypass
-
-  const ipRaw =
-    request.headers.get('x-forwarded-for') ||
-    request.headers.get('cf-connecting-ip') ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
-  const ip = ipRaw.split(',')[0].trim();
-
-  const limit = Number(process.env.GUEST_UPLOAD_LIMIT_PER_HOUR || '10');
-  const windowMs = 60 * 60 * 1000;
-
-  const ref = admin.firestore().collection('upload_rate_limits').doc(ip);
-  const snap = await ref.get();
-  const now = Date.now();
-  const data = snap.exists ? (snap.data() as { count?: number; windowStart?: number }) : null;
-
-  if (!data || typeof data.windowStart !== 'number' || now - (data.windowStart || 0) > windowMs) {
-    await ref.set({ count: 1, windowStart: now }, { merge: true });
-    return;
-  }
-
-  if ((data.count || 0) < limit) {
-    await ref.update({ count: (data.count || 0) + 1 });
-    return;
-  }
-
-  // Over limit: require captcha
-  const secret = process.env.RECAPTCHA_SECRET;
-  if (!captchaToken || !secret) {
-    throw { status: 429, message: 'Rate limit exceeded: please complete CAPTCHA' };
-  }
-
-  const verifyRes = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(captchaToken)}&remoteip=${encodeURIComponent(ip)}`,
-  });
-  const verifyJson = await verifyRes.json();
-  if (!verifyJson.success) {
-    throw { status: 429, message: 'CAPTCHA verification failed' };
-  }
-
-  await ref.set({ count: 1, windowStart: now }, { merge: true });
-}
-
 async function logUploadEventDrive(event: {
   path: string;
   ip: string;
@@ -168,42 +120,14 @@ async function logUploadEventDrive(event: {
 }
 
 export async function POST(request: NextRequest) {
+  // Admin only (replaces the guest limit, which any `Authorization` header bypassed).
   try {
-    // Extract captcha token from header or form field (form will be parsed below if needed)
-    const captchaTokenHeader = request.headers.get('x-captcha-token');
-    let captchaToken = captchaTokenHeader || undefined;
-
-    // Enforce guest limits before heavy processing
-    try {
-      await enforceGuestUploadLimitsDrive(request, captchaToken);
-    } catch (limitErr: unknown) {
-      const ipRaw =
-        request.headers.get('x-forwarded-for') ||
-        request.headers.get('cf-connecting-ip') ||
-        request.headers.get('x-real-ip') ||
-        'unknown';
-      const ip = ipRaw.split(',')[0].trim();
-      const limitObj =
-        typeof limitErr === 'object' && limitErr !== null
-          ? (limitErr as Record<string, unknown>)
-          : null;
-      const limitMsg =
-        limitObj && 'message' in limitObj ? String(limitObj.message) : String(limitErr);
-      const statusCode = limitObj && 'status' in limitObj ? Number(limitObj.status) : 429;
-      await logUploadEventDrive({
-        path: '/api/drive/upload',
-        ip,
-        success: false,
-        reason: limitMsg,
-      });
-      return NextResponse.json(
-        { error: limitMsg || 'Rate limit exceeded' },
-        { status: statusCode || 429 }
-      );
-    }
-
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
+  try {
     const form = await request.formData();
-    if (!captchaToken) captchaToken = form.get('captcha')?.toString() || undefined;
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 

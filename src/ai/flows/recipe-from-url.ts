@@ -1,4 +1,5 @@
-'use server';
+// Server-only module (imported by admin-gated actions and routes). Not a server-action
+// file, so none of its exports are callable from the browser.
 
 /**
  * @fileOverview A Genkit flow that fetches and parses a recipe from a given URL.

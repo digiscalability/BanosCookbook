@@ -11,18 +11,24 @@ export default function AdminCleanupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
+    dryRun?: boolean;
     removed?: number;
     duplicates?: Array<{ title: string; count: number }>;
     error?: string;
   } | null>(null);
 
-  const handleRemoveDuplicates = async () => {
+  const handleRemoveDuplicates = async (dryRun: boolean) => {
+    if (!dryRun && !window.confirm('Delete the duplicates listed in the dry run? This cannot be undone.')) {
+      return;
+    }
     setIsLoading(true);
     setResult(null);
 
     try {
       const response = await fetch('/api/admin/remove-duplicates', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun }),
       });
 
       const data = await response.json();
@@ -51,8 +57,17 @@ export default function AdminCleanupPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Button
-            onClick={handleRemoveDuplicates}
+            onClick={() => handleRemoveDuplicates(true)}
             disabled={isLoading}
+            variant="outline"
+            size="lg"
+            className="mr-3"
+          >
+            Dry run
+          </Button>
+          <Button
+            onClick={() => handleRemoveDuplicates(false)}
+            disabled={isLoading || !result?.dryRun || !result.duplicates?.length}
             variant="destructive"
             size="lg"
           >
@@ -76,7 +91,18 @@ export default function AdminCleanupPage() {
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertTitle className="text-green-800">Success!</AlertTitle>
                   <AlertDescription className="text-green-700">
-                    {result.removed === 0 ? (
+                    {result.dryRun ? (
+                      <div>
+                        <p className="mb-2">Dry run: nothing was deleted.</p>
+                        <ul className="list-inside list-disc space-y-1">
+                          {(result.duplicates ?? []).map((dup, index) => (
+                            <li key={index}>
+                              <strong>{dup.title}</strong> - would remove {dup.count} duplicate(s)
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : result.removed === 0 ? (
                       <p>No duplicate recipes found. Your database is clean! ✨</p>
                     ) : (
                       <div>
@@ -123,7 +149,8 @@ export default function AdminCleanupPage() {
             <li>Scans all recipes in the database</li>
             <li>Groups recipes by title (case-insensitive)</li>
             <li>Identifies groups with multiple recipes (duplicates)</li>
-            <li>Keeps the oldest recipe in each group</li>
+            <li>Keeps the oldest recipe in each group; Ammi's recipes are always kept</li>
+            <li>Run a dry run first; deleting needs a second confirmation</li>
             <li>Deletes all newer duplicates</li>
             <li>Reports the results with details of what was removed</li>
           </ul>

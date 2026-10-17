@@ -1,8 +1,7 @@
-import crypto from 'crypto';
-
 import { NextRequest, NextResponse } from 'next/server';
 
-import { syncInstagramComments, syncInstagramLikes } from '@/app/actions';
+import { syncInstagramComments, syncInstagramLikes } from '@/server/instagram/recipe-instagram';
+import { verifyMetaSignature } from '@/server/instagram/verify-signature';
 
 import adminConfig from '../../../../../config/firebase-admin';
 
@@ -50,96 +49,25 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST - Webhook Notifications
- * Instagram sends real-time updates here
+ * POST - Webhook notifications. Rejected with 401 unless signed by Meta.
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify the request signature
     const signature = request.headers.get('x-hub-signature-256');
-    const appSecret = process.env.FACEBOOK_APP_SECRET;
-
-    // Read the raw body as bytes (must use raw bytes for HMAC verification)
-    let rawBuffer: Buffer;
-    try {
-      const arrayBuffer = await request.arrayBuffer();
-      rawBuffer = Buffer.from(arrayBuffer);
-      // --- DEBUG: Log raw POST body and signature header as base64 for local testing ---
-      const payloadBase64 = rawBuffer.toString('base64');
-      console.warn('=== WEBHOOK DEBUG START ===');
-      console.warn('WEBHOOK_PAYLOAD_BASE64:', payloadBase64);
-      console.warn('WEBHOOK_SIGNATURE_HEADER:', signature || '');
-      console.warn('=== WEBHOOK DEBUG END ===');
-      // --- END DEBUG ---
-    } catch (e) {
-      console.error('❌ Failed to read/log debug payload/signature', e);
-      return NextResponse.json({ error: 'Failed to read request body' }, { status: 500 });
+    if (!signature) {
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
 
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
     if (!appSecret) {
       console.error('❌ FACEBOOK_APP_SECRET not configured');
       return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     }
 
-    // Read the raw body as bytes (must use raw bytes for HMAC verification)
-    // (rawBuffer is already set above in debug block)
-
-    // Determine signature header (support sha256 header and fallback)
-    const signatureHeader = signature || request.headers.get('x-hub-signature');
-
-    if (signatureHeader) {
-      // Header format is usually 'sha256=<hex>' or 'sha1=<hex>'
-      const parts = signatureHeader.split('=');
-      const algo = (parts[0] || '').toLowerCase();
-      const sigHex = parts[1] || '';
-
-      if (!sigHex) {
-        console.error('❌ Invalid webhook signature format');
-        return NextResponse.json({ error: 'Invalid signature format' }, { status: 403 });
-      }
-
-      // Only allow known algorithms
-      if (algo !== 'sha256' && algo !== 'sha1') {
-        console.error('❌ Unsupported webhook signature algorithm', algo);
-        return NextResponse.json({ error: 'Unsupported signature algorithm' }, { status: 403 });
-      }
-
-      const expectedHex = crypto
-        .createHmac(algo === 'sha256' ? 'sha256' : 'sha1', appSecret)
-        .update(rawBuffer)
-        .digest('hex');
-
-      try {
-        const sigBuf = Buffer.from(sigHex, 'hex');
-        const expectedBuf = Buffer.from(expectedHex, 'hex');
-
-        // safe equal requires same length
-        if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-          // Debug information to help diagnose signature mismatches in production
-          try {
-            const srcIp =
-              request.headers.get('x-forwarded-for') ||
-              request.headers.get('x-real-ip') ||
-              'unknown';
-            const rawLen = rawBuffer ? rawBuffer.length : 'unknown';
-            const sigPreview = sigHex.slice(0, 12);
-            const expectedPreview = expectedHex.slice(0, 12);
-            console.error('❌ Invalid webhook signature', {
-              srcIp,
-              rawLen,
-              sigPreview,
-              expectedPreview,
-            });
-          } catch (dbgErr) {
-            console.error('❌ Invalid webhook signature (failed to build debug info)', dbgErr);
-          }
-
-          return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
-        }
-      } catch (e) {
-        console.error('❌ Error verifying signature', e);
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
-      }
+    const rawBuffer = Buffer.from(await request.arrayBuffer());
+    if (!verifyMetaSignature(rawBuffer, signature, appSecret)) {
+      console.warn('❌ Instagram webhook rejected: missing or invalid x-hub-signature-256');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Parse the webhook payload from the raw buffer

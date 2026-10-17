@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+
 export const runtime = 'nodejs';
 
 const REQUIRED_VARS = [
@@ -9,7 +11,12 @@ const REQUIRED_VARS = [
   'FACEBOOK_APP_SECRET',
 ];
 
-export function GET() {
+export async function GET(request: Request) {
+  try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   const missing = REQUIRED_VARS.filter(v => !process.env[v]);
   return NextResponse.json({
     configured: missing.length === 0,

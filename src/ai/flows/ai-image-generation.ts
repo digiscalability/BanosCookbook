@@ -1,4 +1,5 @@
-'use server';
+// Server-only module (imported by admin-gated actions and routes). Not a server-action
+// file, so none of its exports are callable from the browser.
 
 /**
  * @fileOverview Advanced AI image generation for recipes using Google's Imagen

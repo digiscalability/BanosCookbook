@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+
 import adminConfig from '../../../../../config/firebase-admin';
 
 const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('firebase-admin') };
@@ -9,6 +11,11 @@ const { getAdmin } = adminConfig as unknown as { getAdmin: () => typeof import('
  * GET /api/admin/generated-images?unused=true (optional: filter unused only)
  */
 export async function GET(request: Request) {
+  try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const { searchParams } = new URL(request.url);
     const unusedOnly = searchParams.get('unused') === 'true';
@@ -60,6 +67,11 @@ export async function GET(request: Request) {
  * DELETE endpoint to clean up old unused images
  */
 export async function DELETE(request: Request) {
+  try {
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const { searchParams } = new URL(request.url);
     const daysOld = parseInt(searchParams.get('daysOld') || '30');

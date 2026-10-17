@@ -33,7 +33,8 @@
     "e2e:ui": "playwright test --ui",
     "e2e:headed": "playwright test --headed",
     "e2e:debug": "playwright test --debug",
-    "e2e:report": "playwright show-report"
+    "e2e:report": "playwright show-report",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-banos \"vitest run -c vitest.rules.config.ts\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -107,6 +108,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { commentReplySuggestion } from '@/ai/flows/comment-reply-suggestion';
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
+  try {
+    await requireAdmin(req);
+  } catch (err) {
+    return authFailure(err);
+  }
   try {
     const body = await req.json();
     const { recipeTitle, recipeDescription, comment } = body as {

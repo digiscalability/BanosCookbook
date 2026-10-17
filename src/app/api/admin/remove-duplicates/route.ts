@@ -1,48 +1,33 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-import { removeDuplicateRecipesAction } from '@/app/actions';
+import { authFailure, requireAdmin } from '@/server/auth/require-admin';
+import { removeDuplicateRecipes } from '@/server/recipes/remove-duplicates';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
- * API endpoint to remove duplicate recipes from the database
- * GET /api/admin/remove-duplicates
+ * POST /api/admin/remove-duplicates   (admin only)
+ * Body: { dryRun?: boolean }  — dry run unless dryRun is explicitly false.
  */
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    console.warn('🔧 Admin: Remove duplicates API called');
-
-    const result = await removeDuplicateRecipesAction();
-
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        message: `Successfully removed ${result.removed} duplicate recipe(s)`,
-        removed: result.removed,
-        duplicates: result.duplicates,
-      });
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.error,
-        },
-        { status: 500 }
-      );
-    }
-  } catch (error) {
-    console.error('Error in remove-duplicates API:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    await requireAdmin(request);
+  } catch (err) {
+    return authFailure(err);
   }
-}
 
-/**
- * POST method for programmatic access
- */
-export async function POST() {
-  return GET();
+  const body = (await request.json().catch(() => ({}))) as { dryRun?: unknown };
+  const dryRun = body.dryRun !== false;
+
+  const result = await removeDuplicateRecipes({ dryRun });
+  if (!result.success) {
+    return NextResponse.json(result, { status: 500 });
+  }
+  return NextResponse.json({
+    ...result,
+    message: dryRun
+      ? `Dry run: ${result.duplicates?.reduce((n, g) => n + g.count, 0) ?? 0} recipe(s) would be removed`
+      : `Removed ${result.removed} duplicate recipe(s)`,
+  });
 }

@@ -194,7 +194,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
               </CardContent>
             </Card>
 
-            <NutritionalInfo ingredients={recipe.ingredients} />
+            <NutritionalInfo recipeId={recipe.id} />
           </aside>
         </div>
       </article>

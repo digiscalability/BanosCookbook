@@ -1,4 +1,5 @@
-'use server';
+// Server-only module (imported by admin-gated actions and routes). Not a server-action
+// file, so none of its exports are callable from the browser.
 
 /**
  * @fileOverview Enhanced PDF processing with image support for recipe extraction.
