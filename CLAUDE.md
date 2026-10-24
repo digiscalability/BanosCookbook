@@ -1,17 +1,10 @@
 # BanosCookbook — Claude Code context
 
-This repo is part of a multi-venture operator setup. **BanosCookbook is a product under DigiScalability** (the parent holding company). Live state and decisions are tracked in Notion, not in this file. **Read Notion FIRST.**
+This repo is part of a multi-venture operator setup. **BanosCookbook is a product under DigiScalability** (the parent holding company).
 
-## Live state (read this before anything else)
+## Status
 
-Fetch via Notion MCP: {PASTE BANOSCOOKBOOK STATE PAGE URL AFTER CREATING IT IN NOTION}
-
-Before answering my first prompt in any session:
-
-1. Fetch the State page above
-2. Read "Last session summary", "Open threads", "Decisions locked in"
-3. Also read `.claude/LOCAL-STATE.md` in this repo for local-only context from the last Code session
-4. Acknowledge where we left off in ≤20 words, then wait for my prompt. No preamble.
+Venture status lives only in the Ventures register (`C:\claudeSessions\SoloBro\Home.md`); what is next is in `TASKS.md` › Bano's Cookbook beside it.
 
 ## Operator context
 
@@ -58,7 +51,7 @@ Default to the session model. For bulk work (batch image tracking, PDF processin
 
 ## Cross-venture awareness
 
-BanosCookbook assets occasionally surface in DigiScalability website content (recipe showcase). If a change affects the parent site, note it in the Sessions DB handoff rather than reaching into `C:\claudeSessions\githubCLONES\website\` from here.
+BanosCookbook assets occasionally surface in DigiScalability website content (recipe showcase). If a change affects the parent site, add it to `TASKS.md` › DigiScalability Website rather than editing `digiscalability-website` from here.
 
 ## Checkpoint protocol
 
@@ -66,8 +59,6 @@ When I say "checkpoint", when you hit an error/limit, or when we wrap:
 
 1. Summarize session in ≤6 bullets
 2. Write to `.claude/LOCAL-STATE.md` (replace entire file — branch, files in flight, next concrete step)
-3. Update the Notion State page "Last session summary" via MCP
-4. Create a row in the Notion Sessions DB (Venture=BanosCookbook, Surface="code", Status=Checkpointed, What I was doing, Next step, Blockers)
-5. Confirm in chat: "Checkpointed. See Notion [URL]."
+3. Confirm in chat: "Checkpointed."
 
-Do ALL FIVE steps — Notion writes must complete. If MCP fails, save locally and flag loudly.
+`.claude/LOCAL-STATE.md` is the only handoff surface. A new session reads it first when it exists, says where we left off in ≤20 words, and waits for my prompt.
