@@ -50,7 +50,7 @@ export function MadeItButton({
       size="sm"
       onClick={(e) => { e.preventDefault(); handleToggle(); }}
       disabled={isPending}
-      aria-label={optimistic.made ? 'You made this!' : 'Mark as made'}
+      aria-pressed={optimistic.made}
       className={cn(
         'gap-1.5 transition-all',
         optimistic.made && 'bg-green-600 hover:bg-green-700 border-green-600 text-white',

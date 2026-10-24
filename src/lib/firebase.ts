@@ -1,5 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  connectAuthEmulator,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -18,7 +24,23 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+
+// getAuth() pulls in the popup/redirect resolver, which loads Google's auth iframe (about 95 KB
+// plus its own requests) on every page. Only the Google popup needs it, so initialize without
+// it and hand `browserPopupRedirectResolver` to signInWithPopup (see auth-context).
+function createAuth() {
+  if (typeof window === 'undefined') return getAuth(app);
+  try {
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    });
+  } catch {
+    // Already initialized (dev hot reload evaluates this module again).
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
 
 // Connect to emulators in development (optional)
 if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' && typeof window !== 'undefined') {

@@ -8,13 +8,30 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/lib/auth-context';
-import type { Recipe } from '@/lib/types';
+import { canOptimizeImage } from '@/lib/recipe-image';
+import type { Comment, Recipe } from '@/lib/types';
 
 import { InstagramBadge } from './instagram-badge';
 import { SaveButton } from './save-button';
 
+/** The fields a card reads, so lists can be handed over without whole recipes. */
+export type RecipeCardData = Pick<
+  Recipe,
+  | 'id'
+  | 'title'
+  | 'author'
+  | 'cuisine'
+  | 'imageId'
+  | 'imageUrl'
+  | 'videoUrl'
+  | 'rating'
+  | 'ratingCount'
+  | 'savedBy'
+  | 'savedCount'
+> & { comments: Pick<Comment, 'id' | 'isFromInstagram'>[] };
+
 interface RecipeCardProps {
-  recipe: Recipe;
+  recipe: RecipeCardData;
   priority?: boolean;
 }
 
@@ -41,16 +58,6 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
     : placeholder?.description || recipe.title;
   const ratingCount = recipe.ratingCount ?? 0;
   const ratingLabel = ratingCount > 0 ? recipe.rating.toFixed(1) : 'New';
-
-  // Determine if we should use native img tag
-  // Use native img for data URIs, signed URLs, or Firebase Storage URLs to avoid proxy issues
-  const isDataUri = imageSrc.startsWith('data:');
-  const isStorageUrl =
-    imageSrc.includes('storage.googleapis.com') ||
-    imageSrc.includes('firebasestorage.googleapis.com');
-  const isImageUrl = imageSrc.startsWith('http');
-  const shouldUseImgTag =
-    isDataUri || isStorageUrl || (process.env.NODE_ENV === 'development' && isImageUrl);
 
   // Animation for comment counter
   const [animate, setAnimate] = useState(false);
@@ -98,27 +105,19 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
               />
             )}
             {/* Static image */}
-            {(isImageUrl || placeholder) &&
-              (shouldUseImgTag ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imageSrc}
-                  alt={imageAlt}
-                  data-ai-hint={placeholder?.imageHint}
-                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-300 ${videoHovered ? 'opacity-0' : 'group-hover:scale-105'}`}
-                />
-              ) : (
-                <Image
-                  src={imageSrc}
-                  alt={imageAlt}
-                  data-ai-hint={placeholder?.imageHint}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                  className={`object-cover transition-all duration-300 ${videoHovered ? 'opacity-0' : 'group-hover:scale-105'}`}
-                  priority={priority}
-                  unoptimized={isImageUrl}
-                />
-              ))}
+            {imageSrc && (
+              <Image
+                src={imageSrc}
+                alt={imageAlt}
+                data-ai-hint={placeholder?.imageHint}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                className={`object-cover transition-all duration-300 ${videoHovered ? 'opacity-0' : 'group-hover:scale-105'}`}
+                priority={priority}
+                fetchPriority={priority ? 'high' : undefined}
+                unoptimized={!canOptimizeImage(imageSrc)}
+              />
+            )}
             {/* Video badge */}
             {hasVideo && !videoHovered && (
               <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-white">
@@ -142,7 +141,7 @@ function RecipeCard({ recipe, priority = false }: RecipeCardProps) {
           <Badge variant="secondary" className="mb-2 text-xs capitalize sm:text-sm">
             {recipe.cuisine}
           </Badge>
-          <CardTitle className="line-clamp-2 font-headline text-base leading-snug sm:text-lg">
+          <CardTitle as="h2" className="line-clamp-2 font-headline text-base leading-snug sm:text-lg">
             {recipe.title}
           </CardTitle>
         </CardContent>

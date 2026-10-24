@@ -1,0 +1,42 @@
+# Bano's Cookbook
+
+> A website that publishes recipes transcribed from Shahar Bano's handwritten notebooks from 1981 (called Ammi on the site). The recipes are Pakistani home cooking, cakes and party food, kept the way she wrote them.
+
+Site: https://www.banoscookbook.com/
+
+- Source: the handwritten notebook "MonAsal (Bana)", 1981. A recipe page can show a scan of the handwritten page it was transcribed from.
+- Each recipe page lists the ingredients, the instructions, prep and cook time, servings and cuisine. It carries schema.org Recipe structured data (JSON-LD).
+- The dish images on recipe pages are AI-generated illustrations, not photographs of the cooked dishes. Nutritional analysis, where shown, is also AI-generated.
+- Visitors can leave comments and ratings, save recipes and sign up for an email with one of Ammi's recipes each week.
+- Contact: info@banoscookbook.com
+
+## Recipes
+
+13 published recipes. The list in https://www.banoscookbook.com/sitemap.xml is the current one.
+
+- [Red Ribbon Rice](https://www.banoscookbook.com/recipes/604DvW5VECtSv2sHso9F): layered rice in three colours (red, yellow, white), served with green chutney and spiced mince.
+- [Peanut Pastries](https://www.banoscookbook.com/recipes/CM4srGedDfhH90igi5u4): sweet baked pastries topped with jam and a caramelised nut topping.
+- [Chicken Cream Soup](https://www.banoscookbook.com/recipes/H8Ambs1DH2OXu0L4Llzl): creamy chicken soup, from a journal dated May 1981.
+- [Fried Pomfret](https://www.banoscookbook.com/recipes/xpyOZhui0zTZIXWd4TPw): fried pomfret, a betel-leaf-shaped fish.
+- [Fried Wontons](https://www.banoscookbook.com/recipes/BiCgdH803NX4A0mfYxEd): crispy fried wontons with a minced chicken filling.
+- [Shahi Tukras](https://www.banoscookbook.com/recipes/N5KENidvz6IJVtUgz6ZQ): fried bread slices soaked in a sweet milk mixture.
+- [Prawns](https://www.banoscookbook.com/recipes/595FrSNi1hqBDY1LhbQZ): stir-fried prawns in a savoury gravy, from a recipe dated March 1981.
+- [Roghan Josh](https://www.banoscookbook.com/recipes/HgvFmXs3x2zLcwYMOlCA): lamb curry with spices, nuts and a yogurt-based sauce.
+- [Bori Samosa](https://www.banoscookbook.com/recipes/Oz3toyGbAduWmJxGcJRR): fried pastry filled with spiced minced meat.
+- [Pecan Pie with gooey Caramel](https://www.banoscookbook.com/recipes/LOaDnC9OV8rmbjp4ZaKL): pecan pie with a creamy filling, served with whipped cream.
+- [Chocolate Layered Cake](https://www.banoscookbook.com/recipes/sGzlKG0aScqozc25XWiG): homemade chocolate cake with a moist crumb.
+- [Potato Cakes](https://www.banoscookbook.com/recipes/LQ8uwa0EKtcoJvWRZJvd): pan-fried cakes made from leftover mashed potatoes.
+- [Pecan Pie](https://www.banoscookbook.com/recipes/p7kdJTR6H5HV4fNqp5bC): pecan pie baked in a pie shell, often topped with whipped cream.
+
+## Site
+
+- [Home](https://www.banoscookbook.com/): the recipe collection, with search and a cuisine filter.
+- [Sitemap](https://www.banoscookbook.com/sitemap.xml)
+- [Robots rules](https://www.banoscookbook.com/robots.txt)
+
+## Legal
+
+- [Privacy policy](https://www.banoscookbook.com/legal/privacy)
+- [Terms of use](https://www.banoscookbook.com/legal/terms)
+- [Cookie policy](https://www.banoscookbook.com/legal/cookies)
+- [Data deletion](https://www.banoscookbook.com/legal/data-deletion)

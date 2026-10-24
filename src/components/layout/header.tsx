@@ -61,6 +61,9 @@ export default function Header() {
             <Button
               variant="ghost"
               size="sm"
+              aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-nav"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -70,7 +73,7 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {isMenuOpen && (
-          <nav className="space-y-2 border-t border-border py-4 md:hidden">
+          <nav id="mobile-nav" className="space-y-2 border-t border-border py-4 md:hidden">
             <Button variant="ghost" asChild className="w-full justify-start">
               <Link href="/" onClick={() => setIsMenuOpen(false)}>
                 Home
