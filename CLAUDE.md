@@ -28,8 +28,8 @@ Default to the session model. For bulk work (batch image tracking, PDF processin
 ## Stack (don't ask)
 
 - **Frontend:** Next.js + TypeScript + Tailwind
-- **Backend:** Firebase (Auth, Firestore, Functions, Hosting)
-- **Deploy:** Vercel for prod
+- **Backend:** Firebase (Auth, Firestore, Storage). `firebase.json` still has `hosting` and `functions` blocks, so give any `firebase deploy` an `--only`.
+- **Deploy:** Vercel for prod (the site is not on Firebase Hosting)
 - **Content pipeline:** PDF → recipe extraction → image generation → video assembly
 - **AI:** Claude for text; Runway ML for video (with documented limitations — see `RUNWAY_ML_LIMITATION.md`); image-gen pipeline under `AI_IMAGE_TESTING_GUIDE.md`
 - **Video:** VideoHub subsystem (see `VIDEOHUB_IMPLEMENTATION_GUIDE.md`); CapCut-assisted editing (`CAPCUT_VIDEO_EDITING_GUIDE.md`)
